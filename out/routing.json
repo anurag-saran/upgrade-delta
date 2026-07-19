@@ -1,0 +1,106 @@
+{
+  "schema": "upgrade-delta/routing/v1",
+  "tool": {
+    "name": "upgrade-delta",
+    "version": "0.1.0"
+  },
+  "date": "2026-07-18",
+  "app": "payments-service-1.0.0.jar",
+  "project_grade": "B",
+  "shrink_allowed": true,
+  "upgrades": [
+    {
+      "library": "acme-http-client",
+      "path": "4.5.13 -> 4.5.14",
+      "lane": "Targeted tests",
+      "grade": "B",
+      "effective_grade": null,
+      "transitive": false,
+      "parent": null,
+      "affected_app_classes": [
+        "com.acme.payments.GatewayClient"
+      ],
+      "affected_app_classes_changed": [],
+      "confidence": {
+        "evidence": "direct",
+        "signed_off": false
+      }
+    },
+    {
+      "library": "acme-codec",
+      "path": "1.11 -> 1.15",
+      "lane": "Targeted tests",
+      "grade": "D",
+      "effective_grade": "B",
+      "transitive": true,
+      "parent": "acme-http-client",
+      "affected_app_classes": [
+        "com.acme.payments.GatewayClient"
+      ],
+      "affected_app_classes_changed": [],
+      "confidence": {
+        "evidence": "two-hop",
+        "signed_off": true
+      }
+    },
+    {
+      "library": "acme-json",
+      "path": "2.13.4 -> 2.13.4.2",
+      "lane": "Targeted tests",
+      "grade": "B",
+      "effective_grade": null,
+      "transitive": false,
+      "parent": null,
+      "affected_app_classes": [
+        "com.acme.payments.GatewayClient"
+      ],
+      "affected_app_classes_changed": [],
+      "confidence": {
+        "evidence": "direct",
+        "signed_off": false
+      }
+    },
+    {
+      "library": "acme-logging",
+      "path": "1.12.1 -> 1.12.2",
+      "lane": "Fast lane",
+      "grade": "A",
+      "effective_grade": null,
+      "transitive": false,
+      "parent": null,
+      "affected_app_classes": [
+        "com.acme.payments.PaymentService"
+      ],
+      "affected_app_classes_changed": [],
+      "confidence": {
+        "evidence": "direct",
+        "signed_off": false
+      }
+    }
+  ],
+  "obligations": [
+    {
+      "id": "boot-test",
+      "stage": "in-scope",
+      "declaration": {
+        "type": "tag",
+        "value": "upgrade-gate"
+      },
+      "min_resolved": 1
+    },
+    {
+      "id": "canary",
+      "stage": "downstream",
+      "note": "deployment-stage activity; a build plugin cannot run or verify this"
+    },
+    {
+      "id": "rollback-path",
+      "stage": "downstream",
+      "note": "verify rollback artifact + procedure before promotion"
+    }
+  ],
+  "blind_spots": [
+    "Reflection/config-driven use invisible to static analysis; compounds across hops.",
+    "Selection strength depends on the consumer-side coverage map, which this payload knows nothing about."
+  ]
+}

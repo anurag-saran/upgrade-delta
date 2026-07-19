@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lightwell delta reports</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet"><style>
+:root{
+  --paper:#EDF1F2; --card:#F7FAFA; --ink:#17272E; --ink-soft:#44565E;
+  --rule:#C7D2D6; --steel:#2C5B7A;
+  --pass:#1E6E52; --watch:#B07414; --stop:#A03A2A;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  --disp:'Saira Condensed',var(--sans);
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.55;padding:40px 16px}
+.sheet{max-width:880px;margin:0 auto;background:var(--card);
+  border:1px solid var(--rule);border-top:6px solid var(--ink);
+  padding:36px 40px 44px;position:relative}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft)}
+h1{font-family:var(--disp);font-weight:600;font-size:34px;line-height:1.1;
+  letter-spacing:.01em;margin:6px 0 2px}
+.vers{font-family:var(--mono);font-size:15px;color:var(--steel);margin-bottom:22px}
+.stamp{position:absolute;top:34px;right:36px;transform:rotate(-6deg);
+  border:3px solid var(--stamp-c);color:var(--stamp-c);border-radius:6px;
+  padding:8px 16px 10px;text-align:center;font-family:var(--disp);
+  text-transform:uppercase;letter-spacing:.08em;background:transparent;
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--stamp-c) 25%,transparent) inset}
+.stamp .g{font-size:44px;font-weight:700;line-height:.95;display:block}
+.stamp .l{font-size:13px;font-weight:600;display:block;margin-top:2px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--rule);border:1px solid var(--rule);margin:18px 0 24px}
+.metric{background:var(--card);padding:12px 14px}
+.metric b{font-family:var(--mono);font-size:22px;display:block}
+.metric span{font-size:12px;color:var(--ink-soft)}
+h2{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:.03em;
+  text-transform:uppercase;border-bottom:1px solid var(--rule);
+  padding-bottom:4px;margin:26px 0 10px}
+ul{padding-left:20px}
+li{margin:4px 0}
+.recipe li{font-family:var(--mono);font-size:13.5px}
+.reason{color:var(--ink-soft)}
+.note{border-left:4px solid var(--watch);background:color-mix(in srgb,var(--watch) 8%,var(--card));
+  padding:10px 14px;margin:12px 0;font-size:14px}
+.blind{border-left:4px solid var(--steel);background:color-mix(in srgb,var(--steel) 7%,var(--card));
+  padding:10px 14px;margin:12px 0;font-size:13.5px;color:var(--ink-soft)}
+details{margin:8px 0}
+summary{cursor:pointer;font-family:var(--mono);font-size:13px;color:var(--steel)}
+code,.m{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.list{columns:1;padding:8px 0 0 4px;list-style:none}
+.footer{margin-top:34px;padding-top:12px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+table{width:100%;border-collapse:collapse;background:var(--card)}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--rule);font-size:14px}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-soft)}
+td a{color:var(--steel)}
+.chip{display:inline-block;font-family:var(--disp);font-weight:700;font-size:18px;
+  border:2px solid var(--c);color:var(--c);border-radius:4px;padding:0 9px;line-height:1.4}
+.lane{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+@media(max-width:640px){.metrics{grid-template-columns:repeat(2,1fr)}
+ .stamp{position:static;transform:none;display:inline-block;margin-bottom:14px}
+ .sheet{padding:24px 18px}}
+@media (prefers-reduced-motion:no-preference){
+ .stamp{animation:ink .5s ease-out}
+ @keyframes ink{from{opacity:0;transform:rotate(-6deg) scale(1.25)}to{opacity:1;transform:rotate(-6deg) scale(1)}}}
+</style></head><body>
+<div class="sheet">
+  <div class="eyebrow">Lightwell · published with every remediated artifact</div>
+  <h1>Delta reports</h1>
+  <p style="max-width:60ch;color:var(--ink-soft)">Every entry answers one question before you
+  upgrade: <b>how much did this artifact actually change, and how much testing does it owe you?</b>
+  Ratings are computed, not asserted — open a report for the full evidence, including what the
+  analysis cannot see.</p>
+  <table style="margin-top:20px"><thead><tr>
+  <th>Library · upgrade</th><th>Stream</th><th>Rating</th><th>Test lane</th><th>Delta</th>
+  </tr></thead><tbody><tr>
+<td><a href="acme-logging-1.14.1-to-1.17.1.html">acme-logging</a><br>
+<span class="lane">1.14.1 → 1.17.1</span></td>
+<td>y-stream</td>
+<td><span class="chip" style="--c:var(--stop)">F</span></td>
+<td>Full regression + migration</td>
+<td class="lane">-4 / +16 API ·
+ 73.3% churn · 4 incompatible</td>
+</tr><tr>
+<td><a href="acme-logging-1.12.1-to-1.12.2.html">acme-logging</a><br>
+<span class="lane">1.12.1 → 1.12.2</span></td>
+<td>z-stream</td>
+<td><span class="chip" style="--c:var(--pass)">A</span></td>
+<td>Fast lane</td>
+<td class="lane">-0 / +0 API ·
+ 6.2% churn · 0 incompatible</td>
+</tr><tr>
+<td><a href="acme-http-client-4.5.13-to-4.5.14.html">acme-http-client</a><br>
+<span class="lane">4.5.13 → 4.5.14</span></td>
+<td>z-stream</td>
+<td><span class="chip" style="--c:var(--watch)">B</span></td>
+<td>Targeted tests</td>
+<td class="lane">-0 / +0 API ·
+ 66.7% churn · 0 incompatible</td>
+</tr><tr>
+<td><a href="acme-json-2.13.4-to-2.13.4.2.html">acme-json</a><br>
+<span class="lane">2.13.4 → 2.13.4.2</span></td>
+<td>z-stream</td>
+<td><span class="chip" style="--c:var(--watch)">B</span></td>
+<td>Targeted tests</td>
+<td class="lane">-0 / +4 API ·
+ 50.0% churn · 0 incompatible</td>
+</tr></tbody></table>
+  <div class="footer"><span>ratings: A fast-lane → F migration required</span>
+  <span>upgrade-delta v0.1.0 · 2026-07-18</span></div>
+</div></body></html>

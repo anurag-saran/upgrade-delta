@@ -1,0 +1,59 @@
+{
+  "collected_at_sha": "abc1234",
+  "build": "#1288",
+  "age_commits": 3,
+  "tests": {
+    "PaymentServiceTest": {
+      "covers": [
+        "com.acme.payments.PaymentService"
+      ]
+    },
+    "RefundFlowTest": {
+      "covers": [
+        "com.acme.payments.PaymentService",
+        "com.acme.payments.Ledger"
+      ]
+    },
+    "GatewayClientTest": {
+      "covers": [
+        "com.acme.payments.GatewayClient"
+      ]
+    },
+    "CheckoutIT": {
+      "covers": [
+        "com.acme.payments.PaymentService",
+        "com.acme.payments.GatewayClient"
+      ]
+    },
+    "LedgerTest": {
+      "covers": [
+        "com.acme.payments.Ledger"
+      ]
+    },
+    "FxRateTest": {
+      "covers": [
+        "com.acme.payments.FxRates"
+      ]
+    },
+    "AuditTrailTest": {
+      "covers": [
+        "com.acme.payments.AuditTrail"
+      ]
+    },
+    "SerializationTest": {
+      "covers": [
+        "com.acme.payments.Dtos"
+      ]
+    },
+    "ContractRoundTripIT": {
+      "covers": [
+        "com.acme.payments.Dtos"
+      ]
+    },
+    "BootSmokeIT": {
+      "covers": [
+        "com.acme.payments.Boot"
+      ]
+    }
+  }
+}

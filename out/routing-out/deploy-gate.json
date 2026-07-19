@@ -1,0 +1,34 @@
+{
+  "schema": "upgrade-delta/deploy-gate/v1",
+  "app": "payments-service-1.0.0.jar",
+  "date": "2026-07-18",
+  "project_grade": "B",
+  "build_stage": {
+    "mode": "TARGETED SELECTION",
+    "tests_final": 7,
+    "suite": 11,
+    "mandatory_verified": [
+      "BootSmokeIT"
+    ]
+  },
+  "signoffs": [
+    {
+      "library": "acme-codec",
+      "signed_off": true,
+      "evidence": "two-hop"
+    }
+  ],
+  "obligations_downstream": [
+    {
+      "id": "canary",
+      "status": "OPEN",
+      "note": "deployment-stage activity; a build plugin cannot run or verify this"
+    },
+    {
+      "id": "rollback-path",
+      "status": "OPEN",
+      "note": "verify rollback artifact + procedure before promotion"
+    }
+  ],
+  "note": "This build did NOT run these obligations. Promotion must close them."
+}

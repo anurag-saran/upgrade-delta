@@ -1,0 +1,41 @@
+name: upgrade-delta scan
+description: Rate pending dependency upgrades, comment the scorecard on the PR, gate on grade.
+inputs:
+  app-jars:        {required: true,  description: "Application jar(s), space-separated"}
+  evidence-dir:    {required: true,  description: "Directory of published delta-report JSONs"}
+  sbom:            {required: false, description: "CycloneDX JSON (enables transitive analysis)"}
+  lib-jars:        {required: false, description: "Resolved dependency jars dir (two-hop reachability)"}
+  fail-on:         {required: false, default: "D"}
+  accept-transitive-scope: {required: false, default: "false", description: "Sign-off flag — a human decision, never a default"}
+  github-token:    {required: true}
+runs:
+  using: composite
+  steps:
+    - name: Scan
+      shell: bash
+      run: |
+        FLAGS=""
+        [ -n "${{ inputs.sbom }}" ] && FLAGS="$FLAGS --sbom ${{ inputs.sbom }}"
+        [ -n "${{ inputs.lib-jars }}" ] && FLAGS="$FLAGS --lib-jars ${{ inputs.lib-jars }}"
+        [ "${{ inputs.accept-transitive-scope }}" = "true" ] && FLAGS="$FLAGS --accept-transitive-scope"
+        python3 ${{ github.action_path }}/../../upgrade_delta.py scan ${{ inputs.app-jars }} \
+          --evidence ${{ inputs.evidence-dir }} $FLAGS \
+          --json scorecard.json --html scorecard.html --fail-on ${{ inputs.fail-on }} \
+          || echo "GATE_FAILED=1" >> "$GITHUB_ENV"
+    - name: Comment on PR
+      if: github.event_name == 'pull_request'
+      shell: bash
+      env: {GH_TOKEN: "${{ inputs.github-token }}"}
+      run: |
+        python3 ${{ github.action_path }}/pr_comment.py scorecard.json pr-comment.md
+        gh pr comment ${{ github.event.pull_request.number }} --body-file pr-comment.md
+    - name: Upload scorecard artifact
+      uses: actions/upload-artifact@v4
+      with: {name: upgrade-delta-scorecard, path: "scorecard.*"}
+    - name: Enforce gate
+      shell: bash
+      run: |
+        if [ "${GATE_FAILED:-0}" = "1" ]; then
+          echo "::error::project grade breached --fail-on ${{ inputs.fail-on }} — see PR comment"
+          exit 1
+        fi

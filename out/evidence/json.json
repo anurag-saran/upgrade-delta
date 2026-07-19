@@ -1,0 +1,115 @@
+{
+  "tool": {
+    "name": "upgrade-delta",
+    "version": "0.1.0"
+  },
+  "date": "2026-07-18",
+  "library": "acme-json",
+  "old_version": "2.13.4",
+  "new_version": "2.13.4.2",
+  "old_jar": "acme-json-2.13.4.jar",
+  "new_jar": "acme-json-2.13.4.2.jar",
+  "app": "payments-service-1.0.0.jar",
+  "stream": "z-stream (patch)",
+  "delta": {
+    "api_removed": [],
+    "api_added": [
+      "com.acme.json.JsonMapper#enableSafeDefaults()Lcom/acme/json/JsonMapper;",
+      "class com.acme.json.SafeTypeValidator",
+      "com.acme.json.SafeTypeValidator#<init>()V",
+      "com.acme.json.SafeTypeValidator#allow(Ljava/lang/String;)Z"
+    ],
+    "api_modified": [],
+    "api_incompatible": [],
+    "classes_common": 2,
+    "classes_impl_changed": [
+      "com/acme/json/JsonMapper"
+    ],
+    "classes_build_noise": [],
+    "impl_churn_pct": 50.0,
+    "res_removed": [],
+    "res_added": [
+      "acme-json-blocklist.txt"
+    ],
+    "res_changed": [],
+    "spi_touched": []
+  },
+  "machine": {
+    "packages": [
+      "com/acme/json",
+      "com/acme/json/internal"
+    ],
+    "api_removed": [],
+    "api_added": [
+      [
+        "com/acme/json/JsonMapper",
+        "enableSafeDefaults",
+        "()Lcom/acme/json/JsonMapper;"
+      ],
+      [
+        "com/acme/json/SafeTypeValidator",
+        null,
+        null
+      ],
+      [
+        "com/acme/json/SafeTypeValidator",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/json/SafeTypeValidator",
+        "allow",
+        "(Ljava/lang/String;)Z"
+      ]
+    ],
+    "api_modified": [],
+    "api_incompatible": [],
+    "classes_impl_changed": [
+      "com/acme/json/JsonMapper"
+    ],
+    "classes_build_noise": [],
+    "classes_common": 2,
+    "impl_churn_pct": 50.0,
+    "res_removed": [],
+    "res_added": [
+      "acme-json-blocklist.txt"
+    ],
+    "res_changed": [],
+    "spi_touched": []
+  },
+  "app_intersection": {
+    "lib_call_sites": 2,
+    "lib_classes_used": [
+      "com.acme.json.JsonMapper"
+    ],
+    "touched_changed": [],
+    "touched_incompatible": [],
+    "touched_impl_changed": [
+      "com.acme.json.JsonMapper"
+    ]
+  },
+  "rating": {
+    "grade": "B",
+    "effective_grade": null,
+    "lane": "Targeted tests",
+    "recipe": [
+      "Smoke test the service",
+      "Contract tests on the packages that call this library",
+      "Re-verify any behavior driven by the changed defaults/resources",
+      "Canary, watch, promote"
+    ],
+    "reasons": [
+      "z-stream (patch) release: intent is a fix, not new function",
+      "4 new public member(s) added",
+      "implementation churn 50.0% \u2014 more rewrite than a minimal fix",
+      "1 bundled default/resource change(s) \u2014 behavior can shift with zero API change",
+      "application reaches 0 changed members directly"
+    ],
+    "scope_note": null
+  },
+  "blind_spots": [
+    "Reflection and config-driven instantiation are invisible to constant-pool analysis.",
+    "Churn is computed on a semantic fingerprint (debug info, constant-pool order, and stack frames stripped); residual cross-compiler noise (e.g. different bridge-method or lambda-name generation) can still over-report \u2014 never under-report.",
+    "A behavior change with zero structural fingerprint will not be detected \u2014 this is why the canary and rollback stay in the plan for every grade, including A."
+  ]
+}

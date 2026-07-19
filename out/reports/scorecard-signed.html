@@ -1,0 +1,123 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>payments-service-1.0.0.jar — project delta scorecard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet"><style>
+:root{
+  --paper:#EDF1F2; --card:#F7FAFA; --ink:#17272E; --ink-soft:#44565E;
+  --rule:#C7D2D6; --steel:#2C5B7A;
+  --pass:#1E6E52; --watch:#B07414; --stop:#A03A2A;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  --disp:'Saira Condensed',var(--sans);
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.55;padding:40px 16px}
+.sheet{max-width:880px;margin:0 auto;background:var(--card);
+  border:1px solid var(--rule);border-top:6px solid var(--ink);
+  padding:36px 40px 44px;position:relative}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-soft)}
+h1{font-family:var(--disp);font-weight:600;font-size:34px;line-height:1.1;
+  letter-spacing:.01em;margin:6px 0 2px}
+.vers{font-family:var(--mono);font-size:15px;color:var(--steel);margin-bottom:22px}
+.stamp{position:absolute;top:34px;right:36px;transform:rotate(-6deg);
+  border:3px solid var(--stamp-c);color:var(--stamp-c);border-radius:6px;
+  padding:8px 16px 10px;text-align:center;font-family:var(--disp);
+  text-transform:uppercase;letter-spacing:.08em;background:transparent;
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--stamp-c) 25%,transparent) inset}
+.stamp .g{font-size:44px;font-weight:700;line-height:.95;display:block}
+.stamp .l{font-size:13px;font-weight:600;display:block;margin-top:2px}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--rule);border:1px solid var(--rule);margin:18px 0 24px}
+.metric{background:var(--card);padding:12px 14px}
+.metric b{font-family:var(--mono);font-size:22px;display:block}
+.metric span{font-size:12px;color:var(--ink-soft)}
+h2{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:.03em;
+  text-transform:uppercase;border-bottom:1px solid var(--rule);
+  padding-bottom:4px;margin:26px 0 10px}
+ul{padding-left:20px}
+li{margin:4px 0}
+.recipe li{font-family:var(--mono);font-size:13.5px}
+.reason{color:var(--ink-soft)}
+.note{border-left:4px solid var(--watch);background:color-mix(in srgb,var(--watch) 8%,var(--card));
+  padding:10px 14px;margin:12px 0;font-size:14px}
+.blind{border-left:4px solid var(--steel);background:color-mix(in srgb,var(--steel) 7%,var(--card));
+  padding:10px 14px;margin:12px 0;font-size:13.5px;color:var(--ink-soft)}
+details{margin:8px 0}
+summary{cursor:pointer;font-family:var(--mono);font-size:13px;color:var(--steel)}
+code,.m{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.list{columns:1;padding:8px 0 0 4px;list-style:none}
+.footer{margin-top:34px;padding-top:12px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+table{width:100%;border-collapse:collapse;background:var(--card)}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--rule);font-size:14px}
+th{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-soft)}
+td a{color:var(--steel)}
+.chip{display:inline-block;font-family:var(--disp);font-weight:700;font-size:18px;
+  border:2px solid var(--c);color:var(--c);border-radius:4px;padding:0 9px;line-height:1.4}
+.lane{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+@media(max-width:640px){.metrics{grid-template-columns:repeat(2,1fr)}
+ .stamp{position:static;transform:none;display:inline-block;margin-bottom:14px}
+ .sheet{padding:24px 18px}}
+@media (prefers-reduced-motion:no-preference){
+ .stamp{animation:ink .5s ease-out}
+ @keyframes ink{from{opacity:0;transform:rotate(-6deg) scale(1.25)}to{opacity:1;transform:rotate(-6deg) scale(1)}}}
+
+.bar-row{display:grid;grid-template-columns:200px 1fr 30px;gap:10px;align-items:center;margin:6px 0}
+.bar-label{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.bar{background:color-mix(in srgb,var(--rule) 55%,transparent);height:14px;display:block}
+.bar{display:flex}
+.bar i{display:block;height:100%;background:var(--steel)}
+.bar i.t{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}
+tr.sub td{background:color-mix(in srgb,var(--rule) 22%,var(--card))}
+tr.sub td:first-child{padding-left:28px}
+.bar-n{font-family:var(--mono);font-size:13px;text-align:right}
+</style></head><body>
+<div class="sheet" style="--stamp-c:var(--watch)">
+  <div class="stamp"><span class="g">B</span><span class="l">project</span></div>
+  <div class="eyebrow">Lightwell delta scan · project scorecard</div>
+  <h1>payments-service-1.0.0.jar</h1>
+  <div class="vers">4 rated dependencies · 1 unrated package roots</div>
+  <p style="max-width:62ch;color:var(--ink-soft)">The headline is the <b>worst pending grade across
+  the best available remediation path per library</b> — never an average. One migration-grade
+  dependency makes this a migration-grade project, no matter how clean the rest is.</p>
+  <div class="note">Without the best available remediation paths this project scores <span class="chip" style="--c:var(--stop)">F</span> — the gap between the two numbers is what a maintained backport is worth, measured.</div>
+  <h2>Test-effort budget to get current</h2><div class="bar-row"><span class="bar-label">Fast lane</span><span class="bar"><i style="width:25%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label">Targeted tests</span><span class="bar"><i style="width:50%"></i><i class="t" style="width:25%"></i></span><span class="bar-n">3 (1t)</span></div><div class="bar-row"><span class="bar-label"></span><span class="lane" style="grid-column:2/4">solid = direct · hatched = transitive (counted at full weight — risk does not roll up)</span></div>
+  <h2>Dependencies</h2>
+  <table><thead><tr><th>Library · exposure</th><th>Remediation paths (best first)</th></tr></thead>
+  <tbody><tr><td><b>acme-http-client</b><br>
+<span class="lane">2 direct call sites · touches 0 changed / 0 incompatible on best path</span></td>
+<td><div><span class="chip" style="--c:var(--watch)">B</span> <span class="m">4.5.13 → 4.5.14</span><span class="lane"> · Targeted tests</span></div></td></tr><tr class="sub"><td><span class="lane">↳ transitive</span> <b>acme-codec</b><br>
+<span class="lane">brought in by acme-http-client · fix lever: bump acme-http-client or pin an override<br>
+4 parent methods in reachability closure
+(class-granular: 3 classes) ·
+touches 0 changed / 0 incompatible through your paths</span><br><span class="lane">e.g. com.acme.http.internal.Retry → <span class="m">com.acme.codec.Base64Codec#&lt;init&gt;()V</span></span>
+<br><span class='lane'>precision: class-level analysis would have flagged 1 member(s) — method-level shows those paths are unreached</span></td>
+<td><div><span class="chip" style="--c:var(--watch)">D → B</span> <span class="m">1.11 → 1.15</span><span class="lane"> · Targeted tests</span></div><div class="note" style="margin:8px 0 0">De-escalated with sign-off: no changed member is reachable through the app&#x27;s call paths into the parent. Two-hop evidence — reflection blindness compounds across hops, so the canary is not optional.</div></td></tr><tr><td><b>acme-json</b><br>
+<span class="lane">2 direct call sites · touches 0 changed / 0 incompatible on best path</span></td>
+<td><div><span class="chip" style="--c:var(--watch)">B</span> <span class="m">2.13.4 → 2.13.4.2</span><span class="lane"> · Targeted tests</span></div></td></tr><tr><td><b>acme-logging</b><br>
+<span class="lane">5 direct call sites · touches 0 changed / 0 incompatible on best path</span></td>
+<td><div><span class="chip" style="--c:var(--pass)">A</span> <span class="m">1.12.1 → 1.12.2</span><span class="lane"> · Fast lane ←</span><span class="lane"> · stream switch from 1.14.1</span></div><div><span class="chip" style="--c:var(--stop)">F</span> <span class="m">1.14.1 → 1.17.1</span><span class="lane"> · Full regression + migration</span></div></td></tr></tbody></table>
+  
+  <h2>Config &amp; reflection heuristics</h2>
+<p style="color:var(--ink-soft)">FQCNs of rated libraries found in resources and string
+constants — the cheap slice of the reflection blind spot, made visible instead of disclaimed.</p>
+<ul><li><span class="chip" style="--c:var(--steel)">info</span> <span class="m">com.acme.logging.appenders.ConsoleAppender</span> <span class="lane">(acme-logging, path 1.12.1 -&gt; 1.12.2) found in resource:app-config.properties</span></li></ul>
+  <h2>Not rated — visible whitespace</h2>
+<p style="color:var(--ink-soft)">The application calls into these third-party packages, and no
+delta report covers them. Every entry here is an upgrade you would be testing blind today.</p>
+<ul class="list"><li class="m">com.acme.xml</li></ul>
+  <h2>What this scan cannot see</h2>
+  <div class="blind"><ul>
+    <li>Reflection and config-driven use of a library will not appear as call sites — and this
+    blindness compounds across hops, so transitive reachability evidence carries lower confidence
+    than direct analysis. De-escalating a transitive always requires explicit sign-off.</li>
+    <li>Ratings come from published, app-agnostic delta reports; only the intersection ran here — your code never left this machine.</li>
+    <li>A behavior change with no structural fingerprint is invisible; canary and rollback stay in every lane.</li>
+  </ul></div>
+  <div class="footer"><span>gate suggestion: fail CI when project grade ≥ D</span>
+  <span>upgrade-delta v0.1.0 · 2026-07-18</span></div>
+</div></body></html>

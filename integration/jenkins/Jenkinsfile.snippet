@@ -1,0 +1,13 @@
+// Declarative-pipeline stage: scan on every Renovate/Dependabot PR branch
+stage('upgrade-delta') {
+  steps {
+    sh '''
+      python3 tools/upgrade-delta/upgrade_delta.py scan target/*.jar \
+        --evidence "$EVIDENCE_DIR" --sbom target/bom.json --lib-jars target/dependency \
+        --json scorecard.json --html scorecard.html --fail-on D
+      python3 tools/upgrade-delta/upgrade_delta.py verify scorecard.json \
+        --pub "$EVIDENCE_PUBKEY" || true   # verify publisher evidence; scorecard sealed post-approval
+    '''
+    archiveArtifacts artifacts: 'scorecard.*', fingerprint: true
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "tool": {
+    "name": "upgrade-delta",
+    "version": "0.1.0"
+  },
+  "date": "2026-07-18",
+  "library": "acme-codec",
+  "old_version": "1.11",
+  "new_version": "1.15",
+  "old_jar": "acme-codec-1.11.jar",
+  "new_jar": "acme-codec-1.15.jar",
+  "app": null,
+  "stream": "y-stream (minor)",
+  "delta": {
+    "api_removed": [
+      "class com.acme.codec.Hex",
+      "com.acme.codec.Hex#<init>()V",
+      "com.acme.codec.Hex#encode([B)Ljava/lang/String;"
+    ],
+    "api_added": [
+      "class com.acme.codec.CodecPolicy",
+      "com.acme.codec.CodecPolicy#<init>()V",
+      "com.acme.codec.CodecPolicy#strict()Z",
+      "com.acme.codec.internal.Pad#block()I"
+    ],
+    "api_modified": [],
+    "api_incompatible": [
+      "class com.acme.codec.Hex",
+      "com.acme.codec.Hex#<init>()V",
+      "com.acme.codec.Hex#encode([B)Ljava/lang/String;"
+    ],
+    "classes_common": 2,
+    "classes_impl_changed": [
+      "com/acme/codec/internal/Pad"
+    ],
+    "classes_build_noise": [],
+    "impl_churn_pct": 50.0,
+    "res_removed": [],
+    "res_added": [],
+    "res_changed": [],
+    "spi_touched": []
+  },
+  "machine": {
+    "packages": [
+      "com/acme/codec",
+      "com/acme/codec/internal"
+    ],
+    "api_removed": [
+      [
+        "com/acme/codec/Hex",
+        null,
+        null
+      ],
+      [
+        "com/acme/codec/Hex",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/codec/Hex",
+        "encode",
+        "([B)Ljava/lang/String;"
+      ]
+    ],
+    "api_added": [
+      [
+        "com/acme/codec/CodecPolicy",
+        null,
+        null
+      ],
+      [
+        "com/acme/codec/CodecPolicy",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/codec/CodecPolicy",
+        "strict",
+        "()Z"
+      ],
+      [
+        "com/acme/codec/internal/Pad",
+        "block",
+        "()I"
+      ]
+    ],
+    "api_modified": [],
+    "api_incompatible": [
+      [
+        "com/acme/codec/Hex",
+        null,
+        null
+      ],
+      [
+        "com/acme/codec/Hex",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/codec/Hex",
+        "encode",
+        "([B)Ljava/lang/String;"
+      ]
+    ],
+    "classes_impl_changed": [
+      "com/acme/codec/internal/Pad"
+    ],
+    "classes_build_noise": [],
+    "classes_common": 2,
+    "impl_churn_pct": 50.0,
+    "res_removed": [],
+    "res_added": [],
+    "res_changed": [],
+    "spi_touched": []
+  },
+  "app_intersection": null,
+  "rating": {
+    "grade": "D",
+    "effective_grade": null,
+    "lane": "Full regression",
+    "recipe": [
+      "Full regression suite",
+      "Production-like boot test",
+      "Integration tests on every path that reaches this library",
+      "Canary, watch, promote"
+    ],
+    "reasons": [
+      "y-stream (minor): assumed to carry new functionality",
+      "3 binary-incompatible change(s)"
+    ],
+    "scope_note": null
+  },
+  "blind_spots": [
+    "Reflection and config-driven instantiation are invisible to constant-pool analysis.",
+    "Churn is computed on a semantic fingerprint (debug info, constant-pool order, and stack frames stripped); residual cross-compiler noise (e.g. different bridge-method or lambda-name generation) can still over-report \u2014 never under-report.",
+    "A behavior change with zero structural fingerprint will not be detected \u2014 this is why the canary and rollback stay in the plan for every grade, including A."
+  ]
+}

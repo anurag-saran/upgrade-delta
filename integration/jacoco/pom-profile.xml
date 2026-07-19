@@ -1,0 +1,41 @@
+<!-- Per-test-class JaCoCo collection: add this profile to the customer's pom.
+     Produces one .exec per test class in target/jacoco-per-test/, which
+     jacoco2coverage.py converts into the router's coverage.json.
+
+     Mechanism: Surefire forks once per test class (forkCount=1, reuseForks=false)
+     and the JaCoCo agent writes a destfile named after the executing class via
+     the surefire.forkNumber + a listener-provided name; the simplest portable
+     variant below names files by fork and pairs them with Surefire's
+     TESTHASH report to map fork -> test class (see README.md). Runs on the
+     customer's schedule (e.g. nightly), NOT on every build. -->
+<profile>
+  <id>per-test-coverage</id>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.12</version>
+        <executions>
+          <execution>
+            <id>agent-per-test</id>
+            <goals><goal>prepare-agent</goal></goals>
+            <configuration>
+              <destFile>${project.build.directory}/jacoco-per-test/fork-${surefire.forkNumber}.exec</destFile>
+              <append>false</append>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <forkCount>1</forkCount>
+          <reuseForks>false</reuseForks> <!-- fresh JVM + fresh probes per test class -->
+          <argLine>@{argLine}</argLine>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</profile>
