@@ -3,6 +3,18 @@
 **How much testing does this dependency upgrade actually owe you — and can you prove
 that number to your change board?**
 
+## Quick start on OpenShift
+
+Run the interactive setup — it prints the full credential list, then prompts for each and
+stores them (cluster Secrets + a local `.env.local`):
+
+```bash
+./setup-openshift.sh
+```
+
+Then follow the "remaining setup" steps it prints (enable PaC, apply the gate + tasks,
+`opc pac bootstrap`, open a PR). Credential reference: `CREDENTIALS.md`.
+
 ## Real app on Red Hat Lightwell + OpenShift PR pipeline
 
 `sample-app/` is a **real Spring Boot service** whose every dependency is a genuine

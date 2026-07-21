@@ -1,0 +1,60 @@
+# Version-independent CAB approval gate — works on ANY OpenShift Pipelines version,
+# no manual-approval-gate operator feature required.
+#
+# Mechanism: the pipeline runs build+analyze, then this task WAITS by polling for a
+# ConfigMap that a human creates to signal approval. The run pauses (the pod blocks)
+# until the approver runs:
+#     oc create configmap upgrade-delta-approved -n upgrade-delta-demo
+# To reject, just let it time out (or delete the run).
+#
+# This trades the native ApprovalTask UX for total version-portability. When you move to
+# Pipelines 1.16+, swap this for approval-gate.yaml (the real ApprovalTask).
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: cab-approval-manual
+  namespace: upgrade-delta-demo
+spec:
+  description: >-
+    Change Advisory Board gate that pauses the run until a human signals approval by
+    creating the 'upgrade-delta-approved' ConfigMap. The approver reviews the scorecard
+    (grade/coverage/tests, echoed here) before approving. Works on any Pipelines version.
+  params:
+    - name: project-grade
+      type: string
+    - name: coverage-pct
+      type: string
+    - name: tests-selected
+      type: string
+    - name: timeout-seconds
+      type: string
+      default: "1800"   # 30 min to approve, then the step fails (= rejected)
+  steps:
+    - name: wait-for-approval
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        echo "=================================================="
+        echo " CAB APPROVAL REQUIRED — review before approving"
+        echo "=================================================="
+        echo " Project grade : $(params.project-grade)"
+        echo " Coverage      : $(params.coverage-pct)% drop-in ready"
+        echo " Tests selected: $(params.tests-selected)"
+        echo "=================================================="
+        echo " To APPROVE, run in another terminal:"
+        echo "   oc create configmap upgrade-delta-approved -n upgrade-delta-demo"
+        echo " To REJECT, do nothing — this gate fails after $(params.timeout-seconds)s."
+        echo "=================================================="
+        elapsed=0
+        interval=10
+        while ! oc get configmap upgrade-delta-approved -n upgrade-delta-demo >/dev/null 2>&1; do
+          if [ "$elapsed" -ge "$(params.timeout-seconds)" ]; then
+            echo "REJECTED: no approval within $(params.timeout-seconds)s."
+            exit 1
+          fi
+          echo "  ...waiting for approval (${elapsed}s elapsed)"
+          sleep "$interval"; elapsed=$((elapsed + interval))
+        done
+        echo "APPROVED — CAB approval received. Cleaning up the signal ConfigMap."
+        oc delete configmap upgrade-delta-approved -n upgrade-delta-demo >/dev/null 2>&1 || true

@@ -1,5 +1,21 @@
 # Credentials checklist — everything the OpenShift + Lightwell + RHTAS demo needs
 
+## Note: Podman, not Docker
+
+This laptop uses **Podman** (Red Hat), not Docker. That is fine everywhere here:
+
+- `oc create secret docker-registry` is an **oc subcommand**, not the docker CLI. "docker-registry"
+  is just the Kubernetes secret *type* (`dockerconfigjson`) — it works with Podman or no container
+  tool at all. Every such command below runs as-is.
+- To **verify** registry access locally, use Podman:
+  ```bash
+  podman login registry.redhat.io --username 'NNNNNNN|name' --password 'TOKEN'
+  podman pull registry.redhat.io/rhtas/cosign-rhel9:1.3.5
+  ```
+  (Apple Silicon Macs: these Red Hat images are amd64; expect a "platform" warning locally.
+   Irrelevant on the cluster, whose nodes are amd64.)
+
+
 Gather these before running. **Use tokens/service accounts, never account passwords.**
 Nothing here goes into a file you commit — create secrets on the cluster with `oc`.
 
@@ -18,8 +34,8 @@ oc create secret generic lightwell-maven-settings \
 ```
 Local scripts (`lightwell-report.sh`, `fetch-lightwell-app-jars.sh`):
 ```bash
-export RHLN_USER='5318211|lightwell-demo-acct'
-export RHLN_TOKEN='eyJhbGciOiJSUzUxMiJ9.eyJzdWIiOiIyNWM5MzZjNDk3ZDI0ZTI0YWM3ZWIzMmFmNzcwZjBjZiJ9.tHgZdyNLzp9QkJ4WI2t7ZSKFUhjySkIEy_plxUICRrhf8YDvRTh751nOOipkHDixjfJOII7cTxzD-IvaSs_oHR7msk4jJSQ4usVyQxPvWwuKZL4jPiAMr-Kg4EP1laakORaaE8ivrPO1ThgsXV4yY45D7twkP8rgJXAwcHyYnJ9nuO1KieMY2yzWjeMkQHXciyxtNUulf4EqlszpU7UoLujg6SfVNODz61NSOtywC9vxHNPVZiccdx8x9TseGiDjuozAWauDbH4OqY8USsrveoKOK7rH5K2qEaDyQ8cepwr6GlPKTBXfbn1zjN4AAEmAZ3v4qjPOL1L5upPoEcPwVaajyYHvbA9-cPH_9QDDN3LkEmbWtPEwuUumMerFT5jwQPfClNbqMFXs_fkFZIzIrRT428mArMVQwe5SRg4abm8ArN3XAcS8kjQkLdM-uUhJvmuuDAYgacDmoCkbbnBRbbgHzfGW3qsZGJ7rpgoPMi_Z7591U_dpbRfjmIuW5pfk2h96vaZRW4vG-MdoQW9t-4xf_zHpCEmvgvWrfCEYZKnPhAJ1oFfU7C6GwptBB97ew95GvxBXA8YR5DjkOhlbVvnb_vvdxc5Kq07WC_inpFAju3i7XDeEYCvMv5RG2wW8kBGAHbEpClALb1Mw5H54xo5v9qoenqBwkImtJG8Lfkg'
+export RHLN_USER='orgID|service-account-name'
+export RHLN_TOKEN='...'
 ```
 
 ## 2. registry.redhat.io — pull the RHTAS cosign image + operator images
@@ -34,8 +50,8 @@ Cluster secret + link to the pipeline SA:
 ```bash
 oc create secret docker-registry redhat-registry \
   --docker-server=registry.redhat.io \
-  --docker-username='asaran' \
-  --docker-password='eyJhbGciOiJIUzUxMiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICI0NzQzYTkzMC03YmJiLTRkZGQtOTgzMS00ODcxNGRlZDc0YjUifQ.eyJpYXQiOjE3ODQ1OTkwMjIsImp0aSI6ImYxNmJhZjIxLTM3YmEtNDgyNy05ZThlLTFjMTMyNjc1YWU0OSIsImlzcyI6Imh0dHBzOi8vc3NvLnJlZGhhdC5jb20vYXV0aC9yZWFsbXMvcmVkaGF0LWV4dGVybmFsIiwiYXVkIjoiaHR0cHM6Ly9zc28ucmVkaGF0LmNvbS9hdXRoL3JlYWxtcy9yZWRoYXQtZXh0ZXJuYWwiLCJzdWIiOiJmOjUyOGQ3NmZmLWY3MDgtNDNlZC04Y2Q1LWZlMTZmNGZlMGNlNjphc2FyYW4iLCJ0eXAiOiJPZmZsaW5lIiwiYXpwIjoicmhzbS1hcGkiLCJzaWQiOiI3ODBiZDQ3YS1iY2U3LTQyMDAtOGFiOC1jMmZmOTg1YjQ0OWEiLCJzY29wZSI6ImJhc2ljIHJvbGVzIHdlYi1vcmlnaW5zIGNsaWVudF90eXBlLnByZV9rYzI1IG9mZmxpbmVfYWNjZXNzIn0.V74haenoLgWSyftD-hLT9b-ZrHOXoIqv-IctN0UzDzKKUW11sxSNBZ7nFZ-cc0rH9VXqABLfSzxzEpAxgb-50A' -n upgrade-delta-demo
+  --docker-username='NNNNNNN|name' \
+  --docker-password='TOKEN' -n upgrade-delta-demo
 oc secrets link pipeline redhat-registry --for=pull -n upgrade-delta-demo
 ```
 NOTE: this is a **registry** service account (registry.redhat.io), which is *different*

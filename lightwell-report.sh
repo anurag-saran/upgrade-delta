@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+[ -f "$(dirname "$0")/.env.local" ] && . "$(dirname "$0")/.env.local"  # auto-load creds if setup-openshift.sh was run
 # lightwell-report.sh — generate an upgrade-delta report for a Lightwell-remediated library.
 #
 # Usage:

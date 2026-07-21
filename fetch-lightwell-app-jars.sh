@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+[ -f "$(dirname "$0")/.env.local" ] && . "$(dirname "$0")/.env.local"  # auto-load creds if setup-openshift.sh was run
 # Pull the exact Lightwell remediated jars the sample app depends on, so you can build
 # and analyze locally without Maven resolving them. Community versions come from Central;
 # remediated versions come from Lightwell with your credentials.

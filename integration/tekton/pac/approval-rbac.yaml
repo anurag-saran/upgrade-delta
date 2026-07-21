@@ -1,0 +1,25 @@
+# RBAC so the manual approval gate (cab-approval-manual) can poll/delete the approval
+# ConfigMap using the pipeline ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: upgrade-delta-approval
+  namespace: upgrade-delta-demo
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: upgrade-delta-approval
+  namespace: upgrade-delta-demo
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+    namespace: upgrade-delta-demo
+roleRef:
+  kind: Role
+  name: upgrade-delta-approval
+  apiGroup: rbac.authorization.k8s.io

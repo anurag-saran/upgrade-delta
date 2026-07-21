@@ -54,16 +54,35 @@ oc apply -f integration/tekton/pac/approval-gate.yaml
 oc apply -f integration/tekton/pac/repository.yaml
 ```
 
-### 4. Enable the manual-approval gate (required for the real pause)
+### 4. The CAB approval gate — two options by Pipelines version
+
+Check your version:
+```bash
+oc get csv -n openshift-operators | grep -i pipelines
+```
+
+**Pipelines < 1.16 (no manual-approval-gate feature) — use the portable manual gate:**
+```bash
+oc apply -f integration/tekton/pac/approval-rbac.yaml \
+         -f integration/tekton/pac/approval-gate-manual.yaml
+```
+The pipeline (`.tekton/pull-request.yaml`) already references `cab-approval-manual`. The
+run pauses until a human approves by creating a ConfigMap:
+```bash
+oc create configmap upgrade-delta-approved -n upgrade-delta-demo   # = APPROVE
+# (do nothing to reject; the gate times out after 30 min)
+```
+
+**Pipelines >= 1.16 — use the native ApprovalTask (nicer UX):**
 ```bash
 oc patch tektonconfig config --type=merge \
   -p '{"spec":{"pipeline":{"enable-manual-approval-gate":true}}}'
-# verify the CRD appears:
-oc get crd approvaltasks.openshift-pipelines.org
+oc get crd approvaltasks.openshift-pipelines.org      # confirm it appears
+oc apply -f integration/tekton/pac/approval-gate.yaml
 ```
-The pipeline references the `ApprovalTask` named `upgrade-delta-cab` (from
-`approval-gate.yaml`). With the gate enabled, the PipelineRun **genuinely pauses** at the
-`cab-approval` step until a listed approver acts.
+Then swap the `cab-approval` task in `.tekton/pull-request.yaml` from `cab-approval-manual`
+to the ApprovalTask block (commented in `approval-gate.yaml`). Approve with:
+`opc approvaltask approve upgrade-delta-cab -n upgrade-delta-demo`.
 
 ## The flow, per PR
 
@@ -73,9 +92,10 @@ The pipeline references the `ApprovalTask` named `upgrade-delta-cab` (from
 4. A reviewer reads the grade/coverage/tests (shown in the ApprovalTask description and
    the PipelineRun), then approves the paused run:
    ```bash
-   opc approvaltask list -n upgrade-delta-demo          # see pending approvals
+   # portable manual gate (Pipelines <1.16):
+   oc create configmap upgrade-delta-approved -n upgrade-delta-demo    # = approve
+   # native ApprovalTask (Pipelines >=1.16):
    opc approvaltask approve upgrade-delta-cab -n upgrade-delta-demo
-   # or reject:  opc approvaltask reject upgrade-delta-cab -n upgrade-delta-demo
    ```
    (Approvers can also approve from the OpenShift console's Pipelines view.)
 5. On approval the run completes; PaC reports the scorecard status back onto the PR.
