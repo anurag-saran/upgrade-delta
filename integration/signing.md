@@ -1,3 +1,9 @@
+> **On OpenShift, this is Red Hat Trusted Artifact Signer (RHTAS).** The concrete,
+> wired integration — Securesign CR, cosign keyless sign/verify Tasks, and the pipeline
+> steps that seal the CAB-approved scorecard — lives in `integration/tekton/rhtas/`.
+> RHTAS is Red Hat’s supported Sigstore distribution (Fulcio + Rekor + TUF) and replaces
+> the local Ed25519 keys below in production.
+
 # Evidence sealing
 
 Local dev / air-gapped: `upgrade-delta seal <files> --key keys/evidence-signing.pem`

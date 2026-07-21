@@ -18,17 +18,17 @@ spend longer on beats 7 and 8 (method-level precision, fat-jar hazards). Never c
 > listened. Nothing you'll see today asks you to change anything about your build. Fat
 > jars, rebuild-and-redeploy, exactly as you work now.
 >
-> Here's the question we're answering instead. When Log4Shell hit, the rebuild took four
+> Here's the question we're answering instead. When a critical CVE forces an upgrade, the rebuild took four
 > minutes. The six weeks went to the regression run nobody could justify shrinking, and
 > the change board that wouldn't approve until someone could. So: **an upgrade fixes the
 > CVE — how much of your test suite does it actually owe, and can you prove that number
 > to your change board?** Today the honest answer everywhere is 'we don't know, so we run
 > everything.' Let's replace that."
 
-Do not oversell the corpus: say once, plainly, that today's libraries are compiled samples
-mirroring the Log4j shapes, that the same commands run on real Maven Central artifacts,
-and that you'll happily run the real pairs in their environment. Pre-empting this costs
-ten seconds; being caught by it costs the meeting.
+Do not oversell the corpus: say once, plainly, that the opening beats use compiled samples
+mirroring real library shapes. The sample corpus exists because the app-intersection story
+needs an app whose versions we control. For the real, credentialed path, the Spring Boot
+sample-app builds against genuine Lightwell remediated artifacts (jackson-databind et al.).
 
 ## Beat 1 — Setup (1 min)
 
@@ -117,13 +117,15 @@ Three ideas, keep them separated:
 > changed member. That test ran because it's *absent from the map* — unknown means run.
 > That one widened in because it covers code modified since the map was collected. And
 > the boot test appended as mandatory — declared by a tag *in the test source*, resolved
-> at run time, and it would run even if the join selected nothing. 'Seven of eleven,
+> at run time, and it would run even if the join selected nothing. 'Eight of eleven,
 > here's why for each' is what turns a shortcut into a CAB artifact.
 >
 > Then watch a *different process* consume the gate file at deploy time. The build never
 > claims it ran the canary — a build plugin claiming that would be exactly the false
 > assurance we're eliminating. It emits the obligation OPEN; the deployment stage closes
 > it. One unbroken, truthful chain."
+
+**Beat 9 addendum:** after the selection prints, the mini-runner executes the selected tests live (ten methods, green) from the Surefire-native includes file — a labeled stand-in; Surefire consumes the same file in real builds.
 
 ## Beat 10 — Failure modes (2 min) — do not cut this
 

@@ -3,7 +3,7 @@
     "name": "upgrade-delta",
     "version": "0.1.0"
   },
-  "date": "2026-07-18",
+  "date": "2026-07-20",
   "library": "acme-logging",
   "old_version": "1.14.1",
   "new_version": "1.17.1",
@@ -231,7 +231,7 @@
     ]
   },
   "app_intersection": {
-    "lib_call_sites": 5,
+    "lib_call_sites": 6,
     "lib_classes_used": [
       "com.acme.logging.Logger",
       "com.acme.logging.core.LookupResolver",

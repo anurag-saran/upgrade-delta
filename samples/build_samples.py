@@ -13,9 +13,24 @@ classes are byte-identical across versions (honest churn numbers).
 import os, shutil, subprocess, sys, zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-JAVA_HOME = os.environ.get("SAMPLES_JDK", "/home/claude/jdk/usr/lib/jvm/java-21-openjdk-amd64")
-JAVAC = [os.path.join(JAVA_HOME, "bin", "javac")]
-ENV = dict(os.environ, LD_LIBRARY_PATH="/usr/lib/jvm/java-21-openjdk-amd64/lib")
+def _find_javac():
+    """SAMPLES_JDK > JAVA_HOME > javac on PATH. Any JDK 11+ works."""
+    for env in ("SAMPLES_JDK", "JAVA_HOME"):
+        home = os.environ.get(env)
+        if home and os.path.isfile(os.path.join(home, "bin", "javac")):
+            return os.path.join(home, "bin", "javac")
+    import shutil as _sh
+    found = _sh.which("javac")
+    if found:
+        return found
+    sys.exit("javac not found: install a JDK or set JAVA_HOME / SAMPLES_JDK")
+
+JAVAC = [_find_javac()]
+ENV = dict(os.environ)
+# sandbox quirk: an extracted JDK deb needs the system JRE's libjli
+_jli = "/usr/lib/jvm/java-21-openjdk-amd64/lib"
+if "/home/claude/jdk" in JAVAC[0] and os.path.isdir(_jli):
+    ENV["LD_LIBRARY_PATH"] = _jli
 
 def w(root, path, text):
     p = os.path.join(root, path)
@@ -294,13 +309,28 @@ import com.acme.logging.Logger;
 import com.acme.logging.core.LookupResolver;
 import com.acme.logging.core.MessageFormatter;
 public class PaymentService {
-    private static final String APPENDER = "com.acme.logging.appenders.ConsoleAppender";
     private static final Logger LOG = Logger.getLogger("payments");
-    public String process(String order) {
-        LOG.info("processing " + order);
-        // the vulnerable pattern: user-influenced string through the resolver
-        String tag = new LookupResolver().resolve(order);
+    private final Ledger ledger = new Ledger();
+    public String process(String orderId, long amountCents) {
+        if (amountCents <= 0) throw new IllegalArgumentException("amount must be positive");
+        LOG.info("processing " + orderId + " amount=" + amountCents);
+        AppLog.audit("process:" + orderId);
+        // a user-influenced string reaches a lookup/resolver — the injection-prone pattern
+        String tag = new LookupResolver().resolve(orderId);
+        ledger.post(orderId, amountCents);
         return MessageFormatter.format("done " + tag, new Object[0]);
+    }
+}
+""",
+    "com/acme/payments/RefundService.java": """package com.acme.payments;
+import com.acme.logging.Logger;
+public class RefundService {
+    private static final Logger LOG = Logger.getLogger("refunds");
+    private final Ledger ledger = new Ledger();
+    public String refund(String orderId, long amountCents) {
+        LOG.warn("refunding " + orderId);
+        ledger.post(orderId, -amountCents);
+        return "refunded " + orderId;
     }
 }
 """,
@@ -312,6 +342,86 @@ public class GatewayClient {
     public String send(String url, Object payload) {
         String body = XmlUtil.escape(new JsonMapper().write(payload));
         return new HttpClient().execute(url) + " body=" + body;
+    }
+}
+""",
+    "com/acme/payments/AuditTrail.java": """package com.acme.payments;
+import com.acme.logging.core.MessageFormatter;
+import java.util.ArrayList;
+import java.util.List;
+public class AuditTrail {
+    private final List<String> entries = new ArrayList<>();
+    public void record(String who, String action) {
+        entries.add(MessageFormatter.format(who + ":" + action, new Object[0]));
+    }
+    public int size() { return entries.size(); }
+}
+""",
+    "com/acme/payments/Ledger.java": """package com.acme.payments;
+import java.util.LinkedHashMap;
+import java.util.Map;
+public class Ledger {
+    private final Map<String, Long> balances = new LinkedHashMap<>();
+    public void post(String orderId, long deltaCents) {
+        balances.merge(orderId, deltaCents, Long::sum);
+    }
+    public long balance(String orderId) { return balances.getOrDefault(orderId, 0L); }
+}
+""",
+    "com/acme/payments/FxRates.java": """package com.acme.payments;
+public class FxRates {
+    public long convert(long amountCents, String from, String to) {
+        if (from.equals(to)) return amountCents;
+        return Math.round(amountCents * 1.08);   // demo-fixed EUR/USD-ish rate
+    }
+}
+""",
+    "com/acme/payments/Dtos.java": """package com.acme.payments;
+public class Dtos {
+    public record PaymentRequest(String orderId, long amountCents, String currency) {}
+    public static PaymentRequest parse(String orderId, long cents) {
+        return new PaymentRequest(orderId, cents, "USD");
+    }
+}
+""",
+    "com/acme/payments/Metrics.java": """package com.acme.payments;
+import java.util.concurrent.atomic.AtomicLong;
+public class Metrics {
+    private final AtomicLong processed = new AtomicLong();
+    public long increment() { return processed.incrementAndGet(); }
+}
+""",
+    "com/acme/payments/AppLog.java": """package com.acme.payments;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Logger;
+public class AppLog {
+    private static final Logger LOG = Logger.getLogger("payments");
+    private static final List<String> AUDIT = new ArrayList<>();
+    public static void audit(String msg) { AUDIT.add(msg); }
+    public static int auditCount() { return AUDIT.size(); }
+    public static void configureProductionLogging() {
+        LOG.info("production logging configured");
+    }
+}
+""",
+    "com/acme/payments/Boot.java": """package com.acme.payments;
+import java.io.InputStream;
+import java.util.Properties;
+public class Boot {
+    static final String APPENDER = "com.acme.logging.appenders.ConsoleAppender";
+    public static Properties start() throws Exception {
+        Properties cfg = new Properties();
+        try (InputStream in = Boot.class.getResourceAsStream("/app-config.properties")) {
+            if (in != null) cfg.load(in);
+        }
+        // config-driven wiring: invisible to call-graph analysis, visible to the
+        // string-constant heuristic — this is the reflection blind spot, made real
+        Class.forName(cfg.getProperty("appender.class", APPENDER));
+        if ("production".equals(cfg.getProperty("logging.mode"))) {
+            AppLog.configureProductionLogging();
+        }
+        return cfg;
     }
 }
 """,
@@ -390,12 +500,15 @@ def main():
 
     # (c) reactor modules: same app split across two jars
     import zipfile as _zf
-    for mod, pick in (("payments-core", "PaymentService"), ("payments-gateway", "GatewayClient")):
+    for mod, pick in (("payments-core", "CORE"), ("payments-gateway", "GATEWAY")):
         jp = os.path.join(HERE, "jars", f"{mod}-1.0.0.jar")
         with _zf.ZipFile(jp, "w") as z:
             for root, _, fns in os.walk(app_classes):
                 for f in sorted(fns):
-                    if pick in f:
+                    is_gw = ("Gateway" in f or "Dtos" in f)
+                    if (pick == "GATEWAY") != is_gw:
+                        continue
+                    if True:
                         full = os.path.join(root, f)
                         z.writestr(_zf.ZipInfo(os.path.relpath(full, app_classes)),
                                    open(full, "rb").read())
@@ -428,6 +541,73 @@ def main():
                 if info.filename.endswith(".class"):
                     z.writestr(_zf.ZipInfo("shaded/" + info.filename), dz.read(info))
     print("built", uber)
+    # tests jar: stub annotations + mini-runner + the committed test sources
+    TESTING = {
+        "org/junit/jupiter/api/Test.java": """package org.junit.jupiter.api;
+import java.lang.annotation.*;
+@Retention(RetentionPolicy.RUNTIME) @Target(ElementType.METHOD) public @interface Test {}
+""",
+        "org/junit/jupiter/api/Tag.java": """package org.junit.jupiter.api;
+import java.lang.annotation.*;
+@Retention(RetentionPolicy.RUNTIME) @Target({ElementType.TYPE, ElementType.METHOD})
+public @interface Tag { String value(); }
+""",
+        "org/junit/jupiter/api/Assertions.java": """package org.junit.jupiter.api;
+public final class Assertions {
+    public static void assertTrue(boolean c) { if (!c) throw new AssertionError("expected true"); }
+    public static void assertNotNull(Object o) { if (o == null) throw new AssertionError("was null"); }
+    public static void assertEquals(Object a, Object b) { if (!java.util.Objects.equals(a, b)) throw new AssertionError(a + " != " + b); }
+    public static void assertEquals(long a, long b) { if (a != b) throw new AssertionError(a + " != " + b); }
+    public static <T extends Throwable> T assertThrows(Class<T> t, Runnable r) {
+        try { r.run(); } catch (Throwable e) { if (t.isInstance(e)) return t.cast(e); }
+        throw new AssertionError("expected " + t.getSimpleName());
+    }
+    private Assertions() {}
+}
+""",
+        "testing/MiniRunner.java": """package testing;
+import java.nio.file.Files;
+import java.nio.file.Path;
+/** Executes the tests Surefire WOULD run, straight from the router's
+ *  Surefire-native includes file. A labeled stand-in, not a Surefire clone:
+ *  reflection over @Test methods, fail on first assertion per method. */
+public class MiniRunner {
+    public static void main(String[] args) throws Exception {
+        int run = 0, failed = 0;
+        for (String line : Files.readAllLines(Path.of(args[0]))) {
+            line = line.trim();
+            if (line.isEmpty()) continue;
+            String cls = line.replace("**/", "").replace(".java", "");
+            Class<?> c = Class.forName("com.acme.payments." + cls);
+            Object inst = c.getDeclaredConstructor().newInstance();
+            for (var m : c.getDeclaredMethods()) {
+                if (!m.isAnnotationPresent(org.junit.jupiter.api.Test.class)) continue;
+                m.setAccessible(true);
+                run++;
+                try { m.invoke(inst); System.out.println("  PASS " + cls + "." + m.getName()); }
+                catch (Throwable t) {
+                    failed++;
+                    Throwable cause = t.getCause() != null ? t.getCause() : t;
+                    System.out.println("  FAIL " + cls + "." + m.getName() + " -> " + cause);
+                }
+            }
+        }
+        System.out.println("  " + run + " test method(s) executed, " + failed + " failure(s)");
+        if (failed > 0) System.exit(1);
+    }
+}
+""",
+    }
+    tests_src = {}
+    tdir = os.path.join(HERE, "tests")
+    for f in sorted(os.listdir(tdir)):
+        if f.endswith(".java"):
+            tests_src["com/acme/payments/" + f] = open(os.path.join(tdir, f)).read()
+    test_cp = os.pathsep.join([
+        os.path.join(HERE, "jars", "payments-service-1.0.0.jar"), cp])
+    compile_and_jar("payments-tests", "1.0.0", {**TESTING, **tests_src}, {},
+                    classpath=test_cp)
+
     import json as _json
     with open(os.path.join(HERE, "jars", "payments-service.sbom.json"), "w") as f:
         _json.dump(SBOM, f, indent=2)

@@ -1,0 +1,41 @@
+# Red Hat Trusted Artifact Signer — deploys the full Sigstore stack (Fulcio, Rekor,
+# CTlog, Trillian, TUF) on OpenShift. Apply AFTER installing the RHTAS operator from
+# OperatorHub (search "Trusted Artifact Signer"). This is the keyless-signing backend
+# that replaces upgrade-delta's local Ed25519 keys in production.
+apiVersion: rhtas.redhat.com/v1alpha1
+kind: Securesign
+metadata:
+  name: upgrade-delta-signer
+  namespace: upgrade-delta-demo
+  annotations:
+    rhtas.redhat.com/metrics: "true"
+spec:
+  rekor:
+    externalAccess:
+      enabled: true
+    monitoring:
+      enabled: true
+  fulcio:
+    externalAccess:
+      enabled: true
+    config:
+      OIDCIssuers:
+        # keyless signing needs an OIDC issuer. In-cluster, use the OpenShift
+        # ServiceAccount issuer so pipeline pods can sign with their SA token.
+        - issuerURL: https://kubernetes.default.svc
+          clientID: trusted-artifact-signer
+          issuer: https://kubernetes.default.svc
+          type: kubernetes
+    certificate:
+      organizationName: upgrade-delta
+      organizationEmail: security@example.com
+      commonName: fulcio.upgrade-delta
+  ctlog:
+    monitoring:
+      enabled: true
+  tuf:
+    externalAccess:
+      enabled: true
+  trillian:
+    database:
+      create: true

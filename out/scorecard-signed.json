@@ -3,7 +3,7 @@
     "name": "upgrade-delta",
     "version": "0.1.0"
   },
-  "date": "2026-07-18",
+  "date": "2026-07-20",
   "app": "payments-service-1.0.0.jar",
   "libraries": [
     {
@@ -131,159 +131,6 @@
       "transitive": false,
       "parent": null,
       "installed": "4.5.13"
-    },
-    {
-      "library": "acme-codec",
-      "options": [
-        {
-          "old": "1.11",
-          "new": "1.15",
-          "stream": "y-stream (minor)",
-          "rating": {
-            "grade": "D",
-            "effective_grade": "B",
-            "lane": "Targeted tests",
-            "recipe": [
-              "Smoke test the service",
-              "Contract tests on the packages that call this library",
-              "Re-verify any behavior driven by the changed defaults/resources",
-              "Canary, watch, promote"
-            ],
-            "reasons": [
-              "y-stream (minor): assumed to carry new functionality",
-              "3 binary-incompatible change(s)",
-              "application reaches 0 changed members via the parent's call paths"
-            ],
-            "scope_note": "De-escalated with sign-off: no changed member is reachable through the app's call paths into the parent. Two-hop evidence \u2014 reflection blindness compounds across hops, so the canary is not optional."
-          },
-          "ix": {
-            "lib_call_sites": 2,
-            "lib_classes_used": [
-              "com.acme.codec.Base64Codec"
-            ],
-            "touched_changed": [],
-            "touched_incompatible": [],
-            "touched_impl_changed": [],
-            "reachable_parent_classes": 3,
-            "reachable_parent_methods": 4,
-            "granularity": "method",
-            "class_level_would_touch": [
-              "com.acme.codec.Hex#encode([B)Ljava/lang/String;"
-            ],
-            "via": {
-              "com.acme.codec.Base64Codec#<init>()V": "com.acme.http.internal.Retry",
-              "com.acme.codec.Base64Codec#encode([B)Ljava/lang/String;": "com.acme.http.internal.Retry"
-            },
-            "affected_app_classes": [
-              "com.acme.payments.GatewayClient"
-            ],
-            "affected_app_classes_changed": []
-          },
-          "churn": 50.0,
-          "incompatible": 3,
-          "in_place": true
-        }
-      ],
-      "recommended": {
-        "old": "1.11",
-        "new": "1.15",
-        "stream": "y-stream (minor)",
-        "rating": {
-          "grade": "D",
-          "effective_grade": "B",
-          "lane": "Targeted tests",
-          "recipe": [
-            "Smoke test the service",
-            "Contract tests on the packages that call this library",
-            "Re-verify any behavior driven by the changed defaults/resources",
-            "Canary, watch, promote"
-          ],
-          "reasons": [
-            "y-stream (minor): assumed to carry new functionality",
-            "3 binary-incompatible change(s)",
-            "application reaches 0 changed members via the parent's call paths"
-          ],
-          "scope_note": "De-escalated with sign-off: no changed member is reachable through the app's call paths into the parent. Two-hop evidence \u2014 reflection blindness compounds across hops, so the canary is not optional."
-        },
-        "ix": {
-          "lib_call_sites": 2,
-          "lib_classes_used": [
-            "com.acme.codec.Base64Codec"
-          ],
-          "touched_changed": [],
-          "touched_incompatible": [],
-          "touched_impl_changed": [],
-          "reachable_parent_classes": 3,
-          "reachable_parent_methods": 4,
-          "granularity": "method",
-          "class_level_would_touch": [
-            "com.acme.codec.Hex#encode([B)Ljava/lang/String;"
-          ],
-          "via": {
-            "com.acme.codec.Base64Codec#<init>()V": "com.acme.http.internal.Retry",
-            "com.acme.codec.Base64Codec#encode([B)Ljava/lang/String;": "com.acme.http.internal.Retry"
-          },
-          "affected_app_classes": [
-            "com.acme.payments.GatewayClient"
-          ],
-          "affected_app_classes_changed": []
-        },
-        "churn": 50.0,
-        "incompatible": 3,
-        "in_place": true
-      },
-      "worst": {
-        "old": "1.11",
-        "new": "1.15",
-        "stream": "y-stream (minor)",
-        "rating": {
-          "grade": "D",
-          "effective_grade": "B",
-          "lane": "Targeted tests",
-          "recipe": [
-            "Smoke test the service",
-            "Contract tests on the packages that call this library",
-            "Re-verify any behavior driven by the changed defaults/resources",
-            "Canary, watch, promote"
-          ],
-          "reasons": [
-            "y-stream (minor): assumed to carry new functionality",
-            "3 binary-incompatible change(s)",
-            "application reaches 0 changed members via the parent's call paths"
-          ],
-          "scope_note": "De-escalated with sign-off: no changed member is reachable through the app's call paths into the parent. Two-hop evidence \u2014 reflection blindness compounds across hops, so the canary is not optional."
-        },
-        "ix": {
-          "lib_call_sites": 2,
-          "lib_classes_used": [
-            "com.acme.codec.Base64Codec"
-          ],
-          "touched_changed": [],
-          "touched_incompatible": [],
-          "touched_impl_changed": [],
-          "reachable_parent_classes": 3,
-          "reachable_parent_methods": 4,
-          "granularity": "method",
-          "class_level_would_touch": [
-            "com.acme.codec.Hex#encode([B)Ljava/lang/String;"
-          ],
-          "via": {
-            "com.acme.codec.Base64Codec#<init>()V": "com.acme.http.internal.Retry",
-            "com.acme.codec.Base64Codec#encode([B)Ljava/lang/String;": "com.acme.http.internal.Retry"
-          },
-          "affected_app_classes": [
-            "com.acme.payments.GatewayClient"
-          ],
-          "affected_app_classes_changed": []
-        },
-        "churn": 50.0,
-        "incompatible": 3,
-        "in_place": true
-      },
-      "call_sites": 2,
-      "transitive": true,
-      "parent": "acme-http-client",
-      "installed": "1.11"
     },
     {
       "library": "acme-json",
@@ -444,7 +291,7 @@
             "scope_note": null
           },
           "ix": {
-            "lib_call_sites": 5,
+            "lib_call_sites": 6,
             "lib_classes_used": [
               "com.acme.logging.Logger",
               "com.acme.logging.core.LookupResolver",
@@ -456,7 +303,9 @@
               "com.acme.logging.core.LookupResolver"
             ],
             "affected_app_classes": [
-              "com.acme.payments.PaymentService"
+              "com.acme.payments.AuditTrail",
+              "com.acme.payments.PaymentService",
+              "com.acme.payments.RefundService"
             ],
             "affected_app_classes_changed": []
           },
@@ -486,7 +335,7 @@
             "scope_note": null
           },
           "ix": {
-            "lib_call_sites": 5,
+            "lib_call_sites": 6,
             "lib_classes_used": [
               "com.acme.logging.Logger",
               "com.acme.logging.core.LookupResolver",
@@ -508,9 +357,12 @@
               "com.acme.logging.core.MessageFormatter"
             ],
             "affected_app_classes": [
-              "com.acme.payments.PaymentService"
+              "com.acme.payments.AuditTrail",
+              "com.acme.payments.PaymentService",
+              "com.acme.payments.RefundService"
             ],
             "affected_app_classes_changed": [
+              "com.acme.payments.AuditTrail",
               "com.acme.payments.PaymentService"
             ]
           },
@@ -540,7 +392,7 @@
           "scope_note": null
         },
         "ix": {
-          "lib_call_sites": 5,
+          "lib_call_sites": 6,
           "lib_classes_used": [
             "com.acme.logging.Logger",
             "com.acme.logging.core.LookupResolver",
@@ -552,7 +404,9 @@
             "com.acme.logging.core.LookupResolver"
           ],
           "affected_app_classes": [
-            "com.acme.payments.PaymentService"
+            "com.acme.payments.AuditTrail",
+            "com.acme.payments.PaymentService",
+            "com.acme.payments.RefundService"
           ],
           "affected_app_classes_changed": []
         },
@@ -582,7 +436,7 @@
           "scope_note": null
         },
         "ix": {
-          "lib_call_sites": 5,
+          "lib_call_sites": 6,
           "lib_classes_used": [
             "com.acme.logging.Logger",
             "com.acme.logging.core.LookupResolver",
@@ -604,9 +458,12 @@
             "com.acme.logging.core.MessageFormatter"
           ],
           "affected_app_classes": [
-            "com.acme.payments.PaymentService"
+            "com.acme.payments.AuditTrail",
+            "com.acme.payments.PaymentService",
+            "com.acme.payments.RefundService"
           ],
           "affected_app_classes_changed": [
+            "com.acme.payments.AuditTrail",
             "com.acme.payments.PaymentService"
           ]
         },
@@ -614,14 +471,17 @@
         "incompatible": 4,
         "in_place": true
       },
-      "call_sites": 5,
+      "call_sites": 6,
       "transitive": false,
       "parent": null,
       "installed": "1.14.1"
     }
   ],
   "unrated_packages": [
-    "com/acme/xml"
+    "com/acme/xml",
+    "org/apache/logging/log4j",
+    "org/apache/logging/log4j/core/config",
+    "org/apache/logging/log4j/core/lookup"
   ],
   "heuristics": [
     {
@@ -629,7 +489,7 @@
       "fqcn": "com.acme.logging.appenders.ConsoleAppender",
       "found_in": [
         "resource:app-config.properties",
-        "string-constant in com.acme.payments.PaymentService"
+        "string-constant in com.acme.payments.Boot"
       ],
       "intersects_change": false,
       "path": "1.12.1 -> 1.12.2"
@@ -641,12 +501,12 @@
     "headline_grade": "B",
     "headline_note": "worst pending grade across best available remediation paths",
     "worst_without_best_path": "F",
-    "rated_libraries": 4,
-    "unrated_package_roots": 1,
+    "rated_libraries": 3,
+    "unrated_package_roots": 4,
     "lane_histogram": {
       "Targeted tests": {
         "direct": 2,
-        "transitive": 1
+        "transitive": 0
       },
       "Fast lane": {
         "direct": 1,

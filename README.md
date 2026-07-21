@@ -1,36 +1,100 @@
-# upgrade-delta — how much testing does this upgrade actually owe you?
+# upgrade-delta
 
-The pivot from the decoupled-patching demo, built for the customers who said it out loud:
-**"We're not changing our packaging."** Fine. This demo never asks them to. Fat jars
-everywhere, rebuild-and-redeploy as usual. It answers the question they *do* have:
+**How much testing does this dependency upgrade actually owe you — and can you prove
+that number to your change board?**
 
-> This upgrade fixes the CVE. **How much of my test suite do I owe it — and can I prove
-> that number to my change board?**
+## Real app on Red Hat Lightwell + OpenShift PR pipeline
 
-And it turns Lightwell's whole thesis into a measurable fact: publish a **delta report with
-a rating** alongside every remediated artifact, so "our backports change almost nothing"
-stops being a claim and becomes a number anyone can recompute.
+`sample-app/` is a **real Spring Boot service** whose every dependency is a genuine
+Lightwell *remediated* artifact at the exact serviced version (jackson-databind,
+spring-web/webmvc/core, spring-boot, spring-security, commons-io, httpclient, json-smart —
+all `…redhat-NNNNN`). No mock libraries. It calls `ObjectMapper.readValue` and Apache
+HttpClient directly, so upgrade-delta's app-intersection measures against the real rebuilds.
+
+- Build it (needs Lightwell creds): `cd sample-app && cp settings.xml.template settings.xml && mvn -s settings.xml clean package`
+- Pull the raw jars instead: `./fetch-lightwell-app-jars.sh`
+- **OpenShift, PR-triggered, with CAB approval + Sigstore sealing**: every pull request
+  builds the app against Lightwell, runs upgrade-delta, **pauses for a human CAB approval**
+  (`opc approvaltask approve`), then **keyless-signs the approved scorecard against Red Hat
+  Trusted Artifact Signer** (Sigstore: Fulcio + Rekor) and reports back onto the PR.
+  Runbooks: `integration/tekton/pac/README.md` (PR + approval) and
+  `integration/tekton/rhtas/README.md` (Sigstore sealing).
+
+The `samples/` corpus (compiled mini-libraries) still exists for the offline `./demo.sh`
+walkthrough, which needs no credentials or network. The real app is the credentialed,
+production-shaped path; the corpus is the zero-dependency teaching path.
+
+---
+
+When a CVE forces an upgrade, the rebuild takes minutes; the weeks go to the regression
+run nobody can justify shrinking and the approval that waits on proof nobody has.
+upgrade-delta measures how much a library *actually changed*, intersects that change with
+*your* application's bytecode (method-level, locally — your code never leaves your CI),
+turns the result into a rated test lane, routes the exact tests with a printed reason for
+each, and hands explicit open obligations to your deploy gate. Every artifact in the chain
+is machine-readable JSON, and the chain can be cryptographically sealed.
+
+Zero runtime dependencies for the core tool: `upgrade_delta.py` is one Python file that
+parses `.class` files directly — no JVM, no pip installs.
+
+## Quickstart
+
+```bash
+./demo.sh                 # full narrated demo, offline; builds the sample corpus
+                          #   on first run (needs any JDK 11+ on PATH or JAVA_HOME)
+python3 samples/verify_churn.py                       # churn-normalization proofs
+python3 integration/jacoco/jacoco2coverage.py --selftest   # JaCoCo parser round-trip
+python3 upgrade_delta.py coverage \
+    --sbom samples/realworld-springboot-sbom.json \
+    --catalog catalogs/lightwell-remediated-java-sbom.json   # the coverage meter
+```
+
+**The coverage meter** matches an application's CycloneDX SBOM against the real Lightwell
+remediated catalog and buckets every dependency three ways: an exact-version remediated
+build exists (drop-in: same version + `.redhat`/`.rhlw` suffix, no code changes), the
+artifact is serviced at another version (the FSI-tier request path), or uncovered (an
+upgrade tested blind today). Generate your own SBOM with the `cyclonedx-maven-plugin` and
+point `--sbom` at it; `lightwell-report.sh` then produces the full delta report for any
+covered pair.
+
+Browsable without running anything: see `examples/` and `docs/`.
+
+## Repository layout
+
+```
+upgrade_delta.py        the tool: analyze | publish | scan | seal | verify
+test_router.py          consumer-side test router (executable spec for the Maven plugin)
+demo.sh                 narrated end-to-end demo, incl. the deliberate failure modes
+mock-cd-gate.sh         deploy-stage consumer of deploy-gate.json
+samples/                sample corpus generator + test sources + coverage maps
+catalogs/               the real Lightwell remediated-catalog SBOM (drives `coverage`)
+integration/            jacoco converter · GitHub Action · Jenkins · Tekton/OpenShift
+                        Pipelines (demo runbook) · Maven-plugin scaffold · signing notes
+docs/                   user guide · design decisions · competitive comparison ·
+                        presenter demo script · original pivot doc · the deck (pptx)
+examples/               committed, sealed sample outputs (see examples/README.md)
+```
+
+Generated directories (`out/`, `samples/jars/`, `real-jars/`) are gitignored and
+reproduced by `demo.sh`. Private signing keys are gitignored; never commit a `.pem`.
 
 ## Documentation
 
-`docs/USER-GUIDE.md` — concepts, command reference, workflows, exit codes, limitations.
-`docs/DESIGN-DECISIONS.md` — every major decision with its rationale and honest costs.
-`docs/COMPARISON.md` — the competitive landscape (Endor Labs, Develocity PTS, Launchable,
-SCA incumbents) and the one claim to defend in a bake-off.
-`docs/DEMO-SCRIPT.md` — the presenter's talk track, beat by beat, with objection handling.
+| Doc | What it covers |
+|---|---|
+| `docs/USER-GUIDE.md` | Concepts, command reference, workflows, exit codes, limitations |
+| `docs/DESIGN-DECISIONS.md` | Thirteen decisions with rationale and honest costs |
+| `docs/COMPARISON.md` | Endor Labs, Develocity PTS, Launchable, SCA incumbents — and the unoccupied seam |
+| `docs/DEMO-SCRIPT.md` | Presenter talk track, timings, objection handling |
+| `docs/PIVOT-upgrade-delta-to-test-scope.md` | Where this came from and why |
+| `docs/deck/upgrade-delta-deck.pptx` | The customer deck (Red Hat Lightwell template) |
 
-## What's here
+## Status & scope
 
-```
-upgrade_delta.py        The tool. Pure Python, zero dependencies, no JVM needed.
-                        Parses .class files straight out of the jars.
-demo.sh                 The narrated 10-minute demo (same style as the old repo's scripts).
-samples/                3 mini-libraries in several versions + a fat-jar consumer app,
-                        compiled with real javac so every diff is real bytecode.
-fetch-real-log4j.sh     Same analysis on the real log4j-core pairs (needs Maven Central).
-out/evidence/*.json     Machine-readable evidence, one file per analyzed upgrade.
-out/reports/            The published catalog: index.html + one report card per upgrade.
-```
+Verified prototype, JVM ecosystem. All pipeline stages run end-to-end against the sample
+corpus with their failure modes demonstrated; the Maven plugin is an honest scaffold
+(`test_router.py` is its executable behavior spec). Internal Red Hat material — do not
+distribute externally; licensing to be settled before any external release.
 
 ## What the tool measures (per upgrade)
 
@@ -48,7 +112,7 @@ out/reports/            The published catalog: index.html + one report card per 
    to the raw hash, so the fingerprint can over-report but never under-report. Reports show
    the excluded build-noise count alongside the churn figure.
 3. **Behavior surface** — bundled defaults/resources and `META-INF/services` SPI entries
-   that changed. Catches the Log4Shell class of change: zero API movement, big behavior shift.
+   that changed. Catches the deserialization/config class of change: zero API movement, big behavior shift.
 4. **Stream class** — z / y / x (patch / minor / major), the prior on intent.
 5. **Your app, specifically** — walks the application's own constant pools and intersects
    its call sites with the changed-member set: *"this library changed 214 members;
@@ -82,7 +146,6 @@ python3 upgrade_delta.py analyze old.jar new.jar --app yourapp.jar \
 python3 upgrade_delta.py publish evidence/*.json --out site/
 python3 upgrade_delta.py scan yourapp.jar --evidence evidence/ \
     --html scorecard.html --json scorecard.json --fail-on D   # CI gate
-./fetch-real-log4j.sh              # the real 2.14.1→2.17.1 and 2.12.1→2.12.2 pairs
 ```
 
 ## The project scorecard (`scan`)

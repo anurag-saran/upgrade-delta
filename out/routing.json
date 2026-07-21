@@ -4,7 +4,7 @@
     "name": "upgrade-delta",
     "version": "0.1.0"
   },
-  "date": "2026-07-18",
+  "date": "2026-07-20",
   "app": "payments-service-1.0.0.jar",
   "project_grade": "B",
   "shrink_allowed": true,
@@ -24,23 +24,6 @@
       "confidence": {
         "evidence": "direct",
         "signed_off": false
-      }
-    },
-    {
-      "library": "acme-codec",
-      "path": "1.11 -> 1.15",
-      "lane": "Targeted tests",
-      "grade": "D",
-      "effective_grade": "B",
-      "transitive": true,
-      "parent": "acme-http-client",
-      "affected_app_classes": [
-        "com.acme.payments.GatewayClient"
-      ],
-      "affected_app_classes_changed": [],
-      "confidence": {
-        "evidence": "two-hop",
-        "signed_off": true
       }
     },
     {
@@ -69,7 +52,9 @@
       "transitive": false,
       "parent": null,
       "affected_app_classes": [
-        "com.acme.payments.PaymentService"
+        "com.acme.payments.AuditTrail",
+        "com.acme.payments.PaymentService",
+        "com.acme.payments.RefundService"
       ],
       "affected_app_classes_changed": [],
       "confidence": {

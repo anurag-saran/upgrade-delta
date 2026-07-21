@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copy to ~/.m2/settings.xml (or pass with -s settings.xml) and fill in your
+     console.redhat.com service account. The username is 'orgID|service-account-name'
+     and the password is your token. -->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+  <servers>
+    <server>
+      <id>lightwell-remediated</id>
+      <username>YOUR_ORG_ID|your-service-account</username>
+      <password>YOUR_TOKEN</password>
+    </server>
+  </servers>
+</settings>

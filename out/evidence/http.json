@@ -3,7 +3,7 @@
     "name": "upgrade-delta",
     "version": "0.1.0"
   },
-  "date": "2026-07-18",
+  "date": "2026-07-20",
   "library": "acme-http-client",
   "old_version": "4.5.13",
   "new_version": "4.5.14",

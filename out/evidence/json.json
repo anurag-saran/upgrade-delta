@@ -3,7 +3,7 @@
     "name": "upgrade-delta",
     "version": "0.1.0"
   },
-  "date": "2026-07-18",
+  "date": "2026-07-20",
   "library": "acme-json",
   "old_version": "2.13.4",
   "new_version": "2.13.4.2",

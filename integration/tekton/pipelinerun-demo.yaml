@@ -1,0 +1,15 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: upgrade-delta-demo-
+spec:
+  pipelineRef: {name: upgrade-delta-demo}
+  params:
+    - name: git-url
+      value: https://github.com/YOUR_ORG/upgrade-delta.git   # <-- your repo
+  workspaces:
+    - name: source
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources: {requests: {storage: 1Gi}}

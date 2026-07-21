@@ -64,49 +64,78 @@ td a{color:var(--steel)}
 @media (prefers-reduced-motion:no-preference){
  .stamp{animation:ink .5s ease-out}
  @keyframes ink{from{opacity:0;transform:rotate(-6deg) scale(1.25)}to{opacity:1;transform:rotate(-6deg) scale(1)}}}
+
+.idx-sub{max-width:66ch;color:var(--ink-soft);font-size:14px;line-height:1.55;margin:2px 0 24px}
+.scale{background:#fafafa;border:1px solid var(--line,#e8e8e8);border-radius:10px;
+  padding:16px 18px;margin:0 0 26px}
+.scale-h{font:600 11px/1 var(--head,inherit);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-soft);margin:0 0 13px}
+.sc-row{display:flex;align-items:baseline;gap:12px;padding:5px 0}
+.sc-lane{font-weight:600;font-size:13px;color:var(--ink);min-width:150px}
+.sc-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.4}
+.chip.sm{min-width:24px;height:24px;font-size:13px;flex:none}
+table.idx{width:100%;border-collapse:collapse}
+table.idx th{text-align:left;font:600 10.5px/1 var(--head,inherit);letter-spacing:.05em;
+  text-transform:uppercase;color:var(--ink-soft);padding:0 14px 9px;border-bottom:2px solid var(--ink,#333)}
+table.idx td{padding:13px 14px;border-bottom:1px solid var(--line,#eee);vertical-align:top}
+table.idx tr:last-child td{border-bottom:none}
+td.lib a{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;
+  font-weight:600;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line,#ddd)}
+td.lib a:hover{border-bottom-color:var(--ink)}
+td.lib .upg{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;
+  color:var(--ink-soft);margin-top:4px}
+td.lib .to{color:var(--ink-soft)}
+.stream{font-size:11px;color:var(--ink-soft);background:#f0f0f0;border-radius:4px;padding:3px 7px;white-space:nowrap}
+td.lane-cell{font-size:13px;color:var(--ink);white-space:nowrap}
+td.delta{font-size:12px;color:var(--ink-soft);line-height:1.7}
+td.delta .d-sep{margin:0 7px;color:#ccc}
+td.delta .d-churn{font-variant-numeric:tabular-nums}
 </style></head><body>
 <div class="sheet">
   <div class="eyebrow">Lightwell · published with every remediated artifact</div>
   <h1>Delta reports</h1>
-  <p style="max-width:60ch;color:var(--ink-soft)">Every entry answers one question before you
-  upgrade: <b>how much did this artifact actually change, and how much testing does it owe you?</b>
-  Ratings are computed, not asserted — open a report for the full evidence, including what the
-  analysis cannot see.</p>
-  <table style="margin-top:20px"><thead><tr>
-  <th>Library · upgrade</th><th>Stream</th><th>Rating</th><th>Test lane</th><th>Delta</th>
+  <p class="idx-sub">One row per remediated artifact. Each answers a single question
+  <b>before you upgrade</b>: how much did this artifact actually change, and how much
+  testing does that owe? Every rating is <b>computed from the bytecode</b>, not asserted —
+  open any row for the full evidence, including what the analysis cannot see.</p>
+
+  <div class="scale">
+    <div class="scale-h">How to read the rating</div>
+    <div class="sc-row"><span class="chip sm" style="--c:var(--pass)">A</span><span class="sc-lane">Fast lane</span><span class="sc-desc">Disciplined patch — no API change, minimal churn, no shipped-default changes</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--watch)">B</span><span class="sc-lane">Targeted tests</span><span class="sc-desc">Patch with added surface, heavy internal churn, or a changed default</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--watch)">C</span><span class="sc-lane">Partial regression</span><span class="sc-desc">Minor release with no binary-incompatible changes</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--stop)">D</span><span class="sc-lane">Full regression</span><span class="sc-desc">Binary-incompatible changes, or a major release</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--stop)">F</span><span class="sc-lane">Migration required</span><span class="sc-desc">Incompatible changes your application provably calls — it will break</span></div>
+  </div>
+
+  <table class="idx"><thead><tr>
+    <th>Library &amp; upgrade</th><th>Stream</th><th>Rating</th><th>Test lane</th>
+    <th>What changed</th>
   </tr></thead><tbody><tr>
-<td><a href="acme-logging-1.14.1-to-1.17.1.html">acme-logging</a><br>
-<span class="lane">1.14.1 → 1.17.1</span></td>
-<td>y-stream</td>
+<td class="lib"><a href="acme-logging-1.14.1-to-1.17.1.html">acme-logging</a>
+  <div class="upg">1.14.1 <span class="to">→</span> 1.17.1</div></td>
+<td><span class="stream">y-stream</span></td>
 <td><span class="chip" style="--c:var(--stop)">F</span></td>
-<td>Full regression + migration</td>
-<td class="lane">-4 / +16 API ·
- 73.3% churn · 4 incompatible</td>
+<td class="lane-cell">Full regression + migration</td>
+<td class="delta"><span class="d-api">+16 added, 4 removed</span><span class="d-sep">·</span><span class="d-churn">73.3% churn</span><span class="d-sep">·</span><b style="color:var(--stop)">4 incompatible</b></td>
 </tr><tr>
-<td><a href="acme-logging-1.12.1-to-1.12.2.html">acme-logging</a><br>
-<span class="lane">1.12.1 → 1.12.2</span></td>
-<td>z-stream</td>
+<td class="lib"><a href="acme-http-client-4.5.13-to-4.5.14.html">acme-http-client</a>
+  <div class="upg">4.5.13 <span class="to">→</span> 4.5.14</div></td>
+<td><span class="stream">z-stream</span></td>
+<td><span class="chip" style="--c:var(--watch)">B</span></td>
+<td class="lane-cell">Targeted tests</td>
+<td class="delta"><span class="d-api">0 added, 0 removed</span><span class="d-sep">·</span><span class="d-churn">66.7% churn</span><span class="d-sep">·</span>0 incompatible</td>
+</tr><tr>
+<td class="lib"><a href="acme-json-2.13.4-to-2.13.4.2.html">acme-json</a>
+  <div class="upg">2.13.4 <span class="to">→</span> 2.13.4.2</div></td>
+<td><span class="stream">z-stream</span></td>
+<td><span class="chip" style="--c:var(--watch)">B</span></td>
+<td class="lane-cell">Targeted tests</td>
+<td class="delta"><span class="d-api">+4 added, 0 removed</span><span class="d-sep">·</span><span class="d-churn">50.0% churn</span><span class="d-sep">·</span>0 incompatible</td>
+</tr><tr>
+<td class="lib"><a href="acme-logging-1.12.1-to-1.12.2.html">acme-logging</a>
+  <div class="upg">1.12.1 <span class="to">→</span> 1.12.2</div></td>
+<td><span class="stream">z-stream</span></td>
 <td><span class="chip" style="--c:var(--pass)">A</span></td>
-<td>Fast lane</td>
-<td class="lane">-0 / +0 API ·
- 6.2% churn · 0 incompatible</td>
-</tr><tr>
-<td><a href="acme-http-client-4.5.13-to-4.5.14.html">acme-http-client</a><br>
-<span class="lane">4.5.13 → 4.5.14</span></td>
-<td>z-stream</td>
-<td><span class="chip" style="--c:var(--watch)">B</span></td>
-<td>Targeted tests</td>
-<td class="lane">-0 / +0 API ·
- 66.7% churn · 0 incompatible</td>
-</tr><tr>
-<td><a href="acme-json-2.13.4-to-2.13.4.2.html">acme-json</a><br>
-<span class="lane">2.13.4 → 2.13.4.2</span></td>
-<td>z-stream</td>
-<td><span class="chip" style="--c:var(--watch)">B</span></td>
-<td>Targeted tests</td>
-<td class="lane">-0 / +4 API ·
- 50.0% churn · 0 incompatible</td>
+<td class="lane-cell">Fast lane</td>
+<td class="delta"><span class="d-api">0 added, 0 removed</span><span class="d-sep">·</span><span class="d-churn">6.2% churn</span><span class="d-sep">·</span>0 incompatible</td>
 </tr></tbody></table>
-  <div class="footer"><span>ratings: A fast-lane → F migration required</span>
-  <span>upgrade-delta v0.1.0 · 2026-07-18</span></div>
+  <div class="footer"><span>4 remediated artifact(s) · worst pending rating: F · sorted worst-first</span>
+  <span>upgrade-delta v0.1.0 · 2026-07-20</span></div>
 </div></body></html>

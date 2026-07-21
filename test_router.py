@@ -108,6 +108,8 @@ def main():
         drift = cov.get("age_commits", 10**6)
         print(f"   coverage: build {cov.get('build','?')} @ {cov.get('collected_at_sha','?')} "
               f"— {drift} commit(s) behind HEAD {args.head_sha}")
+        if cov.get("_note"):
+            print(f"   note: {cov['_note']}")
         if drift > args.max_drift_commits:
             reasons_full.append(f"coverage map is {drift} commits stale "
                                 f"(threshold {args.max_drift_commits}) — refusing to select from it")
@@ -204,7 +206,7 @@ def main():
     for s in skipped:
         print(f"     {DIM}skip {s['test']}  {s['reason']}{RESET}")
     print(f"   totals: {report['totals']['final']} of {len(suite)} "
-          f"({report['totals']['selected']} by join, "
+          f"({report['totals']['selected']} selected, "
           f"{report['totals']['mandatory_appended']} mandatory appended)")
     print(f"   downstream obligations -> deploy-gate.json: "
           + ", ".join(o["id"] for o in downstream)

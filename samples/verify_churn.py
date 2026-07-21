@@ -6,7 +6,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 from upgrade_delta import load_jar, diff_jars                     # noqa: E402
-import build_ctx                                                   # noqa: E402
 sys.path.insert(0, HERE)
 from build_samples import logging_sources, logging_resources, compile_and_jar, JAVAC, ENV, w  # noqa: E402
 

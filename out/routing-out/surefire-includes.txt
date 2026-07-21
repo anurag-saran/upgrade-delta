@@ -1,3 +1,4 @@
+**/AuditTrailTest.java
 **/BootSmokeIT.java
 **/CheckoutIT.java
 **/GatewayClientTest.java

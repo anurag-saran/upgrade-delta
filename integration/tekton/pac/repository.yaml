@@ -1,0 +1,11 @@
+# Pipelines-as-Code Repository CR: connects github.com/anurag-saran/upgrade-delta
+# to this cluster. Apply AFTER installing the PaC GitHub App (see pac/README.md).
+apiVersion: "pipelinesascode.tekton.dev/v1alpha1"
+kind: Repository
+metadata:
+  name: upgrade-delta
+  namespace: upgrade-delta-demo
+spec:
+  url: "https://github.com/anurag-saran/upgrade-delta"
+  # git_provider secret is created by the PaC bootstrap; PaC matches PRs to this repo
+  # and runs any PipelineRun in .tekton/ whose annotations match the event.

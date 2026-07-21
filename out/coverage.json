@@ -1,0 +1,132 @@
+{
+  "tool": {
+    "name": "upgrade-delta",
+    "version": "0.1.0"
+  },
+  "date": "2026-07-20",
+  "app": "payments-service (realworld)",
+  "catalog": "lightwell-remediated-java-sbom.json",
+  "totals": {
+    "dependencies": 18,
+    "exact": 11,
+    "serviced_other_version": 3,
+    "uncovered": 4
+  },
+  "exact": [
+    {
+      "group": "com.fasterxml.jackson.core",
+      "artifact": "jackson-databind",
+      "version": "2.13.4",
+      "remediated": "2.13.4.redhat-00001"
+    },
+    {
+      "group": "commons-io",
+      "artifact": "commons-io",
+      "version": "2.11.0",
+      "remediated": "2.11.0.redhat-00001"
+    },
+    {
+      "group": "net.minidev",
+      "artifact": "json-smart",
+      "version": "2.4.8",
+      "remediated": "2.4.8.redhat-00001"
+    },
+    {
+      "group": "org.apache.httpcomponents",
+      "artifact": "httpclient",
+      "version": "4.5.12",
+      "remediated": "4.5.12.redhat-00001"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-web",
+      "version": "5.3.18",
+      "remediated": "5.3.18.redhat-00005"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-webmvc",
+      "version": "5.3.18",
+      "remediated": "5.3.18.redhat-00005"
+    },
+    {
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot",
+      "version": "2.7.18",
+      "remediated": "2.7.18.redhat-00002"
+    },
+    {
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-autoconfigure",
+      "version": "2.7.18",
+      "remediated": "2.7.18.redhat-00002"
+    },
+    {
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-starter-web",
+      "version": "2.7.18",
+      "remediated": "2.7.18.redhat-00002"
+    },
+    {
+      "group": "org.springframework.security",
+      "artifact": "spring-security-core",
+      "version": "5.7.11",
+      "remediated": "5.7.11.redhat-00004"
+    },
+    {
+      "group": "org.springframework.security",
+      "artifact": "spring-security-web",
+      "version": "5.7.11",
+      "remediated": "5.7.11.redhat-00004"
+    }
+  ],
+  "serviced_other_version": [
+    {
+      "group": "com.jayway.jsonpath",
+      "artifact": "json-path",
+      "version": "2.6.0",
+      "serviced_versions": [
+        "2.7.0",
+        "2.8.0"
+      ]
+    },
+    {
+      "group": "commons-fileupload",
+      "artifact": "commons-fileupload",
+      "version": "1.5",
+      "serviced_versions": [
+        "1.4.0"
+      ]
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-core",
+      "version": "5.3.31",
+      "serviced_versions": [
+        "5.3.18"
+      ]
+    }
+  ],
+  "uncovered": [
+    {
+      "group": "com.google.guava",
+      "artifact": "guava",
+      "version": "31.1-jre"
+    },
+    {
+      "group": "io.netty",
+      "artifact": "netty-handler",
+      "version": "4.1.86.Final"
+    },
+    {
+      "group": "org.apache.logging.log4j",
+      "artifact": "log4j-core",
+      "version": "2.17.1"
+    },
+    {
+      "group": "org.yaml",
+      "artifact": "snakeyaml",
+      "version": "1.30"
+    }
+  ]
+}

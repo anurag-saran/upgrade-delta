@@ -1,0 +1,43 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: upgrade-delta-pipeline
+spec:
+  description: >-
+    Coverage meter + risk scoring + test routing on every dependency-update PR
+    (works with Pipelines-as-Code triggering on Renovate branches). The
+    PipelineRun's results ARE the summary: grade, coverage %, tests selected.
+  params:
+    - name: app-sbom
+      type: string
+    - name: app-jar
+      type: string
+      default: ""
+    - name: head-sha
+      type: string
+    - name: fail-on
+      type: string
+      default: "D"
+  workspaces:
+    - name: source
+  tasks:
+    - name: score
+      taskRef: {name: upgrade-delta}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: app-sbom, value: $(params.app-sbom)}
+        - {name: app-jar, value: $(params.app-jar)}
+        - {name: fail-on, value: $(params.fail-on)}
+    - name: route
+      runAfter: [score]
+      taskRef: {name: upgrade-delta-route}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: head-sha, value: $(params.head-sha)}
+  results:
+    - name: PROJECT_GRADE
+      value: $(tasks.score.results.PROJECT_GRADE)
+    - name: COVERAGE_PCT
+      value: $(tasks.score.results.COVERAGE_PCT)
+    - name: TESTS_SELECTED
+      value: $(tasks.route.results.TESTS_SELECTED)

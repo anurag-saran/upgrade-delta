@@ -1,0 +1,97 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta
+  labels: {app.kubernetes.io/part-of: upgrade-delta}
+spec:
+  description: >-
+    Coverage-meter + project scan for one application. Buckets every dependency
+    against the Lightwell remediated catalog, scores pending upgrades, and
+    surfaces the two executive numbers as Tekton results so the summary shows
+    directly in the OpenShift Pipelines console and `tkn pipelinerun describe`.
+  params:
+    - name: app-sbom
+      type: string
+      description: Path (in workspace) to the application CycloneDX SBOM
+    - name: app-jar
+      type: string
+      default: ""
+      description: Optional path to the application jar (enables intersection + grades)
+    - name: catalog
+      type: string
+      default: catalogs/lightwell-remediated-java-sbom.json
+    - name: evidence-dir
+      type: string
+      default: out/evidence
+      description: Directory of published delta-report JSONs
+    - name: scan-sbom
+      type: string
+      default: ""
+      description: SBOM for the scan step when it differs from the coverage SBOM
+    - name: lib-jars
+      type: string
+      default: ""
+      description: Directory of resolved dependency jars (two-hop reachability)
+    - name: accept-transitive-scope
+      type: string
+      default: "false"
+      description: Sign-off flag for transitive de-escalation (a human decision)
+    - name: fail-on
+      type: string
+      default: "D"
+      description: Fail the task when the project grade is this bad or worse
+  workspaces:
+    - name: source
+      description: Repo checkout containing upgrade_delta.py, catalogs/, evidence
+  results:
+    - name: PROJECT_GRADE
+      description: Worst pending grade across best remediation paths (A–F)
+    - name: COVERAGE_PCT
+      description: Percent of dependencies with an exact-version remediated build
+    - name: COVERED
+    - name: NEAR
+    - name: UNCOVERED
+  steps:
+    - name: coverage-and-scan
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mkdir -p out/reports
+        python3 upgrade_delta.py coverage \
+          --sbom "$(params.app-sbom)" --catalog "$(params.catalog)" \
+          --json out/coverage.json --html out/reports/coverage.html
+        python3 - <<'PY'
+        import json
+        c = json.load(open("out/coverage.json"))["totals"]
+        pct = round(100 * c["exact"] / c["dependencies"]) if c["dependencies"] else 0
+        open("$(results.COVERAGE_PCT.path)", "w").write(str(pct))
+        open("$(results.COVERED.path)", "w").write(str(c["exact"]))
+        open("$(results.NEAR.path)", "w").write(str(c["serviced_other_version"]))
+        open("$(results.UNCOVERED.path)", "w").write(str(c["uncovered"]))
+        PY
+        GRADE="-"
+        if [ -n "$(params.app-jar)" ] && ls "$(params.evidence-dir)"/*.json >/dev/null 2>&1; then
+          set +e
+          SCAN_SBOM="$(params.scan-sbom)"; [ -n "$SCAN_SBOM" ] || SCAN_SBOM="$(params.app-sbom)"
+          EXTRA=""
+          [ -n "$(params.lib-jars)" ] && EXTRA="$EXTRA --lib-jars $(params.lib-jars)"
+          [ "$(params.accept-transitive-scope)" = "true" ] && EXTRA="$EXTRA --accept-transitive-scope"
+          # shellcheck disable=SC2086
+          python3 upgrade_delta.py scan "$(params.app-jar)" \
+            --evidence "$(params.evidence-dir)" --sbom "$SCAN_SBOM" $EXTRA \
+            --routing-payload out/routing.json \
+            --json out/scorecard.json --html out/reports/scorecard.html \
+            --fail-on "$(params.fail-on)"
+          RC=$?
+          set -e
+          [ -f out/scorecard.json ] && \
+            GRADE=$(python3 -c "import json;print(json.load(open('out/scorecard.json'))['project']['headline_grade'] or '-')")
+          printf '%s' "$GRADE" > "$(results.PROJECT_GRADE.path)"
+          # exit 2 = grade gate breached -> fail the Task (and the PipelineRun)
+          [ "$RC" -eq 0 ] || { echo "GATE: project grade $GRADE breached fail-on=$(params.fail-on)"; exit "$RC"; }
+        else
+          printf '%s' "$GRADE" > "$(results.PROJECT_GRADE.path)"
+          echo "no app jar / evidence — coverage-only run"
+        fi

@@ -58,7 +58,7 @@ many tests," "a failed build," and "a blocked deploy" — never a silently skipp
 
 ```bash
 python3 upgrade_delta.py analyze old.jar new.jar \
-    --old-version 2.12.1 --new-version 2.12.2 --library log4j-core \
+    --old-version 2.13.4 --new-version 2.13.4.redhat-00001 --library jackson-databind \
     --json evidence/backport.json --html report.html
 ```
 
@@ -192,5 +192,6 @@ because annotation attribute bodies are hash-compared rather than value-resolved
 level reachability uses conservative dispatch (all overrides/implementors), so closures on
 highly polymorphic code remain wider than a true points-to analysis would produce.
 `dependency:tree` text is a planned second graph input; today the declared graph must be a
-CycloneDX SBOM. And the sample corpus is illustrative — run `fetch-real-log4j.sh` on a
-networked machine to produce the real Log4j numbers before any external showing.
+CycloneDX SBOM. For real, credentialed numbers, build `sample-app/` against the Lightwell
+remediated repo (see `sample-app/README.md`) — its jackson-databind path is the measured
+hero: grade B, 0.3% churn, 0 incompatible on the real `2.13.4 → 2.13.4.redhat-00001` rebuild.

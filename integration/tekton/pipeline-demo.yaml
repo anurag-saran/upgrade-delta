@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: upgrade-delta-demo
+spec:
+  description: >-
+    Self-contained demo: clone the repo, run the coverage meter against the REAL
+    Lightwell catalog, score the committed sample app (transitives, sign-off),
+    route the tests. Everything needed is committed under examples/ — one Python
+    image, no JDK, no network beyond the clone. The PipelineRun's results ARE
+    the summary you show.
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+  workspaces:
+    - name: source
+  tasks:
+    - name: clone
+      # git-clone must exist in this namespace. Install it once with:
+      #   oc apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml
+      taskRef: {name: git-clone}
+      workspaces: [{name: output, workspace: source}]
+      params:
+        - {name: url, value: $(params.git-url)}
+        - {name: revision, value: $(params.git-revision)}
+    - name: score
+      runAfter: [clone]
+      taskRef: {name: upgrade-delta}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: app-sbom, value: samples/realworld-springboot-sbom.json}
+        - {name: scan-sbom, value: examples/demo-jars/payments-service.sbom.json}
+        - {name: app-jar, value: examples/demo-jars/payments-service-1.0.0.jar}
+        - {name: evidence-dir, value: examples/evidence}
+        - {name: lib-jars, value: examples/demo-jars}
+        - {name: accept-transitive-scope, value: "true"}
+        - {name: fail-on, value: "D"}
+    - name: route
+      runAfter: [score]
+      taskRef: {name: upgrade-delta-route}
+      workspaces: [{name: source, workspace: source}]
+  results:
+    - {name: PROJECT_GRADE, value: $(tasks.score.results.PROJECT_GRADE)}
+    - {name: COVERAGE_PCT, value: $(tasks.score.results.COVERAGE_PCT)}
+    - {name: COVERED, value: $(tasks.score.results.COVERED)}
+    - {name: UNCOVERED, value: $(tasks.score.results.UNCOVERED)}
+    - {name: TESTS_SELECTED, value: $(tasks.route.results.TESTS_SELECTED)}
+    - {name: TESTS_PASSED, value: $(tasks.route.results.TESTS_PASSED)}
+    - {name: SUITE_SIZE, value: $(tasks.route.results.SUITE_SIZE)}

@@ -1,0 +1,278 @@
+{
+  "tool": {
+    "name": "upgrade-delta",
+    "version": "0.1.0"
+  },
+  "date": "2026-07-19",
+  "library": "acme-logging",
+  "old_version": "1.14.1",
+  "new_version": "1.17.1",
+  "old_jar": "acme-logging-1.14.1.jar",
+  "new_jar": "acme-logging-1.17.1.jar",
+  "app": "payments-service-1.0.0.jar",
+  "stream": "y-stream (minor)",
+  "delta": {
+    "api_removed": [
+      "class com.acme.logging.core.LookupResolver",
+      "com.acme.logging.core.LookupResolver#<init>()V",
+      "com.acme.logging.core.LookupResolver#resolve(Ljava/lang/String;)Ljava/lang/String;",
+      "com.acme.logging.core.MessageFormatter#format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;"
+    ],
+    "api_added": [
+      "class com.acme.logging.LogBuilder",
+      "com.acme.logging.LogBuilder#log(Ljava/lang/String;)V",
+      "com.acme.logging.Logger#atLevel(Ljava/lang/String;)Lcom/acme/logging/LogBuilder;",
+      "class com.acme.logging.appenders.FileAppender",
+      "com.acme.logging.appenders.FileAppender#<init>()V",
+      "com.acme.logging.appenders.FileAppender#append(Ljava/lang/String;)V",
+      "com.acme.logging.core.MessageFormatter#format(Ljava/lang/CharSequence;[Ljava/lang/Object;)Ljava/lang/String;",
+      "class com.acme.logging.core.StrSubstitutor",
+      "com.acme.logging.core.StrSubstitutor#<init>()V",
+      "com.acme.logging.core.StrSubstitutor#replace(Ljava/lang/String;)Ljava/lang/String;",
+      "com.acme.logging.internal.BufferPool#version()I",
+      "com.acme.logging.internal.Clock#version()I",
+      "com.acme.logging.internal.Interp#version()I",
+      "com.acme.logging.internal.Levels#version()I",
+      "com.acme.logging.internal.Loader#version()I",
+      "com.acme.logging.internal.Throwables#version()I"
+    ],
+    "api_modified": [],
+    "api_incompatible": [
+      "class com.acme.logging.core.LookupResolver",
+      "com.acme.logging.core.LookupResolver#<init>()V",
+      "com.acme.logging.core.LookupResolver#resolve(Ljava/lang/String;)Ljava/lang/String;",
+      "com.acme.logging.core.MessageFormatter#format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;"
+    ],
+    "classes_common": 15,
+    "classes_impl_changed": [
+      "com/acme/logging/LogManager",
+      "com/acme/logging/Logger",
+      "com/acme/logging/appenders/ConsoleAppender",
+      "com/acme/logging/core/MessageFormatter",
+      "com/acme/logging/core/PatternParser",
+      "com/acme/logging/internal/BufferPool",
+      "com/acme/logging/internal/Clock",
+      "com/acme/logging/internal/Interp",
+      "com/acme/logging/internal/Levels",
+      "com/acme/logging/internal/Loader",
+      "com/acme/logging/internal/Throwables"
+    ],
+    "classes_build_noise": [],
+    "impl_churn_pct": 73.3,
+    "res_removed": [],
+    "res_added": [],
+    "res_changed": [
+      "META-INF/services/com.acme.logging.spi.Appender",
+      "acme-logging-defaults.properties"
+    ],
+    "spi_touched": [
+      "META-INF/services/com.acme.logging.spi.Appender"
+    ]
+  },
+  "machine": {
+    "packages": [
+      "com/acme/logging",
+      "com/acme/logging/appenders",
+      "com/acme/logging/core",
+      "com/acme/logging/internal",
+      "com/acme/logging/spi"
+    ],
+    "api_removed": [
+      [
+        "com/acme/logging/core/LookupResolver",
+        null,
+        null
+      ],
+      [
+        "com/acme/logging/core/LookupResolver",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/logging/core/LookupResolver",
+        "resolve",
+        "(Ljava/lang/String;)Ljava/lang/String;"
+      ],
+      [
+        "com/acme/logging/core/MessageFormatter",
+        "format",
+        "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;"
+      ]
+    ],
+    "api_added": [
+      [
+        "com/acme/logging/LogBuilder",
+        null,
+        null
+      ],
+      [
+        "com/acme/logging/LogBuilder",
+        "log",
+        "(Ljava/lang/String;)V"
+      ],
+      [
+        "com/acme/logging/Logger",
+        "atLevel",
+        "(Ljava/lang/String;)Lcom/acme/logging/LogBuilder;"
+      ],
+      [
+        "com/acme/logging/appenders/FileAppender",
+        null,
+        null
+      ],
+      [
+        "com/acme/logging/appenders/FileAppender",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/logging/appenders/FileAppender",
+        "append",
+        "(Ljava/lang/String;)V"
+      ],
+      [
+        "com/acme/logging/core/MessageFormatter",
+        "format",
+        "(Ljava/lang/CharSequence;[Ljava/lang/Object;)Ljava/lang/String;"
+      ],
+      [
+        "com/acme/logging/core/StrSubstitutor",
+        null,
+        null
+      ],
+      [
+        "com/acme/logging/core/StrSubstitutor",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/logging/core/StrSubstitutor",
+        "replace",
+        "(Ljava/lang/String;)Ljava/lang/String;"
+      ],
+      [
+        "com/acme/logging/internal/BufferPool",
+        "version",
+        "()I"
+      ],
+      [
+        "com/acme/logging/internal/Clock",
+        "version",
+        "()I"
+      ],
+      [
+        "com/acme/logging/internal/Interp",
+        "version",
+        "()I"
+      ],
+      [
+        "com/acme/logging/internal/Levels",
+        "version",
+        "()I"
+      ],
+      [
+        "com/acme/logging/internal/Loader",
+        "version",
+        "()I"
+      ],
+      [
+        "com/acme/logging/internal/Throwables",
+        "version",
+        "()I"
+      ]
+    ],
+    "api_modified": [],
+    "api_incompatible": [
+      [
+        "com/acme/logging/core/LookupResolver",
+        null,
+        null
+      ],
+      [
+        "com/acme/logging/core/LookupResolver",
+        "<init>",
+        "()V"
+      ],
+      [
+        "com/acme/logging/core/LookupResolver",
+        "resolve",
+        "(Ljava/lang/String;)Ljava/lang/String;"
+      ],
+      [
+        "com/acme/logging/core/MessageFormatter",
+        "format",
+        "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;"
+      ]
+    ],
+    "classes_impl_changed": [
+      "com/acme/logging/LogManager",
+      "com/acme/logging/Logger",
+      "com/acme/logging/appenders/ConsoleAppender",
+      "com/acme/logging/core/MessageFormatter",
+      "com/acme/logging/core/PatternParser",
+      "com/acme/logging/internal/BufferPool",
+      "com/acme/logging/internal/Clock",
+      "com/acme/logging/internal/Interp",
+      "com/acme/logging/internal/Levels",
+      "com/acme/logging/internal/Loader",
+      "com/acme/logging/internal/Throwables"
+    ],
+    "classes_build_noise": [],
+    "classes_common": 15,
+    "impl_churn_pct": 73.3,
+    "res_removed": [],
+    "res_added": [],
+    "res_changed": [
+      "META-INF/services/com.acme.logging.spi.Appender",
+      "acme-logging-defaults.properties"
+    ],
+    "spi_touched": [
+      "META-INF/services/com.acme.logging.spi.Appender"
+    ]
+  },
+  "app_intersection": {
+    "lib_call_sites": 5,
+    "lib_classes_used": [
+      "com.acme.logging.Logger",
+      "com.acme.logging.core.LookupResolver",
+      "com.acme.logging.core.MessageFormatter"
+    ],
+    "touched_changed": [
+      "com.acme.logging.core.LookupResolver#<init>()V",
+      "com.acme.logging.core.LookupResolver#resolve(Ljava/lang/String;)Ljava/lang/String;",
+      "com.acme.logging.core.MessageFormatter#format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;"
+    ],
+    "touched_incompatible": [
+      "class com.acme.logging.core.LookupResolver",
+      "com.acme.logging.core.LookupResolver#<init>()V",
+      "com.acme.logging.core.LookupResolver#resolve(Ljava/lang/String;)Ljava/lang/String;",
+      "com.acme.logging.core.MessageFormatter#format(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;"
+    ],
+    "touched_impl_changed": [
+      "com.acme.logging.Logger",
+      "com.acme.logging.core.MessageFormatter"
+    ]
+  },
+  "rating": {
+    "grade": "F",
+    "effective_grade": null,
+    "lane": "Full regression + migration",
+    "recipe": [
+      "Code changes required before this upgrade compiles/runs",
+      "Full regression suite after migration",
+      "Production-like boot test",
+      "Extended canary window"
+    ],
+    "reasons": [
+      "y-stream (minor): assumed to carry new functionality",
+      "4 binary-incompatible change(s)",
+      "application reaches 4 removed/incompatible member(s) directly \u2014 it will break"
+    ],
+    "scope_note": null
+  },
+  "blind_spots": [
+    "Reflection and config-driven instantiation are invisible to constant-pool analysis.",
+    "Churn is computed on a semantic fingerprint (debug info, constant-pool order, and stack frames stripped); residual cross-compiler noise (e.g. different bridge-method or lambda-name generation) can still over-report \u2014 never under-report.",
+    "A behavior change with zero structural fingerprint will not be detected \u2014 this is why the canary and rollback stay in the plan for every grade, including A."
+  ]
+}

@@ -1,0 +1,29 @@
+# ============================================================================
+# Real manual-approval gate for the upgrade-delta pipeline.
+#
+# This uses OpenShift Pipelines' native ApprovalTask (the manual-approval-gate).
+# The PipelineRun genuinely PAUSES at this step until a human runs:
+#     opc approvaltask approve upgrade-delta-cab -n upgrade-delta-demo
+# (or rejects it with `opc approvaltask reject`, or approves via the console).
+#
+# PREREQUISITE — enable the gate on the operator (one-time):
+#   oc patch tektonconfig config --type=merge \
+#     -p '{"spec":{"pipeline":{"enable-manual-approval-gate":true}}}'
+# Verify the CRD exists afterwards:
+#   oc get crd approvaltasks.openshift-pipelines.org
+# ============================================================================
+apiVersion: openshift-pipelines.org/v1alpha1
+kind: ApprovalTask
+metadata:
+  name: upgrade-delta-cab
+  namespace: upgrade-delta-demo
+spec:
+  # how many approvals are required before the pipeline continues
+  approvalsRequired: 1
+  # who may approve (OpenShift users/groups). Replace with your CAB members.
+  approvers:
+    - kubernetes:cab-reviewer
+  description: >-
+    Change Advisory Board gate for a dependency upgrade. The reviewer inspects the
+    upgrade-delta scorecard (grade, drop-in coverage, selected tests) attached to the
+    PipelineRun, then approves or rejects. This is the audit checkpoint, in the pipeline.

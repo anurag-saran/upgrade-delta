@@ -62,6 +62,27 @@ echo "   Smoke test, canary, promote. The six-week difference was never the code
 echo "   it was which artifact you sourced. Now that's a measured number, not a vendor claim."
 step_pause
 
+narrate "What Lightwell actually gives you: a library it really rebuilt (Jackson)"
+# tolerate either suffix convention: .redhat-NNNNN (catalog metadata) or .rhlw-NNNNN (repo paths)
+JK_EV=$(ls examples/evidence-jackson/jackson-databind-2.13.4-to-2.13.4.*.json 2>/dev/null | head -1)
+if [ -n "$JK_EV" ] && [ -f "$JK_EV" ]; then
+  echo "   Real measured evidence from Lightwell's rebuild of jackson-databind:"
+  type_cmd "upgrade-delta analyze jackson-databind-2.13.4.jar jackson-databind-2.13.4.<suffix>.jar"
+  python3 -c "import json;d=json.load(open('$JK_EV'));r=d['rating'];dl=d['delta'];print('   jackson-databind 2.13.4 -> %s  ::  GRADE %s' % (d.get('new_version','2.13.4.remediated'), r['grade']));print('   churn %.1f%%  |  API removed %d  added %d  incompatible %d' % (dl['impl_churn_pct'], len(dl['api_removed']), len(dl['api_added']), len(dl['api_incompatible'])))"
+  echo "   ${GREEN}This is the real thing:${RESET} same base version 2.13.4, rebuilt by Red Hat with"
+  echo "   the CVE fix. Drop-in suffix swap — no version bump, no code change."
+else
+  echo "   ${YELLOW}[awaiting real data]${RESET} Lightwell services jackson-databind (in your catalog"
+  echo "   as .redhat-00001; the repo serves it as .rhlw-00001). Generate the real evidence"
+  echo "   on a networked machine with your console.redhat.com token — use whichever suffix"
+  echo "   returns HTTP 200 for the jar URL:"
+  echo "     ${BOLD}./lightwell-report.sh com.fasterxml.jackson.core jackson-databind 2.13.4 2.13.4.rhlw-00001${RESET}"
+  echo "   Copy the resulting JSON into examples/evidence-jackson/ and this beat shows the"
+  echo "   measured grade. The coverage meter below already proves Jackson + 10 other real"
+  echo "   deps are serviced for this app's exact versions."
+fi
+step_pause
+
 narrate "The rule is honest about patches that only CLAIM to be small"
 type_cmd "upgrade-delta analyze acme-http-client-4.5.13.jar acme-http-client-4.5.14.jar --app payments-service.jar"
 python3 upgrade_delta.py analyze ${J}/acme-http-client-4.5.13.jar ${J}/acme-http-client-4.5.14.jar \
@@ -106,6 +127,7 @@ narrate "The engineer signs off — with the evidence chain printed on the repor
 type_cmd "upgrade-delta scan ... --accept-transitive-scope --fail-on D"
 python3 upgrade_delta.py scan "${APP}" --evidence out/evidence \
   --sbom ${J}/payments-service.sbom.json --lib-jars ${J} --accept-transitive-scope \
+  --routing-payload out/routing.json \
   --json out/scorecard-signed.json --html out/reports/scorecard-signed.html --fail-on D || true
 echo
 echo "   Four things on that scorecard, none of them an average:"
@@ -147,6 +169,15 @@ echo "   Every RUN has a printed reason tracing back to a changed member. Every 
 echo "   is recorded. MetricsTest ran because it's ${BOLD}absent from the map — unknown"
 echo "   means run${RESET}. LedgerTest ran via the widening rule. BootSmokeIT was appended"
 echo "   as mandatory: it would run ${BOLD}even if the join had selected nothing${RESET}."
+echo
+echo "   And the list doesn't stop at selection — ${BOLD}it runs, right now${RESET}:"
+type_cmd "java testing.MiniRunner out/routing-out/surefire-includes.txt"
+RCP="${J}/payments-service-1.0.0.jar:${J}/payments-tests-1.0.0.jar:${J}/acme-logging-1.14.1.jar:${J}/acme-http-client-4.5.13.jar:${J}/acme-json-2.13.4.jar:${J}/acme-codec-1.11.jar:${J}/legacy-xml-1.0.jar"
+java -cp "${RCP}" testing.MiniRunner out/routing-out/surefire-includes.txt
+echo
+echo "   Real assertions on real app behavior, straight from the router's includes file."
+echo "   The bundled mini-runner is a ${BOLD}labeled stand-in for Surefire${RESET} — in your build,"
+echo "   Surefire consumes the identical file natively via <includesFile>."
 step_pause
 
 narrate "The handoff: a DIFFERENT process, at deploy time, consumes the gate file"
@@ -166,6 +197,25 @@ echo "   ${YELLOW}(3) Deploy without a gate file:${RESET}"
 echo
 echo "   Wrong answers are LOUD: too many tests, a failed build, a blocked promotion."
 echo "   Never a silently skipped gate."
+step_pause
+
+narrate "The coverage meter — driven by the REAL Lightwell remediated catalog"
+echo "   Everything so far used the sample corpus. This next number does not: it matches a"
+echo "   realistic Spring Boot 2.7 dependency list against the actual Lightwell catalog"
+echo "   (130 remediated artifacts: Spring, Spring Boot, Spring Security, Jackson, ...):"
+type_cmd "upgrade-delta coverage --sbom app-sbom.json --catalog lightwell-remediated-java-sbom.json"
+python3 upgrade_delta.py coverage --sbom samples/realworld-springboot-sbom.json \
+  --catalog catalogs/lightwell-remediated-java-sbom.json \
+  --json out/coverage.json --html out/reports/coverage.html \
+  | grep -E "checked against|drop-in ready|COVERED|SERVICED|NOT COVERED" | head -6
+echo
+echo "   Read it as three buckets, each with a different action:"
+echo "   ${GREEN}COVERED (11)${RESET} — Red Hat rebuilt the EXACT version in production. Drop-in"
+echo "     suffix swap, no code change, no version bump. This is what the subscription buys."
+echo "   ${YELLOW}SERVICED, OTHER VERSION (3)${RESET} — the library is serviced, but not your version:"
+echo "     take the upgrade, or request your version (the FSI-tier path)."
+echo "   ${RED}NOT COVERED (4)${RESET} — no remediated build; any upgrade here owes full regression."
+echo "   61% drop-in ready. Point --sbom at YOUR CycloneDX file and this becomes your number."
 step_pause
 
 narrate "Phase 2 precision: method-level reachability defuses the RestTemplate problem"
@@ -201,7 +251,7 @@ echo "   board, an unsigned JSON is a text document; a sealed one is an audit ar
 step_pause
 
 narrate "Phase 3: where this lives — the PR, not a dashboard"
-python3 integration/github-action/pr_comment.py out/scorecard-uber.json out/pr-comment.md >/dev/null
+python3 integration/github-action/pr_comment.py out/scorecard-signed.json out/pr-comment.md >/dev/null
 head -6 out/pr-comment.md
 echo "   ..."
 echo "   Rendered by the GitHub Action on every Renovate PR (integration/github-action/),"

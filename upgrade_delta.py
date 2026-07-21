@@ -852,7 +852,7 @@ and uses <b>{len(a['lib_classes_used'])}</b> of its classes. Against this upgrad
 {_member_list('Changed members this app calls', a['touched_changed'], open_=True)}
 {_member_list('Library classes this app uses whose implementation changed', a['touched_impl_changed'])}
 """
-    scope = f'<div class="note">{esc(g["scope_note"])}</div>' if g["scope_note"] else ""
+    scope = f'<div class="note">{esc(g.get("scope_note"))}</div>' if g.get("scope_note") else ""
     reasons = "".join(f'<li class="reason">{esc(x)}</li>' for x in g["reasons"])
     recipe = "".join(f"<li>{esc(x)}</li>" for x in g["recipe"])
     blind = "".join(f"<li>{esc(x)}</li>" for x in r["blind_spots"])
@@ -901,35 +901,109 @@ and uses <b>{len(a['lib_classes_used'])}</b> of its classes. Against this upgrad
 </div></body></html>"""
 
 
+# rating scale: the legend shown on the catalog index
+RATING_SCALE = [
+    ("A", "var(--pass)",  "Fast lane",
+     "Disciplined patch — no API change, minimal churn, no shipped-default changes"),
+    ("B", "var(--watch)", "Targeted tests",
+     "Patch with added surface, heavy internal churn, or a changed default"),
+    ("C", "var(--watch)", "Partial regression",
+     "Minor release with no binary-incompatible changes"),
+    ("D", "var(--stop)",  "Full regression",
+     "Binary-incompatible changes, or a major release"),
+    ("F", "var(--stop)",  "Migration required",
+     "Incompatible changes your application provably calls — it will break"),
+]
+_GRADE_ORDER = {g: i for i, (g, *_ ) in enumerate(RATING_SCALE)}
+
+
 def render_index(reports, links):
+    # worst-first: an F belongs at the top of a change board's page
+    paired = sorted(zip(reports, links),
+                    key=lambda rl: -_GRADE_ORDER.get(rl[0]["rating"]["grade"], 0))
+
+    def fmt_delta(d):
+        rem, add = len(d["api_removed"]), len(d["api_added"])
+        inc = len(d["api_incompatible"])
+        api = f'{("+" + str(add)) if add else "0"} added, {rem} removed'
+        inc_txt = (f'<b style="color:var(--stop)">{inc} incompatible</b>'
+                   if inc else '0 incompatible')
+        return (f'<span class="d-api">{api}</span>'
+                f'<span class="d-sep">·</span>'
+                f'<span class="d-churn">{d["impl_churn_pct"]}% churn</span>'
+                f'<span class="d-sep">·</span>{inc_txt}')
+
     rows = ""
-    for r, link in zip(reports, links):
+    for r, link in paired:
         g = r["rating"]
         c = GRADE_COLOR[g["grade"]]
         d = r["delta"]
+        stream = r["stream"].split(" ")[0]
         rows += f"""<tr>
-<td><a href="{esc(link)}">{esc(r['library'])}</a><br>
-<span class="lane">{esc(r['old_version'])} → {esc(r['new_version'])}</span></td>
-<td>{esc(r['stream'].split(' ')[0])}</td>
+<td class="lib"><a href="{esc(link)}">{esc(r['library'])}</a>
+  <div class="upg">{esc(r['old_version'])} <span class="to">→</span> {esc(r['new_version'])}</div></td>
+<td><span class="stream">{esc(stream)}</span></td>
 <td><span class="chip" style="--c:{c}">{g['grade']}</span></td>
-<td>{esc(g['lane'])}</td>
-<td class="lane">-{len(d['api_removed'])} / +{len(d['api_added'])} API ·
- {d['impl_churn_pct']}% churn · {len(d['api_incompatible'])} incompatible</td>
+<td class="lane-cell">{esc(g['lane'])}</td>
+<td class="delta">{fmt_delta(d)}</td>
 </tr>"""
+
+    legend = "".join(
+        f'<div class="sc-row"><span class="chip sm" style="--c:{color}">{grade}</span>'
+        f'<span class="sc-lane">{lane}</span>'
+        f'<span class="sc-desc">{desc}</span></div>'
+        for grade, color, lane, desc in RATING_SCALE)
+
+    n = len(reports)
+    worst = min((r["rating"]["grade"] for r in reports),
+                key=lambda x: -_GRADE_ORDER.get(x, 0)) if reports else "—"
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Lightwell delta reports</title>{FONTS}<style>{CSS}</style></head><body>
+<title>Lightwell delta reports</title>{FONTS}<style>{CSS}
+.idx-sub{{max-width:66ch;color:var(--ink-soft);font-size:14px;line-height:1.55;margin:2px 0 24px}}
+.scale{{background:#fafafa;border:1px solid var(--line,#e8e8e8);border-radius:10px;
+  padding:16px 18px;margin:0 0 26px}}
+.scale-h{{font:600 11px/1 var(--head,inherit);letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-soft);margin:0 0 13px}}
+.sc-row{{display:flex;align-items:baseline;gap:12px;padding:5px 0}}
+.sc-lane{{font-weight:600;font-size:13px;color:var(--ink);min-width:150px}}
+.sc-desc{{font-size:12.5px;color:var(--ink-soft);line-height:1.4}}
+.chip.sm{{min-width:24px;height:24px;font-size:13px;flex:none}}
+table.idx{{width:100%;border-collapse:collapse}}
+table.idx th{{text-align:left;font:600 10.5px/1 var(--head,inherit);letter-spacing:.05em;
+  text-transform:uppercase;color:var(--ink-soft);padding:0 14px 9px;border-bottom:2px solid var(--ink,#333)}}
+table.idx td{{padding:13px 14px;border-bottom:1px solid var(--line,#eee);vertical-align:top}}
+table.idx tr:last-child td{{border-bottom:none}}
+td.lib a{{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;
+  font-weight:600;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line,#ddd)}}
+td.lib a:hover{{border-bottom-color:var(--ink)}}
+td.lib .upg{{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11.5px;
+  color:var(--ink-soft);margin-top:4px}}
+td.lib .to{{color:var(--ink-soft)}}
+.stream{{font-size:11px;color:var(--ink-soft);background:#f0f0f0;border-radius:4px;padding:3px 7px;white-space:nowrap}}
+td.lane-cell{{font-size:13px;color:var(--ink);white-space:nowrap}}
+td.delta{{font-size:12px;color:var(--ink-soft);line-height:1.7}}
+td.delta .d-sep{{margin:0 7px;color:#ccc}}
+td.delta .d-churn{{font-variant-numeric:tabular-nums}}
+</style></head><body>
 <div class="sheet">
   <div class="eyebrow">Lightwell · published with every remediated artifact</div>
   <h1>Delta reports</h1>
-  <p style="max-width:60ch;color:var(--ink-soft)">Every entry answers one question before you
-  upgrade: <b>how much did this artifact actually change, and how much testing does it owe you?</b>
-  Ratings are computed, not asserted — open a report for the full evidence, including what the
-  analysis cannot see.</p>
-  <table style="margin-top:20px"><thead><tr>
-  <th>Library · upgrade</th><th>Stream</th><th>Rating</th><th>Test lane</th><th>Delta</th>
+  <p class="idx-sub">One row per remediated artifact. Each answers a single question
+  <b>before you upgrade</b>: how much did this artifact actually change, and how much
+  testing does that owe? Every rating is <b>computed from the bytecode</b>, not asserted —
+  open any row for the full evidence, including what the analysis cannot see.</p>
+
+  <div class="scale">
+    <div class="scale-h">How to read the rating</div>
+    {legend}
+  </div>
+
+  <table class="idx"><thead><tr>
+    <th>Library &amp; upgrade</th><th>Stream</th><th>Rating</th><th>Test lane</th>
+    <th>What changed</th>
   </tr></thead><tbody>{rows}</tbody></table>
-  <div class="footer"><span>ratings: A fast-lane → F migration required</span>
+  <div class="footer"><span>{n} remediated artifact(s) · worst pending rating: {worst} · sorted worst-first</span>
   <span>upgrade-delta v{TOOL_VERSION} · {date.today()}</span></div>
 </div></body></html>"""
 
@@ -1691,6 +1765,205 @@ tr.sub td:first-child{{padding-left:28px}}
 
 
 
+
+
+# ---------------------------------------------------------------- lightwell coverage
+
+RHSUFFIX = None  # compiled lazily
+
+def _base_version(v):
+    """Strip Red Hat build suffixes: 2.13.4.redhat-00001 / 2.13.4.rhlw-00001 -> 2.13.4"""
+    global RHSUFFIX
+    if RHSUFFIX is None:
+        RHSUFFIX = re.compile(r"[.-](redhat|rhlw)-\d+$")
+    return RHSUFFIX.sub("", v or "")
+
+
+def load_catalog(path):
+    """Lightwell catalog SBOM -> {(group, artifact): {base_version: full_version}}"""
+    with open(path) as f:
+        bom = json.load(f)
+    cat = defaultdict(dict)
+    for c in bom.get("components", []):
+        g, n, v = c.get("group"), c.get("name"), c.get("version")
+        if n and v:
+            cat[(g, n)][_base_version(v)] = v
+    return dict(cat)
+
+
+def coverage(args):
+    """Match an application's dependencies against the Lightwell remediated catalog."""
+    cat = load_catalog(args.catalog)
+    with open(args.sbom) as f:
+        bom = json.load(f)
+    app_name = bom.get("metadata", {}).get("component", {}).get("name", os.path.basename(args.sbom))
+
+    exact, near, uncovered = [], [], []
+    for c in bom.get("components", []):
+        if c.get("type") not in (None, "library"):
+            continue
+        g, n, v = c.get("group"), c.get("name"), c.get("version")
+        if not n or not v:
+            continue
+        entry = cat.get((g, n)) or cat.get((None, n))
+        if entry is None:
+            uncovered.append((g, n, v))
+        elif v in entry:
+            exact.append((g, n, v, entry[v]))
+        else:
+            near.append((g, n, v, sorted(entry.keys())))
+
+    total = len(exact) + len(near) + len(uncovered)
+    result = {
+        "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
+        "date": str(date.today()), "app": app_name,
+        "catalog": os.path.basename(args.catalog),
+        "totals": {"dependencies": total, "exact": len(exact),
+                   "serviced_other_version": len(near), "uncovered": len(uncovered)},
+        "exact": [{"group": g, "artifact": n, "version": v, "remediated": rv}
+                  for g, n, v, rv in sorted(exact)],
+        "serviced_other_version": [
+            {"group": g, "artifact": n, "version": v, "serviced_versions": sv}
+            for g, n, v, sv in sorted(near)],
+        "uncovered": [{"group": g, "artifact": n, "version": v}
+                      for g, n, v in sorted(uncovered)],
+    }
+
+    pct = round(100 * len(exact) / total) if total else 0
+    print(f"\n== Lightwell coverage :: {app_name} ==")
+    print(f"   {total} dependencies checked against {result['catalog']}")
+    print(f"   {pct}% drop-in ready — {len(exact)} covered, "
+          f"{len(near)} serviced at another version, {len(uncovered)} not covered\n")
+    print(f"   COVERED ({len(exact)}) — drop-in remediated build, no upgrade needed:")
+    for g, n, v, rv in sorted(exact):
+        print(f"     {g}:{n}  {v} -> {rv}")
+    if near:
+        print(f"\n   SERVICED AT ANOTHER VERSION ({len(near)}) — upgrade, or request your version:")
+        for g, n, v, sv in sorted(near):
+            print(f"     {g}:{n}  you run {v}  |  serviced: {', '.join(sv)}")
+    if uncovered:
+        print(f"\n   NOT COVERED ({len(uncovered)}) — no remediated build; full regression on any upgrade:")
+        for g, n, v in sorted(uncovered):
+            print(f"     {g}:{n}  {v}")
+
+    if args.json:
+        with open(args.json, "w") as f:
+            json.dump(result, f, indent=2)
+        print(f"  coverage json: {args.json}")
+    if args.html:
+        with open(args.html, "w") as f:
+            f.write(render_coverage(result))
+        print(f"  coverage card: {args.html}")
+    return result
+
+
+def render_coverage(r):
+    t = r["totals"]
+    total = t["dependencies"] or 1
+    pct = round(100 * t["exact"] / total)
+    near_pct = round(100 * t["serviced_other_version"] / total)
+    unc_pct = round(100 * t["uncovered"] / total)
+
+    def gav(e):
+        g = esc(e["group"] or "")
+        return f'{g}:{esc(e["artifact"])}' if g else esc(e["artifact"])
+
+    covered_rows = "".join(
+        f'<tr><td class="dep">{gav(e)}</td>'
+        f'<td class="ver">{esc(e["version"])}</td>'
+        f'<td class="ver arrow">{esc(e["remediated"])}</td>'
+        f'<td class="act">Swap the version suffix. No code change.</td></tr>'
+        for e in r["exact"])
+    near_rows = "".join(
+        f'<tr><td class="dep">{gav(e)}</td>'
+        f'<td class="ver">{esc(e["version"])}</td>'
+        f'<td class="ver">{esc(", ".join(e["serviced_versions"]))}</td>'
+        f'<td class="act">Move to a serviced version, or request your version.</td></tr>'
+        for e in r["serviced_other_version"])
+    unc_rows = "".join(
+        f'<tr><td class="dep">{gav(e)}</td>'
+        f'<td class="ver">{esc(e["version"])}</td>'
+        f'<td class="ver dash">not serviced</td>'
+        f'<td class="act">No remediated build. Full regression on any upgrade.</td></tr>'
+        for e in r["uncovered"])
+
+    def section(kind, color, title, subtitle, count, rows, head3):
+        if not rows:
+            return ""
+        return f'''<section class="grp">
+      <div class="grp-h" style="--gc:{color}">
+        <span class="pill">{count}</span>
+        <div><div class="grp-t">{title}</div><div class="grp-s">{subtitle}</div></div>
+      </div>
+      <table class="grid"><thead><tr>
+        <th>Dependency</th><th>You run</th><th>{head3}</th><th>What it means for you</th>
+      </tr></thead><tbody>{rows}</tbody></table>
+    </section>'''
+
+    body = (
+        section("ok", "var(--pass)", "Covered — drop-in remediated build",
+                "Red Hat rebuilt the exact version you run, with the fix. A configuration "
+                "change, not an upgrade.", t["exact"], covered_rows, "Remediated build") +
+        section("watch", "var(--watch)", "Serviced — at a different version",
+                "Red Hat services this library, but not the version you run. A real upgrade, "
+                "or a request for your version.", t["serviced_other_version"], near_rows,
+                "Serviced versions") +
+        section("stop", "var(--stop)", "Not covered",
+                "No remediated build exists. Any upgrade here carries the full, unscoped test "
+                "burden — the situation this tool exists to remove.", t["uncovered"],
+                unc_rows, "Status"))
+
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{esc(r['app'])} — Lightwell coverage</title>{FONTS}<style>{CSS}
+.cov-sub{{color:var(--ink-soft);max-width:70ch;margin:2px 0 22px;font-size:14px;line-height:1.55}}
+.legend{{display:flex;gap:26px;margin:0 0 26px;flex-wrap:wrap}}
+.legend .li{{display:flex;align-items:baseline;gap:9px}}
+.legend .n{{font:700 22px/1 var(--head,inherit)}}
+.legend .t{{font-size:12.5px;color:var(--ink-soft)}}
+.legend .dot{{width:9px;height:9px;border-radius:50%;align-self:center}}
+.grp{{margin:0 0 26px}}
+.grp-h{{display:flex;align-items:center;gap:13px;padding:0 0 9px;border-bottom:2px solid var(--gc);margin-bottom:0}}
+.grp .pill{{background:var(--gc);color:#fff;font:700 14px/1 var(--head,inherit);
+  min-width:30px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;padding:0 8px}}
+.grp-t{{font:700 15px/1.2 var(--head,inherit);color:var(--ink)}}
+.grp-s{{font-size:12px;color:var(--ink-soft);margin-top:3px}}
+table.grid{{width:100%;border-collapse:collapse}}
+table.grid th{{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:600;padding:11px 12px 7px;border-bottom:1px solid var(--line,#e5e5e5)}}
+table.grid td{{padding:9px 12px;border-bottom:1px solid var(--line,#eee);font-size:13px;vertical-align:top}}
+table.grid tr:last-child td{{border-bottom:none}}
+td.dep{{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink);white-space:nowrap}}
+td.ver{{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink-soft);white-space:nowrap}}
+td.ver.arrow{{color:var(--pass);font-weight:600}}
+td.ver.arrow::before{{content:"\2192  ";color:var(--ink-soft);font-weight:400}}
+td.ver.dash{{color:var(--stop)}}
+td.act{{color:var(--ink);font-size:12.5px}}
+</style></head><body>
+<div class="sheet" style="--stamp-c:{'var(--pass)' if pct >= 60 else 'var(--watch)'}">
+  <div class="stamp"><span class="g">{pct}%</span><span class="l">drop-in ready</span></div>
+  <div class="eyebrow">Lightwell coverage meter</div>
+  <h1>{esc(r['app'])}</h1>
+  <div class="vers">{t['dependencies']} dependencies checked against {esc(r['catalog'])}</div>
+  <p class="cov-sub">How much of this application's dependency risk Red Hat Lightwell can
+  remediate <b>without an upgrade</b> — today, for the exact versions in production.</p>
+  <div class="legend">
+    <div class="li"><span class="dot" style="background:var(--pass)"></span>
+      <span class="n" style="color:var(--pass)">{t['exact']}</span>
+      <span class="t">drop-in remediated<br>({pct}% of deps)</span></div>
+    <div class="li"><span class="dot" style="background:var(--watch)"></span>
+      <span class="n" style="color:var(--watch)">{t['serviced_other_version']}</span>
+      <span class="t">serviced, other version<br>({near_pct}%)</span></div>
+    <div class="li"><span class="dot" style="background:var(--stop)"></span>
+      <span class="n" style="color:var(--stop)">{t['uncovered']}</span>
+      <span class="t">not covered<br>({unc_pct}%)</span></div>
+  </div>
+  {body}
+  <div class="footer"><span>Covered = same base version, rebuilt by Red Hat (\u2026.redhat-NNNNN / \u2026.rhlw-NNNNN suffix)</span>
+  <span>upgrade-delta v{TOOL_VERSION} · {esc(r['date'])}</span></div>
+</div></body></html>"""
+
+
 # ---------------------------------------------------------------- seal / verify
 
 def _canonical(path):
@@ -1788,6 +2061,14 @@ def main():
     s.add_argument("--fail-on", choices=GRADE_ORDER,
                    help="exit non-zero if project grade is this bad or worse")
     s.set_defaults(fn=scan)
+
+    cv = sub.add_parser("coverage", help="match an app SBOM against the Lightwell "
+                        "remediated catalog: exact drop-in builds vs blind spots")
+    cv.add_argument("--sbom", required=True, help="the application's CycloneDX SBOM")
+    cv.add_argument("--catalog", required=True,
+                    help="Lightwell catalog SBOM (e.g. catalogs/lightwell-remediated-java-sbom.json)")
+    cv.add_argument("--json"); cv.add_argument("--html")
+    cv.set_defaults(fn=coverage)
 
     se = sub.add_parser("seal", help="detached Ed25519 signatures over evidence JSON")
     se.add_argument("files", nargs="+")

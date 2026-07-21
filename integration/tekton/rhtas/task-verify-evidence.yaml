@@ -1,0 +1,47 @@
+# Verifies the cosign signatures + Rekor inclusion for the sealed evidence — the change
+# board's offline check. Distroless cosign image => call the entrypoint via args, one
+# step per file. Fails if a blob was edited after signing.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-verify
+  namespace: upgrade-delta-demo
+spec:
+  description: >-
+    Verify cosign signatures + Rekor inclusion for the sealed evidence. The signature
+    proves origin and integrity; the Rekor entry proves it was logged. Fails on any edit.
+  params:
+    - name: scorecard
+      type: string
+      default: "out/scorecard.json"
+    - name: routing
+      type: string
+      default: "out/routing.json"
+    - name: cert-identity-regexp
+      type: string
+      description: expected signer identity (regexp) — set to your CI identity
+      default: ".*"
+    - name: oidc-issuer-regexp
+      type: string
+      default: "https://oauth2.sigstore.dev/auth"
+  workspaces:
+    - name: source
+  steps:
+    - name: verify-scorecard
+      image: registry.redhat.io/rhtas/cosign-rhel9:1.3.5
+      workingDir: $(workspaces.source.path)
+      args:
+        - "verify-blob"
+        - "--bundle=$(params.scorecard).bundle"
+        - "--certificate-identity-regexp=$(params.cert-identity-regexp)"
+        - "--certificate-oidc-issuer-regexp=$(params.oidc-issuer-regexp)"
+        - "$(params.scorecard)"
+    - name: verify-routing
+      image: registry.redhat.io/rhtas/cosign-rhel9:1.3.5
+      workingDir: $(workspaces.source.path)
+      args:
+        - "verify-blob"
+        - "--bundle=$(params.routing).bundle"
+        - "--certificate-identity-regexp=$(params.cert-identity-regexp)"
+        - "--certificate-oidc-issuer-regexp=$(params.oidc-issuer-regexp)"
+        - "$(params.routing)"

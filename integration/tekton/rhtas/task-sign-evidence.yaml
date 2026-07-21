@@ -1,0 +1,56 @@
+# Signs upgrade-delta's evidence with cosign, keyless, using the PUBLIC Sigstore
+# infrastructure (public Fulcio + Rekor). No registry pull secret needed — the cosign
+# image is public (gcr.io/projectsigstore/cosign) and public Sigstore needs no self-hosted
+# stack. Produces .sig + .crt (Fulcio cert) + a bundle, and a public Rekor log entry.
+#
+# The cosign image is DISTROLESS (no shell), so each step calls the cosign entrypoint
+# directly via args — not a bash script. One step per file.
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-sign
+  namespace: upgrade-delta-demo
+spec:
+  description: >-
+    Keyless-sign the scorecard and routing payload with cosign against public Sigstore
+    (Fulcio + Rekor). Verifiable offline by a change board — the sealed audit chain, on
+    Sigstore, no private keys to custody, no registry credentials required.
+  params:
+    - name: scorecard
+      type: string
+      default: "out/scorecard.json"
+    - name: routing
+      type: string
+      default: "out/routing.json"
+    - name: oidc-issuer
+      type: string
+      description: OIDC issuer cosign uses for keyless identity
+      default: "https://oauth2.sigstore.dev/auth"
+  workspaces:
+    - name: source
+  steps:
+    # keyless signing needs an OIDC identity token. In CI, cosign reads it from
+    # SIGSTORE_ID_TOKEN. Pipelines-as-Code / Tekton can project one; see rhtas/README.md
+    # for wiring the token. Interactive/ambient auth also works when a token is present.
+    - name: sign-scorecard
+      image: registry.redhat.io/rhtas/cosign-rhel9:1.3.5
+      workingDir: $(workspaces.source.path)
+      args:
+        - "sign-blob"
+        - "--yes"
+        - "--oidc-issuer=$(params.oidc-issuer)"
+        - "--bundle=$(params.scorecard).bundle"
+        - "--output-signature=$(params.scorecard).sig"
+        - "--output-certificate=$(params.scorecard).crt"
+        - "$(params.scorecard)"
+    - name: sign-routing
+      image: registry.redhat.io/rhtas/cosign-rhel9:1.3.5
+      workingDir: $(workspaces.source.path)
+      args:
+        - "sign-blob"
+        - "--yes"
+        - "--oidc-issuer=$(params.oidc-issuer)"
+        - "--bundle=$(params.routing).bundle"
+        - "--output-signature=$(params.routing).sig"
+        - "--output-certificate=$(params.routing).crt"
+        - "$(params.routing)"

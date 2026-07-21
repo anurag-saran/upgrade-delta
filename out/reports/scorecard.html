@@ -76,30 +76,24 @@ tr.sub td{background:color-mix(in srgb,var(--rule) 22%,var(--card))}
 tr.sub td:first-child{padding-left:28px}
 .bar-n{font-family:var(--mono);font-size:13px;text-align:right}
 </style></head><body>
-<div class="sheet" style="--stamp-c:var(--stop)">
-  <div class="stamp"><span class="g">D</span><span class="l">project</span></div>
+<div class="sheet" style="--stamp-c:var(--watch)">
+  <div class="stamp"><span class="g">B</span><span class="l">project</span></div>
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
   <h1>payments-service-1.0.0.jar</h1>
-  <div class="vers">4 rated dependencies · 1 unrated package roots</div>
+  <div class="vers">3 rated dependencies · 4 unrated package roots</div>
   <p style="max-width:62ch;color:var(--ink-soft)">The headline is the <b>worst pending grade across
   the best available remediation path per library</b> — never an average. One migration-grade
   dependency makes this a migration-grade project, no matter how clean the rest is.</p>
   <div class="note">Without the best available remediation paths this project scores <span class="chip" style="--c:var(--stop)">F</span> — the gap between the two numbers is what a maintained backport is worth, measured.</div>
-  <h2>Test-effort budget to get current</h2><div class="bar-row"><span class="bar-label">Fast lane</span><span class="bar"><i style="width:25%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label">Targeted tests</span><span class="bar"><i style="width:50%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">2</span></div><div class="bar-row"><span class="bar-label">Full regression</span><span class="bar"><i style="width:0%"></i><i class="t" style="width:25%"></i></span><span class="bar-n">1 (1t)</span></div><div class="bar-row"><span class="bar-label"></span><span class="lane" style="grid-column:2/4">solid = direct · hatched = transitive (counted at full weight — risk does not roll up)</span></div>
+  <h2>Test-effort budget to get current</h2><div class="bar-row"><span class="bar-label">Fast lane</span><span class="bar"><i style="width:33%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label">Targeted tests</span><span class="bar"><i style="width:67%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">2</span></div><div class="bar-row"><span class="bar-label"></span><span class="lane" style="grid-column:2/4">solid = direct · hatched = transitive (counted at full weight — risk does not roll up)</span></div>
   <h2>Dependencies</h2>
   <table><thead><tr><th>Library · exposure</th><th>Remediation paths (best first)</th></tr></thead>
   <tbody><tr><td><b>acme-http-client</b><br>
 <span class="lane">2 direct call sites · touches 0 changed / 0 incompatible on best path</span></td>
-<td><div><span class="chip" style="--c:var(--watch)">B</span> <span class="m">4.5.13 → 4.5.14</span><span class="lane"> · Targeted tests</span></div></td></tr><tr class="sub"><td><span class="lane">↳ transitive</span> <b>acme-codec</b><br>
-<span class="lane">brought in by acme-http-client · fix lever: bump acme-http-client or pin an override<br>
-4 parent methods in reachability closure
-(class-granular: 3 classes) ·
-touches 0 changed / 0 incompatible through your paths</span><br><span class="lane">e.g. com.acme.http.internal.Retry → <span class="m">com.acme.codec.Base64Codec#&lt;init&gt;()V</span></span>
-<br><span class='lane'>precision: class-level analysis would have flagged 1 member(s) — method-level shows those paths are unreached</span></td>
-<td><div><span class="chip" style="--c:var(--stop)">D</span> <span class="m">1.11 → 1.15</span><span class="lane"> · Full regression</span></div><div class="note" style="margin:8px 0 0">De-escalation available WITH SIGN-OFF (--accept-transitive-scope): no changed member reachable through your call paths. Not applied by default — two-hop evidence carries lower confidence than direct analysis.</div></td></tr><tr><td><b>acme-json</b><br>
+<td><div><span class="chip" style="--c:var(--watch)">B</span> <span class="m">4.5.13 → 4.5.14</span><span class="lane"> · Targeted tests</span></div></td></tr><tr><td><b>acme-json</b><br>
 <span class="lane">2 direct call sites · touches 0 changed / 0 incompatible on best path</span></td>
 <td><div><span class="chip" style="--c:var(--watch)">B</span> <span class="m">2.13.4 → 2.13.4.2</span><span class="lane"> · Targeted tests</span></div></td></tr><tr><td><b>acme-logging</b><br>
-<span class="lane">5 direct call sites · touches 0 changed / 0 incompatible on best path</span></td>
+<span class="lane">6 direct call sites · touches 0 changed / 0 incompatible on best path</span></td>
 <td><div><span class="chip" style="--c:var(--pass)">A</span> <span class="m">1.12.1 → 1.12.2</span><span class="lane"> · Fast lane ←</span><span class="lane"> · stream switch from 1.14.1</span></div><div><span class="chip" style="--c:var(--stop)">F</span> <span class="m">1.14.1 → 1.17.1</span><span class="lane"> · Full regression + migration</span></div></td></tr></tbody></table>
   
   <h2>Config &amp; reflection heuristics</h2>
@@ -109,7 +103,7 @@ constants — the cheap slice of the reflection blind spot, made visible instead
   <h2>Not rated — visible whitespace</h2>
 <p style="color:var(--ink-soft)">The application calls into these third-party packages, and no
 delta report covers them. Every entry here is an upgrade you would be testing blind today.</p>
-<ul class="list"><li class="m">com.acme.xml</li></ul>
+<ul class="list"><li class="m">com.acme.xml</li><li class="m">org.apache.logging.log4j</li><li class="m">org.apache.logging.log4j.core.config</li><li class="m">org.apache.logging.log4j.core.lookup</li></ul>
   <h2>What this scan cannot see</h2>
   <div class="blind"><ul>
     <li>Reflection and config-driven use of a library will not appear as call sites — and this
@@ -119,5 +113,5 @@ delta report covers them. Every entry here is an upgrade you would be testing bl
     <li>A behavior change with no structural fingerprint is invisible; canary and rollback stay in every lane.</li>
   </ul></div>
   <div class="footer"><span>gate suggestion: fail CI when project grade ≥ D</span>
-  <span>upgrade-delta v0.1.0 · 2026-07-18</span></div>
+  <span>upgrade-delta v0.1.0 · 2026-07-20</span></div>
 </div></body></html>

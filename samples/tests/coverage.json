@@ -5,12 +5,14 @@
   "tests": {
     "PaymentServiceTest": {
       "covers": [
-        "com.acme.payments.PaymentService"
+        "com.acme.payments.PaymentService",
+        "com.acme.payments.Ledger"
       ]
     },
     "RefundFlowTest": {
       "covers": [
         "com.acme.payments.PaymentService",
+        "com.acme.payments.RefundService",
         "com.acme.payments.Ledger"
       ]
     },
@@ -22,7 +24,8 @@
     "CheckoutIT": {
       "covers": [
         "com.acme.payments.PaymentService",
-        "com.acme.payments.GatewayClient"
+        "com.acme.payments.GatewayClient",
+        "com.acme.payments.Ledger"
       ]
     },
     "LedgerTest": {
@@ -55,5 +58,6 @@
         "com.acme.payments.Boot"
       ]
     }
-  }
+  },
+  "_note": "SYNTHETIC sample map for the offline demo \u2014 generate a real one from JaCoCo via integration/jacoco/jacoco2coverage.py"
 }

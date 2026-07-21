@@ -1,6 +1,6 @@
 {
   "schema": "upgrade-delta/selection-report/v1",
-  "date": "2026-07-18",
+  "date": "2026-07-20",
   "app": "payments-service-1.0.0.jar",
   "mode": "TARGETED SELECTION",
   "coverage_provenance": {
@@ -11,12 +11,16 @@
   },
   "selected": [
     {
+      "test": "AuditTrailTest",
+      "reason": "covers com.acme.payments.AuditTrail <- acme-logging 1.12.1 -> 1.12.2 [direct]"
+    },
+    {
       "test": "CheckoutIT",
-      "reason": "covers com.acme.payments.GatewayClient <- acme-http-client 4.5.13 -> 4.5.14 [direct] & acme-codec 1.11 -> 1.15 [two-hop, signed-off] & acme-json 2.13.4 -> 2.13.4.2 [direct]; covers com.acme.payments.PaymentService <- acme-logging 1.12.1 -> 1.12.2 [direct]"
+      "reason": "covers com.acme.payments.GatewayClient <- acme-http-client 4.5.13 -> 4.5.14 [direct] & acme-json 2.13.4 -> 2.13.4.2 [direct]; covers com.acme.payments.PaymentService <- acme-logging 1.12.1 -> 1.12.2 [direct]"
     },
     {
       "test": "GatewayClientTest",
-      "reason": "covers com.acme.payments.GatewayClient <- acme-http-client 4.5.13 -> 4.5.14 [direct] & acme-codec 1.11 -> 1.15 [two-hop, signed-off] & acme-json 2.13.4 -> 2.13.4.2 [direct]"
+      "reason": "covers com.acme.payments.GatewayClient <- acme-http-client 4.5.13 -> 4.5.14 [direct] & acme-json 2.13.4 -> 2.13.4.2 [direct]"
     },
     {
       "test": "MetricsTest",
@@ -28,7 +32,7 @@
     },
     {
       "test": "RefundFlowTest",
-      "reason": "covers com.acme.payments.PaymentService <- acme-logging 1.12.1 -> 1.12.2 [direct]"
+      "reason": "covers com.acme.payments.PaymentService <- acme-logging 1.12.1 -> 1.12.2 [direct]; covers com.acme.payments.RefundService <- acme-logging 1.12.1 -> 1.12.2 [direct]"
     }
   ],
   "widened": [
@@ -52,10 +56,6 @@
   },
   "skipped": [
     {
-      "test": "AuditTrailTest",
-      "reason": "no covered class intersects any affected class"
-    },
-    {
       "test": "ContractRoundTripIT",
       "reason": "no covered class intersects any affected class"
     },
@@ -70,8 +70,8 @@
   ],
   "totals": {
     "suite": 11,
-    "selected": 6,
+    "selected": 7,
     "mandatory_appended": 1,
-    "final": 7
+    "final": 8
   }
 }
