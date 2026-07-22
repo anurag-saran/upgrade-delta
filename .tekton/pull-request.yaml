@@ -7,6 +7,8 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/pipeline: "integration/tekton/pipeline-demo.yaml"
     pipelinesascode.tekton.dev/task: "git-clone"
+    pipelinesascode.tekton.dev/task-1: "integration/tekton/task-upgrade-delta.yaml"
+    pipelinesascode.tekton.dev/task-2: "integration/tekton/task-upgrade-delta-route.yaml"
   name: upgrade-delta-pr
 spec:
   pipelineRef:
