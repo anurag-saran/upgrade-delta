@@ -1,0 +1,9 @@
+# The demo namespace. In the console you can also just create a Project named
+# "upgrade-delta-demo" (Developer perspective -> Project -> Create Project) and
+# skip this file.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta

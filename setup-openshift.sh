@@ -177,6 +177,12 @@ apply_if integration/tekton/task-upgrade-delta-route.yaml "task: upgrade-delta r
 apply_if integration/tekton/rhtas/task-sign-evidence.yaml   "task: cosign sign (RHTAS)"
 apply_if integration/tekton/rhtas/task-verify-evidence.yaml "task: cosign verify (RHTAS)"
 
+# reports PVC + scorecard viewer (the PR pipeline's workspace + the HTML viewer).
+# NOTE: the PVC needs an RWX StorageClass for the viewer to share it — see deploy/README.md.
+apply_if deploy/10-reports-pvc.yaml                         "reports PVC (upgrade-delta-reports)"
+apply_if deploy/20-scorecard-viewer-deployment.yaml        "scorecard viewer (nginx)"
+apply_if deploy/22-scorecard-route.yaml                    "scorecard route"
+
 # git-clone from the Tekton catalog (needs network egress from your machine)
 printf "  ${DIM}fetching git-clone task...${RESET}\n"
 if oc apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml -n "$NS" >/dev/null 2>&1; then
@@ -217,12 +223,14 @@ if [ "${PAC_READY:-0}" = "0" ]; then
 fi
 cat <<NEXT
 
-  ${BOLD}B. Open a PR against main${RESET}  → the run starts automatically. Then approve:
-       oc create configmap upgrade-delta-approved -n ${NS}
+  ${BOLD}B. Open a PR against main${RESET}  → the run starts automatically. Watch it in the
+     console (Pipelines → PipelineRuns); the grade/coverage/tests show on the Results tab.
 
-  ${DIM}Everything else (namespace, secrets, gate, tasks, git-clone) is already applied.${RESET}
-  Full detail: integration/tekton/pac/README.md  ·  CREDENTIALS.md
+  ${DIM}Everything else (namespace, secrets, tasks, git-clone, reports PVC, viewer) is applied.${RESET}
+  Prefer the fully-console setup? See docs/INSTALL-OPENSHIFT.md.
+  Optional CAB approval / signing: integration/tekton/pac/README.md · rhtas/README.md · CREDENTIALS.md
 
-  ${DIM}Reminder: rotate any token that previously passed through a chat.${RESET}
+  ${DIM}Reminder: rotate any token that previously passed through a chat, and set the reports${RESET}
+  ${DIM}PVC's storageClassName to an RWX class if the viewer pod stays Pending.${RESET}
 NEXT
 hr

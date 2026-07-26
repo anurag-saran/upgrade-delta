@@ -46,7 +46,9 @@ spec:
     - {name: PROJECT_GRADE, value: $(tasks.score.results.PROJECT_GRADE)}
     - {name: COVERAGE_PCT, value: $(tasks.score.results.COVERAGE_PCT)}
     - {name: COVERED, value: $(tasks.score.results.COVERED)}
+    - {name: NEAR, value: $(tasks.score.results.NEAR)}
     - {name: UNCOVERED, value: $(tasks.score.results.UNCOVERED)}
     - {name: TESTS_SELECTED, value: $(tasks.route.results.TESTS_SELECTED)}
     - {name: TESTS_PASSED, value: $(tasks.route.results.TESTS_PASSED)}
+    - {name: TESTS_FAILED, value: $(tasks.route.results.TESTS_FAILED)}
     - {name: SUITE_SIZE, value: $(tasks.route.results.SUITE_SIZE)}
