@@ -1,0 +1,30 @@
+# Shared "reports" volume.
+#
+# Two things mount this same claim:
+#   1. the PipelineRun (its `source` workspace, see .tekton/pull-request.yaml) —
+#      git-clone checks the repo out here and the tasks write out/reports/*.html
+#   2. the scorecard-viewer Deployment (deploy/20-...) — serves those HTML files
+#
+# Because both mount it AT THE SAME TIME, this must be ReadWriteMany (RWX).
+# A default block/RWO StorageClass will NOT work for the viewer path: the second
+# pod to schedule gets a "Multi-Attach" error and stays ContainerCreating.
+#
+#   -> Set storageClassName below to an RWX-capable class (typically NFS-backed).
+#      List them with:  oc get sc   (look for an NFS / file / RWX provisioner).
+#
+# If you DON'T deploy the viewer (you're happy reading the numbers off the
+# PipelineRun Results tab), RWO is fine — drop ReadWriteMany to ReadWriteOnce.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: upgrade-delta-reports
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+spec:
+  accessModes:
+    - ReadWriteMany            # RWX so the pipeline pod and the viewer pod can share it
+  resources:
+    requests:
+      storage: 1Gi
+  # storageClassName: nfs-csi  # <-- uncomment and set to your RWX StorageClass

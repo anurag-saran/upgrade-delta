@@ -1,0 +1,36 @@
+# Service + Route for the scorecard viewer.
+# After applying, get the URL in the console (Networking -> Routes -> scorecard)
+# or with:  oc get route scorecard -n upgrade-delta-demo -o jsonpath='{.spec.host}'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scorecard-viewer
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer
+spec:
+  selector:
+    app: scorecard-viewer
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: scorecard
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+spec:
+  to:
+    kind: Service
+    name: scorecard-viewer
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

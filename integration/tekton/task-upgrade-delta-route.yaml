@@ -6,8 +6,12 @@ spec:
   description: >-
     Consumer-side test routing: joins the scan's routing payload with the
     per-test JaCoCo coverage map and emits the Surefire includes file, the
-    selection report, and deploy-gate.json. Fails loudly (exit 3) if a
-    declared mandatory test resolves to zero classes.
+    selection report, and deploy-gate.json, then executes the selected tests.
+    Fails loudly (exit 3) if a declared mandatory test resolves to zero classes,
+    or (exit 1) if any executed test method fails.
+    Note on units: TESTS_SELECTED / SUITE_SIZE count test CLASSES; TESTS_PASSED /
+    TESTS_FAILED count test METHODS (one class can hold several methods), so
+    "TESTS_PASSED > TESTS_SELECTED" is expected, not an error.
   params:
     - name: coverage-map
       type: string
@@ -22,8 +26,13 @@ spec:
     - name: source
   results:
     - name: TESTS_SELECTED
+      description: Test CLASSES routed to run (selected + mandatory), out of SUITE_SIZE
     - name: SUITE_SIZE
+      description: Total test CLASSES in the suite
     - name: TESTS_PASSED
+      description: Test METHODS executed (a class may contain several methods)
+    - name: TESTS_FAILED
+      description: Test METHODS that failed (0 = green)
   steps:
     - name: route
       image: registry.access.redhat.com/ubi9/python-311:latest
@@ -45,9 +54,15 @@ spec:
       workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash
-        set -euo pipefail
+        set -uo pipefail
         CP=$(ls examples/demo-jars/*.jar | tr '\n' ':')
-        java -cp "$CP" testing.MiniRunner out/routing-out/surefire-includes.txt \
-          | tee /tmp/exec.log
-          grep -oE '^  [0-9]+ test method' /tmp/exec.log | grep -oE '[0-9]+' \
-          | awk '{s+=$1} END {printf "%d", s+0}' > "$(results.TESTS_PASSED.path)"
+        # MiniRunner runs the selected test CLASSES and prints a final summary line:
+        #   "N test method(s) executed, M failure(s)"
+        java -cp "$CP" testing.MiniRunner out/routing-out/surefire-includes.txt | tee /tmp/exec.log
+        EXECUTED=$(grep -oE '[0-9]+ test method' /tmp/exec.log | tail -1 | grep -oE '^[0-9]+'); EXECUTED=${EXECUTED:-0}
+        FAILED=$(grep -oE '[0-9]+ failure'     /tmp/exec.log | tail -1 | grep -oE '^[0-9]+'); FAILED=${FAILED:-0}
+        printf '%s' "$EXECUTED" > "$(results.TESTS_PASSED.path)"
+        printf '%s' "$FAILED"   > "$(results.TESTS_FAILED.path)"
+        echo "executed=$EXECUTED failed=$FAILED"
+        # a genuine test failure turns the PipelineRun red
+        [ "$FAILED" -eq 0 ] || { echo "GATE: $FAILED test method(s) failed"; exit 1; }
