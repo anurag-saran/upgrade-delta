@@ -49,5 +49,5 @@ spec:
         CP=$(ls examples/demo-jars/*.jar | tr '\n' ':')
         java -cp "$CP" testing.MiniRunner out/routing-out/surefire-includes.txt \
           | tee /tmp/exec.log
-        grep -oE '^  [0-9]+ test method' /tmp/exec.log | grep -oE '[0-9]+' \
-          > "$(results.TESTS_PASSED.path)" || echo 0 > "$(results.TESTS_PASSED.path)"
+          grep -oE '^  [0-9]+ test method' /tmp/exec.log | grep -oE '[0-9]+' \
+          | awk '{s+=$1} END {printf "%d", s+0}' > "$(results.TESTS_PASSED.path)"
