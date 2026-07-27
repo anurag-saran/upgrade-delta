@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-coverage
+  labels: {app.kubernetes.io/part-of: upgrade-delta}
+spec:
+  description: >-
+    Coverage meter. Buckets every application dependency against the Lightwell
+    remediated catalog — exact-version drop-in / serviced at another version /
+    uncovered — writes the coverage card, and surfaces the headline numbers as
+    Tekton results so they show on the PipelineRun's Output tab.
+  params:
+    - name: app-sbom
+      type: string
+      description: Path (in workspace) to the application CycloneDX SBOM
+    - name: catalog
+      type: string
+      default: catalogs/lightwell-remediated-java-sbom.json
+  workspaces:
+    - name: source
+  results:
+    - name: COVERAGE_PCT
+      description: Percent of dependencies with an exact-version remediated build
+    - name: COVERED
+      description: Dependencies with a drop-in remediated build
+    - name: NEAR
+      description: Dependencies serviced at another (non-exact) version
+    - name: UNCOVERED
+      description: Dependencies with no remediated build
+  steps:
+    - name: coverage
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mkdir -p out/reports
+        python3 upgrade_delta.py coverage \
+          --sbom "$(params.app-sbom)" --catalog "$(params.catalog)" \
+          --json out/coverage.json --html out/reports/coverage.html
+        python3 - <<'PY'
+        import json
+        c = json.load(open("out/coverage.json"))["totals"]
+        pct = round(100 * c["exact"] / c["dependencies"]) if c["dependencies"] else 0
+        open("$(results.COVERAGE_PCT.path)", "w").write(str(pct))
+        open("$(results.COVERED.path)", "w").write(str(c["exact"]))
+        open("$(results.NEAR.path)", "w").write(str(c["serviced_other_version"]))
+        open("$(results.UNCOVERED.path)", "w").write(str(c["uncovered"]))
+        PY

@@ -40,12 +40,15 @@ How the pieces fit:
 ```
 GitHub PR  ──(Pipelines-as-Code webhook)──►  OpenShift Pipelines
    │                                              │
-   │   .tekton/pull-request.yaml                  ├─ clone   (git-clone)
-   │   → pipeline: upgrade-delta-demo             ├─ score   (upgrade_delta.py coverage + scan)
-   │                                              └─ route   (test_router.py → run selected tests)
+   │   .tekton/pull-request.yaml                  ├─ clone    (git-clone)
+   │   → pipeline: upgrade-delta-demo             ├─ coverage (upgrade_delta.py coverage)
+   │                                              ├─ scan     (upgrade_delta.py scan → grade)
+   │                                              ├─ route    (test_router.py → run selected tests)
+   │                                              ├─ summary  (finally: prints the VERDICT banner)
+   │                                              └─ pr-comment (finally: posts the CAB summary on the PR)
    │                                              │
    ▼                                              ▼
- required check ◄──── scorecard ◄──── PipelineRun Results  +  deploy/ nginx viewer (Route → HTML)
+ required check ◄──── CAB comment on the PR ◄──── PipelineRun Results + summary log + nginx viewer Route
 ```
 
 ---
@@ -124,6 +127,8 @@ OpenShift this becomes the credentialed pipeline variant — see the add-ons in
 upgrade_delta.py        the tool: analyze | publish | scan | seal | verify
 test_router.py          consumer-side test router (executable spec for the Maven plugin)
 demo.sh                 narrated offline demo, incl. the deliberate failure modes
+setup-openshift.sh      scripted cluster setup (namespace, tasks, deploy/, git-clone)
+cleanup-openshift.sh    scripted teardown — run before re-installing over a previous version
 deploy/                 cluster resources for the console demo: reports PVC + scorecard viewer
 .tekton/                Pipelines-as-Code PR trigger (fires the demo pipeline on every PR)
 integration/tekton/     the pipeline + tasks, PaC runbook, CAB approval, RHTAS signing
