@@ -173,3 +173,4 @@ live-cluster PaC + signing paths are YAML-valid and documented; budget one shake
 GitHub App webhook and any RWX StorageClass wiring. The Maven plugin is an honest scaffold
 (`test_router.py` is its executable behavior spec). Internal Red Hat material — do not
 distribute externally; licensing to be settled before any external release.
+# Test update
