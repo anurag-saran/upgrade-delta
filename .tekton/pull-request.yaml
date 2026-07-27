@@ -7,8 +7,11 @@ metadata:
     pipelinesascode.tekton.dev/max-keep-runs: "5"
     pipelinesascode.tekton.dev/pipeline: "integration/tekton/pipeline-demo.yaml"
     pipelinesascode.tekton.dev/task: "git-clone"
-    pipelinesascode.tekton.dev/task-1: "integration/tekton/task-upgrade-delta.yaml"
-    pipelinesascode.tekton.dev/task-2: "integration/tekton/task-upgrade-delta-route.yaml"
+    pipelinesascode.tekton.dev/task-1: "integration/tekton/task-upgrade-delta-coverage.yaml"
+    pipelinesascode.tekton.dev/task-2: "integration/tekton/task-upgrade-delta-scan.yaml"
+    pipelinesascode.tekton.dev/task-3: "integration/tekton/task-upgrade-delta-route.yaml"
+    pipelinesascode.tekton.dev/task-4: "integration/tekton/task-upgrade-delta-summary.yaml"
+    pipelinesascode.tekton.dev/task-5: "integration/tekton/task-upgrade-delta-pr-comment.yaml"
   name: upgrade-delta-pr
 spec:
   pipelineRef:
@@ -18,7 +21,18 @@ spec:
       value: '{{ repo_url }}'
     - name: git-revision
       value: '{{ revision }}'
+    - name: repo-owner
+      value: '{{ repo_owner }}'
+    - name: repo-name
+      value: '{{ repo_name }}'
+    - name: pull-request-number
+      value: '{{ pull_request_number }}'
+    - name: scorecard-route-host
+      value: ''
   workspaces:
     - name: source
       persistentVolumeClaim:
         claimName: upgrade-delta-reports
+    - name: basic-auth
+      secret:
+        secretName: "{{ git_auth_secret }}"
