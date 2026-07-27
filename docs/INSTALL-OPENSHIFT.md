@@ -8,6 +8,13 @@ The **base demo** (clone → score → route) runs entirely on fixtures committe
 so it needs **no Lightwell credentials, no registry pull secret, and no JDK on your side**.
 Credentials are only for the optional add-ons at the end.
 
+> **Already running a previous version on this cluster?** Tear it down first so stale tasks,
+> PipelineRuns, and the old reports PVC don't collide with the new set:
+> ```
+> ./cleanup-openshift.sh          # keeps the namespace + your credential secrets
+> ```
+> Then either follow the console steps below, or run the scripted setup (see the end).
+
 ---
 
 ## What you need first
@@ -112,6 +119,31 @@ merge until the scan is green — the audit gate lives in the merge button.
 ---
 
 ✅ **Setup done.** Go run the demo: [`docs/DEMO-SCRIPT.md`](DEMO-SCRIPT.md).
+
+---
+
+## Scripted setup & teardown (the CLI alternative)
+
+If you have `oc` and prefer scripts over clicking:
+
+```bash
+./setup-openshift.sh      # namespace, secrets, tasks, deploy/ (PVC + viewer), git-clone;
+                          # then prints the two manual steps (connect GitHub, open a PR)
+./cleanup-openshift.sh    # remove the app resources; keep namespace + credential secrets
+```
+
+`cleanup-openshift.sh` is what you run before re-installing over a previous version. Modes:
+
+| Command | Effect |
+|---|---|
+| `./cleanup-openshift.sh` | Remove pipeline, tasks, Repository CR, viewer, approval gate, all PipelineRuns, and the reports PVC. Keeps the namespace and credential secrets. |
+| `./cleanup-openshift.sh --keep-pvc` | Same, but keep the reports PVC and its data. |
+| `./cleanup-openshift.sh --purge` | Also delete the Lightwell/registry secrets (you'll re-enter tokens). |
+| `./cleanup-openshift.sh --namespace` | Delete the whole `upgrade-delta-demo` namespace (everything). |
+| `./cleanup-openshift.sh --yes` | Skip the confirmation prompt (combine with the above). |
+
+It never touches the OpenShift Pipelines operator or the PaC GitHub App secret in
+`openshift-pipelines`, so your GitHub connection survives a cleanup.
 
 ---
 

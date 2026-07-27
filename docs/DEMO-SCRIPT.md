@@ -40,18 +40,34 @@ As the PR opens, a check named **`upgrade-delta-pr`** appears as *pending*. Clic
 ## Beat 2 — The pipeline runs, in the console (2 min)
 
 Console → **Pipelines → PipelineRuns**: a run named `upgrade-delta-pr-…` is executing. Open
-it and watch the three tasks go green in order:
+it and watch the graph fill in left to right:
 
-> "Three steps. **clone** pulls the PR. **score** runs the reachability analysis — it reads
-> the app's bytecode and measures which changed members it actually reaches. **route**
-> selects the tests that change requires, and runs them."
+> "**clone** pulls the PR. **coverage** buckets every dependency against the Lightwell
+> catalog. **scan** runs the reachability analysis — it reads the app's bytecode and
+> measures which changed members it actually reaches, and grades the risk. **route** selects
+> the tests that change requires and runs them. Then **summary** prints the verdict."
+
+> ⚠️ The **Details** graph is just topology — five green pills. The *meaning* lives on three
+> other tabs; that's Beat 3. Don't try to read the result off the graph.
 
 It finishes in about a minute (the fixtures are small).
 
-## Beat 3 — The verdict, on the Results tab (2 min)
+## Beat 3 — The verdict: three places it lives (2 min)
 
-On the finished run, open the **Results** tab. This is the machine-readable verdict, and
-it's the executive summary with no HTML required:
+The graph is deliberately plain; the data is one click away, in increasing richness:
+
+1. **Logs tab → the `summary` task** — a single VERDICT banner, the fastest read:
+   > `Project grade : B  (would be F without the best remediation paths)`
+   > `Coverage : 61% drop-in (11 / 3 / 4 of 18)` · `Tests routed : 7 of 11` · per-dependency
+   > grades + lanes + the codec `D→B (signed off)` line + open deploy obligations.
+   Open this first — it *is* the executive summary, printed for you.
+2. **Output tab** — the same numbers as machine-readable PipelineRun **Results** (the audit
+   trail): `PROJECT_GRADE`, `GRADE_WITHOUT_REMEDIATION`, `COVERAGE_PCT`, `COVERED/NEAR/
+   UNCOVERED`, `TESTS_SELECTED/PASSED/FAILED`, `SUITE_SIZE`.
+3. **Logs tab → the `scan` task** — the full narrative if someone wants to see the working:
+   per-dependency reasons, the two-hop reachability chain, the config/reflection heuristic.
+
+Walk the Results table:
 
 | Result | Value | Say |
 |---|---|---|
@@ -89,16 +105,21 @@ report:
   > "That's why the canary stays in the plan for every grade, including A. The honesty is
   > the credibility."
 
-## Beat 5 — The close (1 min)
+## Beat 5 — The close: the CAB summary lands on the PR (1 min)
 
-> "So: a developer opened a PR, and got back a graded, evidence-backed upgrade analysis —
-> reachability-proven, test-routed, rendered as a scorecard a change board can audit, and
-> attached to the merge as a required check. No manual triage, no six-week 'run everything.'
-> The question we opened with — *how much testing does this upgrade owe, and can you prove
-> it?* — now has an answer on the PR."
+Switch back to the GitHub tab. The `pr-comment` step has posted a **change-board comment**
+right on the pull request: the project grade, the per-library before→after table with lanes,
+the "**would be F** without the backports" gap, and the **named test plan** with a reason for
+every RUN and skip.
 
-If branch protection is on (INSTALL step 6), show it: the PR **can't merge** until this check
-is green. *"The audit gate is the merge button."*
+> "So a developer opened a PR, and the change board got back — *on the PR itself* — a graded,
+> evidence-backed upgrade analysis: which Lightwell libraries to adopt and at what risk, which
+> tests it owes and why, the results of running them, and a one-click merge gate. No manual
+> triage, no six-week 'run everything.' The reviewer reads this comment and approves by merging;
+> branch protection blocks the merge until the check is green."
+
+That comment posts on **red** runs too — when the gate trips (grade ≥ D, or a missing mandatory
+test), the PR gets a comment saying the tool blocked it and why. The audit trail writes itself.
 
 ---
 
@@ -107,13 +128,13 @@ is green. *"The audit gate is the merge button."*
 Both are real gates. A red PipelineRun here is the product working, not a failure — say so.
 
 ### Lever A — remove the sign-off, watch the gate bite
-In a PR, edit `integration/tekton/pipeline-demo.yaml`, in the `score` task change
+In a PR, edit `integration/tekton/pipeline-demo.yaml`, in the `scan` task change
 `accept-transitive-scope` from `"true"` to `"false"`, and open/push the PR.
 
 > "I'm revoking the human sign-off on that codec de-escalation. Without it, the transitive
 > counts at its raw grade **D**, which breaches the pipeline's `fail-on: D`."
 
-The run goes **red** at the `score` step. The cluster enforced that a de-escalation requires
+The run goes **red** at the `scan` step. The cluster enforced that a de-escalation requires
 an explicit human decision — it isn't a suggestion the tool can grant itself.
 
 ### Lever B — untag the mandatory gate test

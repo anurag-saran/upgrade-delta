@@ -6,17 +6,34 @@ spec:
   description: >-
     Self-contained demo: clone the repo, run the coverage meter against the REAL
     Lightwell catalog, score the committed sample app (transitives, sign-off),
-    route the tests. Everything needed is committed under examples/ — one Python
-    image, no JDK, no network beyond the clone. The PipelineRun's results ARE
-    the summary you show.
+    route + run the selected tests, then print one VERDICT banner. Everything
+    needed is committed under examples/ — one Python image plus a JDK for the
+    test-execution step. The PipelineRun's Results (Output tab) and the summary
+    task's log ARE the executive summary.
   params:
     - name: git-url
       type: string
     - name: git-revision
       type: string
       default: main
+    - name: scorecard-route-host
+      type: string
+      default: ""
+      description: Host of the scorecard viewer Route (optional; prints browsable links)
+    - name: repo-owner
+      type: string
+      default: ""
+    - name: repo-name
+      type: string
+      default: ""
+    - name: pull-request-number
+      type: string
+      default: ""
   workspaces:
     - name: source
+    - name: basic-auth
+      description: PaC-provided git auth secret, for posting the CAB comment. Optional.
+      optional: true
   tasks:
     - name: clone
       # git-clone must exist in this namespace. Install it once with:
@@ -26,28 +43,49 @@ spec:
       params:
         - {name: url, value: $(params.git-url)}
         - {name: revision, value: $(params.git-revision)}
-    - name: score
+    - name: coverage
       runAfter: [clone]
-      taskRef: {name: upgrade-delta}
+      taskRef: {name: upgrade-delta-coverage}
       workspaces: [{name: source, workspace: source}]
       params:
         - {name: app-sbom, value: samples/realworld-springboot-sbom.json}
-        - {name: scan-sbom, value: examples/demo-jars/payments-service.sbom.json}
+    - name: scan
+      runAfter: [coverage]
+      taskRef: {name: upgrade-delta-scan}
+      workspaces: [{name: source, workspace: source}]
+      params:
         - {name: app-jar, value: examples/demo-jars/payments-service-1.0.0.jar}
+        - {name: sbom, value: examples/demo-jars/payments-service.sbom.json}
         - {name: evidence-dir, value: examples/evidence}
         - {name: lib-jars, value: examples/demo-jars}
         - {name: accept-transitive-scope, value: "true"}
         - {name: fail-on, value: "D"}
     - name: route
-      runAfter: [score]
+      runAfter: [scan]
       taskRef: {name: upgrade-delta-route}
       workspaces: [{name: source, workspace: source}]
+  finally:
+    - name: summary
+      taskRef: {name: upgrade-delta-summary}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: scorecard-route-host, value: $(params.scorecard-route-host)}
+    - name: pr-comment
+      taskRef: {name: upgrade-delta-pr-comment}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: basic-auth, workspace: basic-auth}
+      params:
+        - {name: repo-owner, value: $(params.repo-owner)}
+        - {name: repo-name, value: $(params.repo-name)}
+        - {name: pull-request-number, value: $(params.pull-request-number)}
   results:
-    - {name: PROJECT_GRADE, value: $(tasks.score.results.PROJECT_GRADE)}
-    - {name: COVERAGE_PCT, value: $(tasks.score.results.COVERAGE_PCT)}
-    - {name: COVERED, value: $(tasks.score.results.COVERED)}
-    - {name: NEAR, value: $(tasks.score.results.NEAR)}
-    - {name: UNCOVERED, value: $(tasks.score.results.UNCOVERED)}
+    - {name: PROJECT_GRADE, value: $(tasks.scan.results.PROJECT_GRADE)}
+    - {name: GRADE_WITHOUT_REMEDIATION, value: $(tasks.scan.results.GRADE_WITHOUT_REMEDIATION)}
+    - {name: COVERAGE_PCT, value: $(tasks.coverage.results.COVERAGE_PCT)}
+    - {name: COVERED, value: $(tasks.coverage.results.COVERED)}
+    - {name: NEAR, value: $(tasks.coverage.results.NEAR)}
+    - {name: UNCOVERED, value: $(tasks.coverage.results.UNCOVERED)}
     - {name: TESTS_SELECTED, value: $(tasks.route.results.TESTS_SELECTED)}
     - {name: TESTS_PASSED, value: $(tasks.route.results.TESTS_PASSED)}
     - {name: TESTS_FAILED, value: $(tasks.route.results.TESTS_FAILED)}
