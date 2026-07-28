@@ -45,9 +45,9 @@ spec:
     - name: fail-on
       value: 'D'
     - name: coverage-map
-      value: 'target/jacoco-per-test-coverage.json'   # optional; falls open to full suite if missing
+      value: 'sample-app/target/jacoco-per-test-coverage.json'   # optional; falls open to full suite if missing
     - name: tests-dir
-      value: 'src/test/java'
+      value: 'sample-app/src/test/java'
     - name: repo-owner
       value: '{{ repo_owner }}'
     - name: repo-name
