@@ -4,7 +4,7 @@ This sets up the demo using **only the OpenShift web console and github.com** �
 terminal, no `oc`, no `opc`. Once it's wired, opening a pull request runs the pipeline and
 the console shows the result.
 
-The **base demo** (clone → score → route) runs entirely on fixtures committed to this repo,
+The **base demo** (clone → coverage → scan → select-tests → run-tests) runs entirely on fixtures committed to this repo,
 so it needs **no Lightwell credentials, no registry pull secret, and no JDK on your side**.
 Credentials are only for the optional add-ons at the end.
 
@@ -100,7 +100,48 @@ stringData:
 > Faster if you happen to have the CLI: `opc pac bootstrap` does 4a–4d in one browser flow.
 > Not required — the steps above are the fully-web equivalent.
 
-## 5. Tell PaC about your repo  *(console — Import YAML)*
+## 5. Give the Repository a provider token  *(github.com + terminal — required, not optional)*
+
+Step 4 lets GitHub **deliver events to** the cluster. It does not, by itself, let the
+cluster **call back out to** GitHub's API — which is needed to fetch PR details and post
+the CAB comment. Skip this step and every event fails with:
+```
+cannot get secret from repository: failed to find git_provider details in repository spec
+```
+even though the App and webhook both look correctly configured.
+
+**5a. Create a GitHub Personal Access Token (classic).**
+github.com → your avatar → **Settings → Developer settings → Personal access tokens →
+Tokens (classic) → Generate new token (classic)**. Scopes: **`repo`** and
+**`admin:repo_hook`**. Copy it — GitHub shows it once.
+
+**5b. Create the secret and wire it into the Repository CR.** One line each — a
+multi-line/backslash paste that gets mangled by your shell will silently create an
+**empty** secret (`oc create secret` still reports "created"), which fails the exact same
+way. Run these as single lines:
+
+```bash
+oc create secret generic upgrade-delta-provider-token -n upgrade-delta-demo --from-literal=provider.token='<paste your PAT>' --from-literal=webhook.secret='<the webhook secret from 4b>'
+```
+```bash
+oc patch repository upgrade-delta -n upgrade-delta-demo --type=merge -p '{"spec":{"git_provider":{"secret":{"name":"upgrade-delta-provider-token","key":"provider.token"},"webhook_secret":{"name":"upgrade-delta-provider-token","key":"webhook.secret"}}}}'
+```
+
+**5c. Verify before moving on** (don't assume — check):
+```bash
+oc get secret upgrade-delta-provider-token -n upgrade-delta-demo -o jsonpath='{.data}'
+oc get repository upgrade-delta -n upgrade-delta-demo -o yaml | grep -A4 git_provider
+```
+The secret's `.data` must show non-trivial base64 for both keys (not `e30=`, which is `{}`
+— an empty secret). The Repository must show a populated `git_provider` block, not just
+`spec.url`.
+
+> Shortcut alternative to 5a–5b: `opc pac webhook add -n upgrade-delta-demo` does this
+> interactively — but if it errors with `Hook already exists on this repository` (common on
+> a re-run), it may exit before writing the k8s-side secret. Always run the `oc get` checks
+> in 5c after using it, don't assume success from the CLI's exit message.
+
+## 6. Tell PaC about your repo  *(console — Import YAML)*
 
 Edit `integration/tekton/pac/repository.yaml` so `spec.url` is **your** repo URL, then
 Import it (project **`upgrade-delta-demo`**). PaC now matches PRs on that repo and runs the
@@ -110,7 +151,7 @@ The pipeline and tasks themselves don't need to be pre-applied — `.tekton/pull
 carries annotations that make PaC fetch `pipeline-demo.yaml` and the two task files from
 your repo at run time.
 
-## 6. (Recommended) Make the pipeline your merge gate  *(github.com)*
+## 7. (Recommended) Make the pipeline your merge gate  *(github.com)*
 
 GitHub → repo **Settings → Branches → Add branch ruleset/protection** for `main` →
 require status checks to pass → select the **`upgrade-delta-pr`** check. Now a PR can't

@@ -9,9 +9,10 @@ metadata:
     pipelinesascode.tekton.dev/task: "git-clone"
     pipelinesascode.tekton.dev/task-1: "integration/tekton/task-upgrade-delta-coverage.yaml"
     pipelinesascode.tekton.dev/task-2: "integration/tekton/task-upgrade-delta-scan.yaml"
-    pipelinesascode.tekton.dev/task-3: "integration/tekton/task-upgrade-delta-route.yaml"
-    pipelinesascode.tekton.dev/task-4: "integration/tekton/task-upgrade-delta-summary.yaml"
-    pipelinesascode.tekton.dev/task-5: "integration/tekton/task-upgrade-delta-pr-comment.yaml"
+    pipelinesascode.tekton.dev/task-3: "integration/tekton/task-upgrade-delta-select-tests.yaml"
+    pipelinesascode.tekton.dev/task-4: "integration/tekton/task-upgrade-delta-run-tests.yaml"
+    pipelinesascode.tekton.dev/task-5: "integration/tekton/task-upgrade-delta-summary.yaml"
+    pipelinesascode.tekton.dev/task-6: "integration/tekton/task-upgrade-delta-pr-comment.yaml"
   name: upgrade-delta-pr
 spec:
   pipelineRef:

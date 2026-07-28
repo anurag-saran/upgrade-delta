@@ -6,7 +6,7 @@
   "date": "2026-07-19",
   "library": "acme-json",
   "old_version": "2.13.4",
-  "new_version": "2.13.4.2",
+  "new_version": "2.13.4.2.rhlw-00001",
   "old_jar": "acme-json-2.13.4.jar",
   "new_jar": "acme-json-2.13.4.2.jar",
   "app": "payments-service-1.0.0.jar",

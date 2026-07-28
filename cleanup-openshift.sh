@@ -81,6 +81,7 @@ echo "${BOLD}Pipeline + tasks${RESET}"
 del pipeline upgrade-delta-demo
 del pipeline upgrade-delta                     # alternate pipeline, if applied
 for t in upgrade-delta upgrade-delta-coverage upgrade-delta-scan upgrade-delta-route \
+         upgrade-delta-select-tests upgrade-delta-run-tests \
          upgrade-delta-summary upgrade-delta-pr-comment cab-approval-manual \
          sign-evidence verify-evidence git-clone; do
   del task "$t"

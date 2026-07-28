@@ -19,14 +19,14 @@ spec:
   workspaces:
     - name: source
   results:
-    - name: COVERAGE_PCT
-      description: Percent of dependencies with an exact-version remediated build
-    - name: COVERED
-      description: Dependencies with a drop-in remediated build
-    - name: NEAR
-      description: Dependencies serviced at another (non-exact) version
-    - name: UNCOVERED
-      description: Dependencies with no remediated build
+    - name: COVERAGE_PCT_EXACT_MATCH
+      description: "Percent of dependencies with an exact-version drop-in remediated build (0-100)"
+    - name: DEPENDENCIES_COVERED_EXACT
+      description: "Count of dependencies with a drop-in remediated build at the SAME version you run"
+    - name: DEPENDENCIES_NEAR_OTHER_VERSION
+      description: "Count of dependencies serviced by Lightwell, but at a DIFFERENT version than you run"
+    - name: DEPENDENCIES_UNCOVERED
+      description: "Count of dependencies with NO Lightwell remediated build at all"
   steps:
     - name: coverage
       image: registry.access.redhat.com/ubi9/python-311:latest
@@ -42,8 +42,8 @@ spec:
         import json
         c = json.load(open("out/coverage.json"))["totals"]
         pct = round(100 * c["exact"] / c["dependencies"]) if c["dependencies"] else 0
-        open("$(results.COVERAGE_PCT.path)", "w").write(str(pct))
-        open("$(results.COVERED.path)", "w").write(str(c["exact"]))
-        open("$(results.NEAR.path)", "w").write(str(c["serviced_other_version"]))
-        open("$(results.UNCOVERED.path)", "w").write(str(c["uncovered"]))
+        open("$(results.COVERAGE_PCT_EXACT_MATCH.path)", "w").write(str(pct))
+        open("$(results.DEPENDENCIES_COVERED_EXACT.path)", "w").write(str(c["exact"]))
+        open("$(results.DEPENDENCIES_NEAR_OTHER_VERSION.path)", "w").write(str(c["serviced_other_version"]))
+        open("$(results.DEPENDENCIES_UNCOVERED.path)", "w").write(str(c["uncovered"]))
         PY

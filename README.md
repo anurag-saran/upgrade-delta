@@ -43,7 +43,8 @@ GitHub PR  ──(Pipelines-as-Code webhook)──►  OpenShift Pipelines
    │   .tekton/pull-request.yaml                  ├─ clone    (git-clone)
    │   → pipeline: upgrade-delta-demo             ├─ coverage (upgrade_delta.py coverage)
    │                                              ├─ scan     (upgrade_delta.py scan → grade)
-   │                                              ├─ route    (test_router.py → run selected tests)
+   │                                              ├─ select-tests (test_router.py — pick which tests are owed)
+   │                                              ├─ run-tests    (execute them for real, JVM)
    │                                              ├─ summary  (finally: prints the VERDICT banner)
    │                                              └─ pr-comment (finally: posts the CAB summary on the PR)
    │                                              │

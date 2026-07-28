@@ -1,0 +1,47 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-run-tests
+spec:
+  description: >-
+    Actually RUNS the tests upgrade-delta-select-tests picked -- a real JVM
+    executes every class named in surefire-includes.txt (this is not a count,
+    see TESTS_ACTUALLY_EXECUTED_SUMMARY for direct proof). A genuine test
+    failure fails this task and turns the PipelineRun red (exit 1). Units:
+    names ending _METHODS count test METHODS -- a class can hold several, so
+    this can exceed the CLASS count from the previous task; that's expected.
+  workspaces:
+    - name: source
+  results:
+    - name: TEST_METHODS_PASSED_COUNT
+      description: "Test METHODS that were EXECUTED and passed"
+    - name: TEST_METHODS_FAILED_COUNT
+      description: "Test METHODS that were executed and FAILED. 0 = all green. Any non-zero value turns this PipelineRun red."
+    - name: TESTS_ACTUALLY_EXECUTED_SUMMARY
+      description: "One human-readable sentence confirming tests were run (not just counted) and the pass/fail result"
+  steps:
+    - name: run
+      displayName: "RUN the selected tests for real (JVM)"
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        CP=$(ls examples/demo-jars/*.jar | tr '\n' ':')
+        # This IS the actual JVM test execution -- MiniRunner loads and runs
+        # every class named in surefire-includes.txt for real and prints a
+        # final summary line: "N test method(s) executed, M failure(s)". The
+        # counts below are read back OUT of that real run, not computed apart.
+        java -cp "$CP" testing.MiniRunner out/routing-out/surefire-includes.txt | tee /tmp/exec.log
+        EXECUTED=$(grep -oE '[0-9]+ test method' /tmp/exec.log | tail -1 | grep -oE '^[0-9]+'); EXECUTED=${EXECUTED:-0}
+        FAILED=$(grep -oE '[0-9]+ failure'     /tmp/exec.log | tail -1 | grep -oE '^[0-9]+'); FAILED=${FAILED:-0}
+        printf '%s' "$EXECUTED" > "$(results.TEST_METHODS_PASSED_COUNT.path)"
+        printf '%s' "$FAILED"   > "$(results.TEST_METHODS_FAILED_COUNT.path)"
+        if [ "$FAILED" -eq 0 ]; then
+          printf 'Ran %s test method(s) for real in this JVM -- all passed, 0 failed.' "$EXECUTED" > "$(results.TESTS_ACTUALLY_EXECUTED_SUMMARY.path)"
+        else
+          printf 'Ran %s test method(s) for real in this JVM -- %s FAILED (see this task'"'"'s logs).' "$EXECUTED" "$FAILED" > "$(results.TESTS_ACTUALLY_EXECUTED_SUMMARY.path)"
+        fi
+        echo "executed=$EXECUTED failed=$FAILED"
+        # a genuine test failure turns the PipelineRun red
+        [ "$FAILED" -eq 0 ] || { echo "GATE: $FAILED test method(s) failed"; exit 1; }

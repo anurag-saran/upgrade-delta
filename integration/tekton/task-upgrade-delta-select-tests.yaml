@@ -1,0 +1,51 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-select-tests
+spec:
+  description: >-
+    Picks which tests this upgrade owes. Joins the scan's affected-code payload
+    with the per-test JaCoCo coverage map: a test runs only if it covers app
+    code the upgrade actually touches, plus every mandatory (@Tag upgrade-gate)
+    test, always. Writes the Surefire includes file and selection report that
+    the next task (upgrade-delta-run-tests) actually executes. Fails loudly
+    (exit 3) if a declared mandatory test resolves to zero classes -- a
+    required check can never be silently dropped.
+  params:
+    - name: coverage-map
+      type: string
+      default: samples/tests/coverage.json
+    - name: tests-dir
+      type: string
+      default: samples/tests
+    - name: head-sha
+      type: string
+      default: "demo"
+  workspaces:
+    - name: source
+  results:
+    - name: TEST_CLASSES_SELECTED_COUNT
+      description: "How many test CLASSES were picked to run (selected-by-coverage + mandatory), out of TEST_CLASSES_TOTAL_SUITE"
+    - name: TEST_CLASSES_TOTAL_SUITE
+      description: "Total test CLASSES that exist in the suite (the denominator for TEST_CLASSES_SELECTED_COUNT)"
+    - name: TEST_CLASSES_SELECTED_NAMES
+      description: "The ACTUAL NAMES of the test classes picked -- direct proof of which tests, not just a count"
+  steps:
+    - name: select
+      displayName: "Pick tests this upgrade owes"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        python3 test_router.py out/routing.json \
+          --coverage "$(params.coverage-map)" --tests-dir "$(params.tests-dir)" \
+          --head-sha "$(params.head-sha)" --out-dir out/routing-out
+        python3 - <<'PY'
+        import json
+        r = json.load(open("out/routing-out/selection-report.json"))
+        open("$(results.TEST_CLASSES_SELECTED_COUNT.path)", "w").write(str(r["totals"]["final"]))
+        open("$(results.TEST_CLASSES_TOTAL_SUITE.path)", "w").write(str(r["totals"]["suite"]))
+        names = [s["test"] for s in r["selected"]] + r["mandatory"]["appended"]
+        open("$(results.TEST_CLASSES_SELECTED_NAMES.path)", "w").write(", ".join(names))
+        PY

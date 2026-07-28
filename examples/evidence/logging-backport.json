@@ -6,7 +6,7 @@
   "date": "2026-07-19",
   "library": "acme-logging",
   "old_version": "1.12.1",
-  "new_version": "1.12.2",
+  "new_version": "1.12.2.rhlw-00001",
   "old_jar": "acme-logging-1.12.1.jar",
   "new_jar": "acme-logging-1.12.2.jar",
   "app": "payments-service-1.0.0.jar",

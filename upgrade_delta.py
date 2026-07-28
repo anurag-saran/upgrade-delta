@@ -584,6 +584,69 @@ LANES = {
 }
 
 
+def internal_chain_intersect(app, lib_old, delta):
+    """Same-library, multi-hop reachability: BFS the library's OWN call graph
+    starting from the methods the app directly calls, and check whether ANY
+    method/class reached by that internal chain is itself part of the changed
+    set -- catches 'app calls public method1(), method1 internally calls
+    method2(), method2 is what actually changed' even when the app never
+    references method2 (or its class) anywhere in its own bytecode.
+
+    This is the same BFS-closure technique two_hop_intersect uses to trace
+    into a TRANSITIVE (different-jar) dependency, applied instead within a
+    single jar. Confidence is high (statically resolved, same jar, no
+    cross-library reflection compounding) -- this is not weaker evidence
+    like the transitive case, it is the direct-dependency check done to the
+    depth the direct dependency's own internal structure actually requires.
+    """
+    lib_pkgs = lib_old["packages"]
+
+    def pkg(cls):
+        return cls.rsplit("/", 1)[0] if cls and "/" in cls else ""
+
+    defined, subclasses, implementors = _method_graph(lib_old)
+    seeds, seed_owners = set(), set()
+    for cname, c in app["classes"].items():
+        for m in c["members"]:
+            for ref in m.get("calls", ()):
+                if pkg(ref[0]) in lib_pkgs:
+                    seeds |= _resolve_dispatch(ref, lib_old, defined, subclasses, implementors)
+                    seed_owners.add(cname)
+    if not seeds:
+        return None
+
+    reached_m, queue = set(), sorted(seeds)
+    while queue:
+        mkey = queue.pop()
+        if mkey in reached_m or mkey not in defined:
+            continue
+        reached_m.add(mkey)
+        for ref in defined[mkey].get("calls", ()):
+            if pkg(ref[0]) in lib_pkgs:
+                for tgt in _resolve_dispatch(ref, lib_old, defined, subclasses, implementors):
+                    if tgt not in reached_m:
+                        queue.append(tgt)
+
+    changed = set(delta["api_removed"]) | set(delta["api_modified"])
+    incompat = set(delta["api_incompatible"])
+    impl_changed = set(delta["classes_impl_changed"])
+    sk = lambda k: (k[0], k[1] or "", k[2] or "")
+
+    touched_changed = sorted((k for k in reached_m if k in changed), key=sk)
+    touched_incompat = sorted((k for k in reached_m if k in incompat), key=sk)
+    reached_classes = {k[0] for k in reached_m}
+    touched_impl = sorted(c for c in reached_classes if c in impl_changed)
+
+    return {
+        "closure_methods_reached": len(reached_m),
+        "closure_seed_count": len(seeds),
+        "internal_touched_changed": [member_str(k) for k in touched_changed],
+        "internal_touched_incompatible": [member_str(k) for k in touched_incompat],
+        "internal_touched_impl_changed": sorted(c.replace("/", ".") for c in touched_impl),
+        "internal_seed_owners": sorted(o.replace("/", ".") for o in seed_owners),
+    }
+
+
 def rate(stream, delta, app_ix, transitive=False, signoff=False):
     incompat = len(delta["api_incompatible"])
     modified = len(delta["api_modified"])
@@ -634,6 +697,23 @@ def rate(stream, delta, app_ix, transitive=False, signoff=False):
             reasons.append(f"application reaches {len(app_ix['touched_changed'])} changed member(s) {hop}")
         else:
             reasons.append(f"application reaches 0 changed members {hop}")
+            chain = app_ix.get("internal_chain")
+            if chain and not transitive:
+                if chain["internal_touched_incompatible"]:
+                    grade = "F"
+                    reasons.append(
+                        f"but the internal call chain from your entry point(s) reaches "
+                        f"{len(chain['internal_touched_incompatible'])} removed/incompatible member(s) "
+                        f"{chain['internal_touched_incompatible'][0]} — it will break even though "
+                        f"you never call that member by name")
+                elif chain["internal_touched_changed"] or chain["internal_touched_impl_changed"]:
+                    n = len(chain["internal_touched_changed"]) + len(chain["internal_touched_impl_changed"])
+                    reasons.append(
+                        f"the internal call chain from your entry point(s) reaches {n} changed "
+                        f"member(s)/class(es) this app never calls by name — a one-hop check alone "
+                        f"would have missed this")
+                    if grade == "A":
+                        grade = "B"
             if grade in ("C", "D"):
                 if not transitive:
                     if not delta["api_incompatible"]:
@@ -663,7 +743,9 @@ def analyze(args):
     delta = diff_jars(old, new)
     app_ix = None
     if args.app:
-        app_ix = intersect_app(load_jar(args.app), old, delta)
+        app_loaded = load_jar(args.app)
+        app_ix = intersect_app(app_loaded, old, delta)
+        app_ix["internal_chain"] = internal_chain_intersect(app_loaded, old, delta)
     rating = rate(stream, delta, app_ix)
 
     report = {
@@ -750,74 +832,84 @@ def print_terminal(r):
 
 CSS = """
 :root{
-  --paper:#EDF1F2; --card:#F7FAFA; --ink:#17272E; --ink-soft:#44565E;
-  --rule:#C7D2D6; --steel:#2C5B7A;
-  --pass:#1E6E52; --watch:#B07414; --stop:#A03A2A;
-  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
-  --sans:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
-  --disp:'Saira Condensed',var(--sans);
+  --rh-red:#EE0000; --rh-red-dark:#A30000;
+  --paper:#F0F0F0; --card:#FFFFFF; --ink:#151515; --ink-soft:#6A6E73;
+  --rule:#D2D2D2; --steel:#0066CC;
+  --pass:#3E8635; --watch:#F0AB00; --stop:#C9190B;
+  --mono:'Red Hat Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'Red Hat Text',system-ui,-apple-system,Segoe UI,sans-serif;
+  --disp:'Red Hat Display',var(--sans); --head:var(--disp);
 }
 *{box-sizing:border-box;margin:0}
 body{background:var(--paper);color:var(--ink);font-family:var(--sans);
-  font-size:15px;line-height:1.55;padding:40px 16px}
+  font-size:15px;line-height:1.6;padding:40px 16px}
 .sheet{max-width:880px;margin:0 auto;background:var(--card);
-  border:1px solid var(--rule);border-top:6px solid var(--ink);
+  border-radius:8px;border-top:4px solid var(--rh-red);
+  box-shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(21,21,21,.08);
   padding:36px 40px 44px;position:relative}
-.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--ink-soft)}
-h1{font-family:var(--disp);font-weight:600;font-size:34px;line-height:1.1;
-  letter-spacing:.01em;margin:6px 0 2px}
-.vers{font-family:var(--mono);font-size:15px;color:var(--steel);margin-bottom:22px}
-.stamp{position:absolute;top:34px;right:36px;transform:rotate(-6deg);
-  border:3px solid var(--stamp-c);color:var(--stamp-c);border-radius:6px;
-  padding:8px 16px 10px;text-align:center;font-family:var(--disp);
-  text-transform:uppercase;letter-spacing:.08em;background:transparent;
-  box-shadow:0 0 0 1px color-mix(in srgb,var(--stamp-c) 25%,transparent) inset}
-.stamp .g{font-size:44px;font-weight:700;line-height:.95;display:block}
-.stamp .l{font-size:13px;font-weight:600;display:block;margin-top:2px}
+.eyebrow{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--rh-red)}
+h1{font-family:var(--disp);font-weight:700;font-size:32px;line-height:1.15;
+  letter-spacing:-.01em;margin:8px 0 2px;color:var(--ink)}
+.vers{font-family:var(--mono);font-size:14px;color:var(--steel);margin-bottom:22px}
+.stamp{position:absolute;top:32px;right:36px;text-align:center;
+  background:var(--stamp-c);color:#fff;border-radius:8px;
+  padding:10px 20px 12px;box-shadow:0 2px 6px rgba(21,21,21,.18)}
+.stamp .g{font-family:var(--disp);font-size:36px;font-weight:800;line-height:.95;display:block}
+.stamp .l{font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;display:block;margin-top:4px;opacity:.92}
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
-  background:var(--rule);border:1px solid var(--rule);margin:18px 0 24px}
-.metric{background:var(--card);padding:12px 14px}
-.metric b{font-family:var(--mono);font-size:22px;display:block}
-.metric span{font-size:12px;color:var(--ink-soft)}
-h2{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:.03em;
-  text-transform:uppercase;border-bottom:1px solid var(--rule);
-  padding-bottom:4px;margin:26px 0 10px}
+  background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;
+  margin:18px 0 24px}
+.metric{background:var(--card);padding:14px 16px}
+.metric b{font-family:var(--disp);font-weight:700;font-size:24px;display:block;color:var(--ink)}
+.metric span{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+h2{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:0;
+  color:var(--ink);border-left:4px solid var(--rh-red);padding-left:10px;
+  margin:28px 0 12px}
 ul{padding-left:20px}
 li{margin:4px 0}
 .recipe li{font-family:var(--mono);font-size:13.5px}
 .reason{color:var(--ink-soft)}
-.note{border-left:4px solid var(--watch);background:color-mix(in srgb,var(--watch) 8%,var(--card));
-  padding:10px 14px;margin:12px 0;font-size:14px}
-.blind{border-left:4px solid var(--steel);background:color-mix(in srgb,var(--steel) 7%,var(--card));
-  padding:10px 14px;margin:12px 0;font-size:13.5px;color:var(--ink-soft)}
+.note{border-left:4px solid var(--watch);background:rgba(240,171,0,.08);
+  border-radius:0 4px 4px 0;padding:10px 14px;margin:12px 0;font-size:14px}
+.blind{border-left:4px solid var(--steel);background:rgba(0,102,204,.06);
+  border-radius:0 4px 4px 0;padding:10px 14px;margin:12px 0;font-size:13.5px;color:var(--ink-soft)}
 details{margin:8px 0}
-summary{cursor:pointer;font-family:var(--mono);font-size:13px;color:var(--steel)}
+summary{cursor:pointer;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--steel)}
 code,.m{font-family:var(--mono);font-size:12.5px;word-break:break-all}
 .list{columns:1;padding:8px 0 0 4px;list-style:none}
-.footer{margin-top:34px;padding-top:12px;border-top:1px solid var(--rule);
+.footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--rule);
   font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);
   display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 table{width:100%;border-collapse:collapse;background:var(--card)}
-th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--rule);font-size:14px}
-th{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--ink-soft)}
-td a{color:var(--steel)}
-.chip{display:inline-block;font-family:var(--disp);font-weight:700;font-size:18px;
-  border:2px solid var(--c);color:var(--c);border-radius:4px;padding:0 9px;line-height:1.4}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--rule);font-size:14px}
+th{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);border-bottom:2px solid var(--rule)}
+tr:hover td{background:rgba(0,0,0,.02)}
+td a{color:var(--steel);text-decoration:none}
+td a:hover{text-decoration:underline}
+.chip{display:inline-block;font-family:var(--sans);font-weight:700;font-size:13px;
+  background:var(--c);color:#fff;border-radius:4px;padding:2px 10px;line-height:1.5}
 .lane{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.scale{background:#FAFAFA;border:1px solid var(--rule);border-radius:8px;
+  padding:16px 18px;margin:0 0 26px}
+.scale-h{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-soft);margin:0 0 13px}
+.sc-row{display:flex;align-items:baseline;gap:12px;padding:5px 0}
+.sc-lane{font-weight:600;font-size:13px;color:var(--ink);min-width:150px}
+.sc-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.4}
+.chip.sm{min-width:24px;height:24px;font-size:13px;flex:none}
 @media(max-width:640px){.metrics{grid-template-columns:repeat(2,1fr)}
- .stamp{position:static;transform:none;display:inline-block;margin-bottom:14px}
+ .stamp{position:static;display:inline-block;margin-bottom:14px}
  .sheet{padding:24px 18px}}
-@media (prefers-reduced-motion:no-preference){
- .stamp{animation:ink .5s ease-out}
- @keyframes ink{from{opacity:0;transform:rotate(-6deg) scale(1.25)}to{opacity:1;transform:rotate(-6deg) scale(1)}}}
 """
 
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
-         '<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600'
-         '&family=IBM+Plex+Sans:wght@400;600&family=Saira+Condensed:wght@600;700'
+         '<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Mono:wght@400;600'
+         '&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Display:wght@600;700;800'
          '&display=swap" rel="stylesheet">')
+
 
 GRADE_COLOR = {"A": "var(--pass)", "B": "var(--watch)", "C": "var(--watch)",
                "D": "var(--stop)", "F": "var(--stop)"}
@@ -878,7 +970,7 @@ and uses <b>{len(a['lib_classes_used'])}</b> of its classes. Against this upgrad
       if d.get('classes_build_noise') else ""})</span></div>
   </div>
 
-  <h2>Why this rating</h2><ul>{reasons}</ul>{scope}
+  <h2>Why this rating</h2>{_grade_legend_html()}<ul>{reasons}</ul>{scope}
   {app_html}
   <h2>Recommended test scope — {esc(g['lane'])}</h2><ul class="recipe">{recipe}</ul>
 
@@ -917,6 +1009,18 @@ RATING_SCALE = [
 _GRADE_ORDER = {g: i for i, (g, *_ ) in enumerate(RATING_SCALE)}
 
 
+def _grade_legend_html(title="How to read the grade"):
+    """Shared A-F legend block, reused on every report that shows a letter
+    grade. There is no 'E' -- the scale intentionally skips it, same as a
+    US school report card (A, B, C, D, F)."""
+    rows = "".join(
+        f'<div class="sc-row"><span class="chip sm" style="--c:{color}">{grade}</span>'
+        f'<span class="sc-lane">{lane}</span>'
+        f'<span class="sc-desc">{desc}</span></div>'
+        for grade, color, lane, desc in RATING_SCALE)
+    return f'<div class="scale"><div class="scale-h">{esc(title)}</div>{rows}</div>'
+
+
 def render_index(reports, links):
     # worst-first: an F belongs at the top of a change board's page
     paired = sorted(zip(reports, links),
@@ -948,11 +1052,7 @@ def render_index(reports, links):
 <td class="delta">{fmt_delta(d)}</td>
 </tr>"""
 
-    legend = "".join(
-        f'<div class="sc-row"><span class="chip sm" style="--c:{color}">{grade}</span>'
-        f'<span class="sc-lane">{lane}</span>'
-        f'<span class="sc-desc">{desc}</span></div>'
-        for grade, color, lane, desc in RATING_SCALE)
+    legend = _grade_legend_html("How to read the rating")
 
     n = len(reports)
     worst = min((r["rating"]["grade"] for r in reports),
@@ -961,14 +1061,6 @@ def render_index(reports, links):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Lightwell delta reports</title>{FONTS}<style>{CSS}
 .idx-sub{{max-width:66ch;color:var(--ink-soft);font-size:14px;line-height:1.55;margin:2px 0 24px}}
-.scale{{background:#fafafa;border:1px solid var(--line,#e8e8e8);border-radius:10px;
-  padding:16px 18px;margin:0 0 26px}}
-.scale-h{{font:600 11px/1 var(--head,inherit);letter-spacing:.06em;text-transform:uppercase;
-  color:var(--ink-soft);margin:0 0 13px}}
-.sc-row{{display:flex;align-items:baseline;gap:12px;padding:5px 0}}
-.sc-lane{{font-weight:600;font-size:13px;color:var(--ink);min-width:150px}}
-.sc-desc{{font-size:12.5px;color:var(--ink-soft);line-height:1.4}}
-.chip.sm{{min-width:24px;height:24px;font-size:13px;flex:none}}
 table.idx{{width:100%;border-collapse:collapse}}
 table.idx th{{text-align:left;font:600 10.5px/1 var(--head,inherit);letter-spacing:.05em;
   text-transform:uppercase;color:var(--ink-soft);padding:0 14px 9px;border-bottom:2px solid var(--ink,#333)}}
@@ -994,10 +1086,7 @@ td.delta .d-churn{{font-variant-numeric:tabular-nums}}
   testing does that owe? Every rating is <b>computed from the bytecode</b>, not asserted —
   open any row for the full evidence, including what the analysis cannot see.</p>
 
-  <div class="scale">
-    <div class="scale-h">How to read the rating</div>
-    {legend}
-  </div>
+  {legend}
 
   <table class="idx"><thead><tr>
     <th>Library &amp; upgrade</th><th>Stream</th><th>Rating</th><th>Test lane</th>
@@ -1419,6 +1508,18 @@ def scan(args):
     else:
         app_view = app
 
+    lib_old_cache = {}
+
+    def lib_old_model_for(lib_name, old_version):
+        key = (lib_name, old_version)
+        if key not in lib_old_cache:
+            jar = None
+            if args.lib_jars:
+                cand = os.path.join(args.lib_jars, f"{lib_name}-{old_version}.jar")
+                jar = cand if os.path.isfile(cand) else None
+            lib_old_cache[key] = load_jar(jar) if jar else None
+        return lib_old_cache[key]
+
     # group published reports (upgrade options) by library, keep only ones the app uses
     per_lib = defaultdict(list)
     lib_meta = {}
@@ -1434,6 +1535,14 @@ def scan(args):
                 transitive = ix is not None
         if ix is None:
             continue
+        if not transitive:
+            # Same-library internal call-chain check: does the app reach a
+            # changed member via internal calls it never references by name?
+            # Needs the library's own OLD-version jar (from --lib-jars) to BFS.
+            lib_old = lib_old_model_for(r["library"], r["old_version"])
+            if lib_old:
+                ix["internal_chain"] = internal_chain_intersect(
+                    app_view, lib_old, _delta_from_machine(m))
         rated_pkgs |= set(m["packages"])
         rating = rate(r["stream"], _delta_from_machine(m), ix,
                       transitive=transitive, signoff=args.accept_transitive_scope)
@@ -1674,8 +1783,25 @@ touches {touched[1]} changed / {touched[0]} incompatible through your paths</spa
         else:
             note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
                     if g["scope_note"] else "")
+            chain = rec["ix"].get("internal_chain")
+            chain_html = ""
+            if chain and chain.get("closure_methods_reached"):
+                hits = (chain["internal_touched_incompatible"] + chain["internal_touched_changed"]
+                        + chain["internal_touched_impl_changed"])
+                if hits:
+                    chain_html = (f'<br><span class="lane">internal call chain traced '
+                                   f'{chain["closure_methods_reached"]} method(s) from your '
+                                   f'{chain["closure_seed_count"]} entry point(s) — reaches changed: '
+                                   f'<span class="m">{esc(hits[0])}</span>'
+                                   + (f' (+{len(hits)-1} more)' if len(hits) > 1 else '')
+                                   + '</span>')
+                else:
+                    chain_html = (f'<br><span class="lane">internal call chain traced '
+                                   f'{chain["closure_methods_reached"]} method(s) from your '
+                                   f'{chain["closure_seed_count"]} entry point(s) — none reach a changed '
+                                   f'member</span>')
             rows += f"""<tr><td><b>{esc(l['library'])}</b><br>
-<span class="lane">{l['call_sites']} direct call sites · touches {touched[1]} changed / {touched[0]} incompatible on best path</span></td>
+<span class="lane">{l['call_sites']} direct call sites · touches {touched[1]} changed / {touched[0]} incompatible on best path</span>{chain_html}</td>
 <td>{opts_html}{note}</td></tr>"""
 
     hazards_html = ""
@@ -1745,7 +1871,7 @@ tr.sub td:first-child{{padding-left:28px}}
   dependency makes this a migration-grade project, no matter how clean the rest is.</p>
   {compare}
   <h2>Test-effort budget to get current</h2>{bars}
-  <h2>Dependencies</h2>
+  <h2>Dependencies</h2>{_grade_legend_html()}
   <table><thead><tr><th>Library · exposure</th><th>Remediation paths (best first)</th></tr></thead>
   <tbody>{rows}</tbody></table>
   {hazards_html}
@@ -1772,7 +1898,7 @@ tr.sub td:first-child{{padding-left:28px}}
 RHSUFFIX = None  # compiled lazily
 
 def _base_version(v):
-    """Strip Red Hat build suffixes: 2.13.4.redhat-00001 / 2.13.4.rhlw-00001 -> 2.13.4"""
+    """Strip Red Hat build suffixes: 2.13.4.rhlw-00001 / 2.13.4.rhlw-00001 -> 2.13.4"""
     global RHSUFFIX
     if RHSUFFIX is None:
         RHSUFFIX = re.compile(r"[.-](redhat|rhlw)-\d+$")

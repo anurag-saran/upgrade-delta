@@ -44,6 +44,13 @@ spec:
       containers:
         - name: nginx
           image: registry.access.redhat.com/ubi9/nginx-124:latest
+          # ubi9/nginx-124 is an S2I BUILDER image: its default entrypoint checks
+          # whether the source was S2I-assembled and, if not (we bind-mount a PVC
+          # directly instead), prints the S2I usage help and exits 0 -- which looks
+          # like a clean exit but still gets restarted forever (CrashLoopBackOff).
+          # Bypass that check and just run nginx directly in the foreground:
+          command: ["nginx"]
+          args: ["-g", "daemon off;"]
           ports:
             - containerPort: 8080
               name: http

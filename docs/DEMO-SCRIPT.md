@@ -44,10 +44,11 @@ it and watch the graph fill in left to right:
 
 > "**clone** pulls the PR. **coverage** buckets every dependency against the Lightwell
 > catalog. **scan** runs the reachability analysis — it reads the app's bytecode and
-> measures which changed members it actually reaches, and grades the risk. **route** selects
-> the tests that change requires and runs them. Then **summary** prints the verdict."
+> measures which changed members it actually reaches, and grades the risk.
+> **select-tests** picks which tests this change owes, and **run-tests** actually executes
+> them in a real JVM. Then **summary** prints the verdict."
 
-> ⚠️ The **Details** graph is just topology — five green pills. The *meaning* lives on three
+> ⚠️ The **Details** graph is just topology — seven green pills. The *meaning* lives on three
 > other tabs; that's Beat 3. Don't try to read the result off the graph.
 
 It finishes in about a minute (the fixtures are small).
@@ -143,7 +144,7 @@ In a PR, open `samples/tests/BootSmokeIT.java` and remove its `@Tag("upgrade-gat
 > "Someone quietly untags the mandatory boot test. A naive router would just select fewer
 > tests and stay green — silently dropping a required gate."
 
-The `route` step fails **loudly with exit 3**: a declared mandatory obligation resolved to
+The `select-tests` step fails **loudly with exit 3**: a declared mandatory obligation resolved to
 zero tests → hard build failure. *"Wrong answers here are always loud — a failed build, a
 blocked deploy — never a silently skipped gate."*
 

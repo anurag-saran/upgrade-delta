@@ -215,7 +215,8 @@ apply_if integration/tekton/pac/approval-gate-manual.yaml "CAB approval gate (ma
 apply_if integration/tekton/task-upgrade-delta.yaml          "task: upgrade-delta (combined, legacy)"
 apply_if integration/tekton/task-upgrade-delta-coverage.yaml "task: upgrade-delta coverage"
 apply_if integration/tekton/task-upgrade-delta-scan.yaml     "task: upgrade-delta scan"
-apply_if integration/tekton/task-upgrade-delta-route.yaml    "task: upgrade-delta route"
+apply_if integration/tekton/task-upgrade-delta-select-tests.yaml "task: upgrade-delta select-tests"
+apply_if integration/tekton/task-upgrade-delta-run-tests.yaml    "task: upgrade-delta run-tests"
 apply_if integration/tekton/task-upgrade-delta-summary.yaml  "task: upgrade-delta summary"
 apply_if integration/tekton/task-upgrade-delta-pr-comment.yaml "task: upgrade-delta PR comment (CAB)"
 apply_if integration/tekton/rhtas/task-sign-evidence.yaml   "task: cosign sign (RHTAS)"
@@ -258,6 +259,9 @@ cat <<NEXT
   ${BOLD}A. Connect GitHub${RESET}  ${DIM}(interactive OAuth — no script can click through it)${RESET}
        opc pac bootstrap
        oc apply -f integration/tekton/pac/repository.yaml
+       ${YELLOW}Then also do docs/INSTALL-OPENSHIFT.md step 5${RESET} (give the Repository a provider
+       token). The App above lets GitHub *send* events in; without step 5 every event fails
+       with "cannot get secret from repository" even though the App looks fine.
 NEXT
 if [ "${PAC_READY:-0}" = "0" ]; then
   printf "     ${YELLOW}Note:${RESET} enable Pipelines-as-Code first (see the check above), or

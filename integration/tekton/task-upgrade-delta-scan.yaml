@@ -37,10 +37,12 @@ spec:
   workspaces:
     - name: source
   results:
-    - name: PROJECT_GRADE
-      description: Worst pending grade across best remediation paths (A–F)
-    - name: GRADE_WITHOUT_REMEDIATION
-      description: Worst grade if the best remediation paths were NOT taken
+    - name: PROJECT_GRADE_RECOMMENDED_PATH
+      description: "Worst pending grade (A-F) across the BEST remediation path per library. A=safest, F=blocked/needs migration."
+    - name: PROJECT_GRADE_WITHOUT_REMEDIATION
+      description: "What the grade would be WITHOUT the Lightwell backports. Compare to PROJECT_GRADE_RECOMMENDED_PATH to see the value of remediation."
+    - name: GRADE_SCALE_LEGEND
+      description: "Fixed reference text for reading the grade letters above"
   steps:
     - name: scan
       image: registry.access.redhat.com/ubi9/python-311:latest
@@ -65,7 +67,8 @@ spec:
           GRADE=$(python3 -c "import json;print(json.load(open('out/scorecard.json'))['project']['headline_grade'] or '-')")
           WITHOUT=$(python3 -c "import json;print(json.load(open('out/scorecard.json'))['project']['worst_without_best_path'] or '-')")
         fi
-        printf '%s' "$GRADE"   > "$(results.PROJECT_GRADE.path)"
-        printf '%s' "$WITHOUT" > "$(results.GRADE_WITHOUT_REMEDIATION.path)"
+        printf '%s' "$GRADE"   > "$(results.PROJECT_GRADE_RECOMMENDED_PATH.path)"
+        printf '%s' "$WITHOUT" > "$(results.PROJECT_GRADE_WITHOUT_REMEDIATION.path)"
+        printf '%s' "A=fast lane, safest | B=targeted tests | C=partial regression | D=full regression | F=blocked, migrate first" > "$(results.GRADE_SCALE_LEGEND.path)"
         # exit 2 = grade gate breached -> fail the Task (and the PipelineRun)
         [ "$RC" -eq 0 ] || { echo "GATE: project grade $GRADE breached fail-on=$(params.fail-on)"; exit "$RC"; }

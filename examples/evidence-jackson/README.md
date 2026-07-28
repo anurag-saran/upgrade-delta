@@ -1,7 +1,7 @@
 # Jackson evidence — the real Lightwell-serviced hero
 
 Lightwell rebuilds jackson-databind. Note the suffix mismatch you'll hit:
-the **catalog SBOM** labels it `2.13.4.redhat-00001`, but the **repo path** serves it as
+the **catalog SBOM** labels it `2.13.4.rhlw-00001`, but the **repo path** serves it as
 `2.13.4.rhlw-00001`. Use whichever returns HTTP 200 — test with:
 
     curl -sI -u "$RHLN_USER:$RHLN_TOKEN" \

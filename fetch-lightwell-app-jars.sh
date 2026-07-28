@@ -13,17 +13,17 @@ OUT="sample-app/lib"; mkdir -p "$OUT"
 
 # group|artifact|remediated-version
 DEPS="
-com.fasterxml.jackson.core|jackson-databind|2.13.4.redhat-00001
-org.springframework|spring-web|5.3.18.redhat-00005
-org.springframework|spring-webmvc|5.3.18.redhat-00005
-org.springframework|spring-core|5.3.18.redhat-00005
-org.springframework.boot|spring-boot|2.7.18.redhat-00002
-org.springframework.boot|spring-boot-autoconfigure|2.7.18.redhat-00002
-org.springframework.security|spring-security-core|5.7.11.redhat-00004
-org.springframework.security|spring-security-web|5.7.11.redhat-00004
-commons-io|commons-io|2.11.0.redhat-00001
-org.apache.httpcomponents|httpclient|4.5.12.redhat-00001
-net.minidev|json-smart|2.4.8.redhat-00001
+com.fasterxml.jackson.core|jackson-databind|2.13.4.rhlw-00001
+org.springframework|spring-web|5.3.18.rhlw-00005
+org.springframework|spring-webmvc|5.3.18.rhlw-00005
+org.springframework|spring-core|5.3.18.rhlw-00005
+org.springframework.boot|spring-boot|2.7.18.rhlw-00002
+org.springframework.boot|spring-boot-autoconfigure|2.7.18.rhlw-00002
+org.springframework.security|spring-security-core|5.7.11.rhlw-00004
+org.springframework.security|spring-security-web|5.7.11.rhlw-00004
+commons-io|commons-io|2.11.0.rhlw-00001
+org.apache.httpcomponents|httpclient|4.5.12.rhlw-00001
+net.minidev|json-smart|2.4.8.rhlw-00001
 "
 echo "$DEPS" | while IFS='|' read -r g a v; do
   [[ -n "$a" ]] || continue

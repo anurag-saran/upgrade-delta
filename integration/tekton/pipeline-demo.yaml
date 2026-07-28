@@ -36,6 +36,7 @@ spec:
       optional: true
   tasks:
     - name: clone
+      displayName: "1. Clone the repo at this PR's commit"
       # git-clone must exist in this namespace. Install it once with:
       #   oc apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml
       taskRef: {name: git-clone}
@@ -44,12 +45,14 @@ spec:
         - {name: url, value: $(params.git-url)}
         - {name: revision, value: $(params.git-revision)}
     - name: coverage
+      displayName: "2. Check Lightwell coverage for every dependency"
       runAfter: [clone]
       taskRef: {name: upgrade-delta-coverage}
       workspaces: [{name: source, workspace: source}]
       params:
         - {name: app-sbom, value: samples/realworld-springboot-sbom.json}
     - name: scan
+      displayName: "3. Grade the upgrade risk (reachability + sign-off)"
       runAfter: [coverage]
       taskRef: {name: upgrade-delta-scan}
       workspaces: [{name: source, workspace: source}]
@@ -60,17 +63,25 @@ spec:
         - {name: lib-jars, value: examples/demo-jars}
         - {name: accept-transitive-scope, value: "true"}
         - {name: fail-on, value: "D"}
-    - name: route
+    - name: select-tests
+      displayName: "4. Pick which tests this upgrade owes"
       runAfter: [scan]
-      taskRef: {name: upgrade-delta-route}
+      taskRef: {name: upgrade-delta-select-tests}
+      workspaces: [{name: source, workspace: source}]
+    - name: run-tests
+      displayName: "5. RUN the selected tests for real"
+      runAfter: [select-tests]
+      taskRef: {name: upgrade-delta-run-tests}
       workspaces: [{name: source, workspace: source}]
   finally:
     - name: summary
+      displayName: "6. Print the verdict banner"
       taskRef: {name: upgrade-delta-summary}
       workspaces: [{name: source, workspace: source}]
       params:
         - {name: scorecard-route-host, value: $(params.scorecard-route-host)}
     - name: pr-comment
+      displayName: "7. Post CAB comment + test plan to the PR"
       taskRef: {name: upgrade-delta-pr-comment}
       workspaces:
         - {name: source, workspace: source}
@@ -80,13 +91,16 @@ spec:
         - {name: repo-name, value: $(params.repo-name)}
         - {name: pull-request-number, value: $(params.pull-request-number)}
   results:
-    - {name: PROJECT_GRADE, value: $(tasks.scan.results.PROJECT_GRADE)}
-    - {name: GRADE_WITHOUT_REMEDIATION, value: $(tasks.scan.results.GRADE_WITHOUT_REMEDIATION)}
-    - {name: COVERAGE_PCT, value: $(tasks.coverage.results.COVERAGE_PCT)}
-    - {name: COVERED, value: $(tasks.coverage.results.COVERED)}
-    - {name: NEAR, value: $(tasks.coverage.results.NEAR)}
-    - {name: UNCOVERED, value: $(tasks.coverage.results.UNCOVERED)}
-    - {name: TESTS_SELECTED, value: $(tasks.route.results.TESTS_SELECTED)}
-    - {name: TESTS_PASSED, value: $(tasks.route.results.TESTS_PASSED)}
-    - {name: TESTS_FAILED, value: $(tasks.route.results.TESTS_FAILED)}
-    - {name: SUITE_SIZE, value: $(tasks.route.results.SUITE_SIZE)}
+    - {name: PROJECT_GRADE_RECOMMENDED_PATH, value: $(tasks.scan.results.PROJECT_GRADE_RECOMMENDED_PATH)}
+    - {name: PROJECT_GRADE_WITHOUT_REMEDIATION, value: $(tasks.scan.results.PROJECT_GRADE_WITHOUT_REMEDIATION)}
+    - {name: GRADE_SCALE_LEGEND, value: $(tasks.scan.results.GRADE_SCALE_LEGEND)}
+    - {name: COVERAGE_PCT_EXACT_MATCH, value: $(tasks.coverage.results.COVERAGE_PCT_EXACT_MATCH)}
+    - {name: DEPENDENCIES_COVERED_EXACT, value: $(tasks.coverage.results.DEPENDENCIES_COVERED_EXACT)}
+    - {name: DEPENDENCIES_NEAR_OTHER_VERSION, value: $(tasks.coverage.results.DEPENDENCIES_NEAR_OTHER_VERSION)}
+    - {name: DEPENDENCIES_UNCOVERED, value: $(tasks.coverage.results.DEPENDENCIES_UNCOVERED)}
+    - {name: TEST_CLASSES_SELECTED_COUNT, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_COUNT)}
+    - {name: TEST_CLASSES_TOTAL_SUITE, value: $(tasks.select-tests.results.TEST_CLASSES_TOTAL_SUITE)}
+    - {name: TEST_CLASSES_SELECTED_NAMES, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_NAMES)}
+    - {name: TEST_METHODS_PASSED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_PASSED_COUNT)}
+    - {name: TEST_METHODS_FAILED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_FAILED_COUNT)}
+    - {name: TESTS_ACTUALLY_EXECUTED_SUMMARY, value: $(tasks.run-tests.results.TESTS_ACTUALLY_EXECUTED_SUMMARY)}

@@ -27,9 +27,9 @@ Result (verified against your artifacts):
 
 | Your artifact | Bucket | Lightwell offering |
 |---|---|---|
-| `commons-io:commons-io:2.13.0` | serviced at another version | `2.11.0.redhat-00001` |
-| `org.springframework:spring-core:6.1.6` | serviced at another version | `5.3.18.redhat-00005` |
-| `org.springframework:spring-web:6.1.6` | serviced at another version | `5.3.18.redhat-00005` |
+| `commons-io:commons-io:2.13.0` | serviced at another version | `2.11.0.rhlw-00001` |
+| `org.springframework:spring-core:6.1.6` | serviced at another version | `5.3.18.rhlw-00005` |
+| `org.springframework:spring-web:6.1.6` | serviced at another version | `5.3.18.rhlw-00005` |
 | `ch.qos.logback:logback-classic:1.4.14` | **not covered** | (Validated, not in the Remediated catalog) |
 
 To make the **console pipeline** show this instead of the sample, edit
