@@ -1,0 +1,798 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "metadata": {
+    "component": {
+      "name": "Project Lightwell (Remediated)",
+      "type": "application"
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "group": "com.fasterxml.jackson.core",
+      "name": "jackson-databind",
+      "version": "2.13.4.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "com.jayway.jsonpath",
+      "name": "json-path-assert",
+      "version": "2.8.0.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "com.jayway.jsonpath",
+      "name": "json-path-web-test",
+      "version": "2.8.0.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "com.jayway.jsonpath",
+      "name": "json-path",
+      "version": "2.8.0.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "commons-fileupload",
+      "name": "commons-fileupload",
+      "version": "1.4.0.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "commons-io",
+      "name": "commons-io",
+      "version": "2.11.0.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "net.minidev",
+      "name": "json-smart",
+      "version": "2.5.0.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.apache.httpcomponents",
+      "name": "fluent-hc",
+      "version": "4.5.12.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.apache.httpcomponents",
+      "name": "httpclient-cache",
+      "version": "4.5.12.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.apache.httpcomponents",
+      "name": "httpclient-osgi",
+      "version": "4.5.12.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.apache.httpcomponents",
+      "name": "httpclient-win",
+      "version": "4.5.12.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.apache.httpcomponents",
+      "name": "httpclient",
+      "version": "4.5.12.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.apache.httpcomponents",
+      "name": "httpcomponents-client",
+      "version": "4.5.12.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.apache.httpcomponents",
+      "name": "httpmime",
+      "version": "4.5.12.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.codehaus.plexus",
+      "name": "plexus-utils",
+      "version": "4.0.1.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.json",
+      "name": "json",
+      "version": "20220320.0.0.rhlw-00003"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-actuator-autoconfigure",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-actuator",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-antlib",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-autoconfigure-processor",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-autoconfigure",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-buildpack-platform",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-cli",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-configuration-metadata",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-configuration-processor",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-devtools",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-gradle-plugin",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-jarmode-layertools",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-loader-tools",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-loader",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-maven-plugin",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-properties-migrator",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-activemq",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-actuator",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-amqp",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-aop",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-artemis",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-batch",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-cache",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-cassandra-reactive",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-cassandra",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-couchbase-reactive",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-couchbase",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-elasticsearch",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-jdbc",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-jpa",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-ldap",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-mongodb-reactive",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-mongodb",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-neo4j",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-r2dbc",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-redis-reactive",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-redis",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-data-rest",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-freemarker",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-graphql",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-groovy-templates",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-hateoas",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-integration",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-jdbc",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-jersey",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-jetty",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-jooq",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-json",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-jta-atomikos",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-log4j2",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-logging",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-mail",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-mustache",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-oauth2-client",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-oauth2-resource-server",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-quartz",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-reactor-netty",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-rsocket",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-security",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-test",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-thymeleaf",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-tomcat",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-undertow",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-validation",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-web-services",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-web",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-webflux",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter-websocket",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-starter",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-test-autoconfigure",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot-test",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.boot",
+      "name": "spring-boot",
+      "version": "2.7.18.rhlw-00004"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-acl",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-aspects",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-cas",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-config",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-core",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-crypto",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-data",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-ldap",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-messaging",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-oauth2-client",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-oauth2-core",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-oauth2-jose",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-oauth2-resource-server",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-openid",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-remoting",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-rsocket",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-saml2-service-provider",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-taglibs",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-test",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework.security",
+      "name": "spring-security-web",
+      "version": "5.7.11.rhlw-00006"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-aop",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-aspects",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-beans",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-context-indexer",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-context-support",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-context",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-core",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-expression",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-instrument",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-jcl",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-jdbc",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-jms",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-messaging",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-orm",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-oxm",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-r2dbc",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-test",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-tx",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-web",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "ch.qos.logback",
+      "name": "logback-classic",
+      "version": "1.2.11.rhlw-00001"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-webflux",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-webmvc",
+      "version": "5.3.18.rhlw-00010"
+    },
+    {
+      "type": "library",
+      "group": "org.springframework",
+      "name": "spring-websocket",
+      "version": "5.3.18.rhlw-00010"
+    }
+  ]
+}
