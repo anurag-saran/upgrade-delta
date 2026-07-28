@@ -1,6 +1,3 @@
-# Copy this file to .tekton/pull-request-live.yaml IN YOUR APPLICATION REPO.
-# Named differently from the fixture demo's "upgrade-delta-pr" so both can
-# coexist if you ever run the demo pipeline in the same namespace too.
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
@@ -8,58 +5,38 @@ metadata:
     pipelinesascode.tekton.dev/on-event: "[pull_request]"
     pipelinesascode.tekton.dev/on-target-branch: "[main]"
     pipelinesascode.tekton.dev/max-keep-runs: "5"
-    pipelinesascode.tekton.dev/pipeline: ".upgrade-delta/real-pipeline/pipeline-real.yaml"
+    pipelinesascode.tekton.dev/pipeline: "integration/tekton/pipeline-demo.yaml"
     pipelinesascode.tekton.dev/task: "git-clone"
-    pipelinesascode.tekton.dev/task-1: ".upgrade-delta/real-pipeline/task-detect-pom-changes.yaml"
-    pipelinesascode.tekton.dev/task-2: ".upgrade-delta/real-pipeline/task-live-coverage.yaml"
-    pipelinesascode.tekton.dev/task-3: ".upgrade-delta/real-pipeline/task-resolve-jars.yaml"
-    pipelinesascode.tekton.dev/task-4: ".upgrade-delta/real-pipeline/task-live-diff.yaml"
-    pipelinesascode.tekton.dev/task-5: ".upgrade-delta/real-pipeline/task-run-tests-maven.yaml"
-    # upgrade-delta-select-tests, upgrade-delta-summary, upgrade-delta-pr-comment
-    # are NOT annotated here on purpose: they're expected to already exist on
-    # the cluster (applied once from the upgrade-delta demo repo's setup). If
-    # they don't exist in this namespace yet, apply them once from the tool repo:
-    #   oc apply -f integration/tekton/task-upgrade-delta-select-tests.yaml
-    #   oc apply -f integration/tekton/task-upgrade-delta-summary.yaml
-    #   oc apply -f integration/tekton/task-upgrade-delta-pr-comment.yaml
-  name: upgrade-delta-live-pr
+    pipelinesascode.tekton.dev/task-1: "integration/tekton/task-upgrade-delta-coverage.yaml"
+    pipelinesascode.tekton.dev/task-2: "integration/tekton/task-upgrade-delta-scan.yaml"
+    pipelinesascode.tekton.dev/task-3: "integration/tekton/task-upgrade-delta-select-tests.yaml"
+    pipelinesascode.tekton.dev/task-4: "integration/tekton/task-upgrade-delta-run-tests.yaml"
+    pipelinesascode.tekton.dev/task-5: "integration/tekton/task-upgrade-delta-summary.yaml"
+    pipelinesascode.tekton.dev/task-6: "integration/tekton/task-upgrade-delta-pr-comment.yaml"
+  name: upgrade-delta-pr
 spec:
   pipelineRef:
-    name: upgrade-delta-live
+    name: upgrade-delta-demo
   params:
     - name: git-url
       value: '{{ repo_url }}'
     - name: git-revision
       value: '{{ revision }}'
-    - name: target-branch
-      value: '{{ target_branch }}'
-    - name: pom-path
-      value: 'pom.xml'                 # change if your pom.xml isn't at the repo root
-    - name: app-name
-      value: 'payments'
-    - name: app-module-dir
-      value: '.'                       # change if pom.xml is in a subdirectory/module
-    - name: fail-on
-      value: 'D'
-    - name: coverage-map
-      value: 'target/jacoco-per-test-coverage.json'   # optional; falls open to full suite if missing
-    - name: tests-dir
-      value: 'src/test/java'
+    # PaC fills these from the PR event so the CAB comment can be posted back:
     - name: repo-owner
       value: '{{ repo_owner }}'
     - name: repo-name
       value: '{{ repo_name }}'
     - name: pull-request-number
       value: '{{ pull_request_number }}'
+    # Optional: your scorecard viewer Route host, for clickable links in the summary log.
     - name: scorecard-route-host
-      value: ''                        # optional: your scorecard viewer Route host
+      value: ''
   workspaces:
     - name: source
       persistentVolumeClaim:
-        claimName: upgrade-delta-reports   # reuse the same reports PVC from the demo setup
-    - name: maven-settings
-      secret:
-        secretName: lightwell-maven-settings   # same secret the demo's sample-app already uses
+        claimName: upgrade-delta-reports
+    # PaC injects the git provider token here; the pr-comment task reads it to post.
     - name: basic-auth
       secret:
         secretName: "{{ git_auth_secret }}"

@@ -1,0 +1,82 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-summary
+  labels: {app.kubernetes.io/part-of: upgrade-delta}
+spec:
+  description: >-
+    Prints one readable VERDICT banner to the log — project grade, what it would
+    be without remediation, coverage split, per-dependency grades/lanes, routed
+    tests, and open deploy obligations — so the run's meaning is visible at a
+    glance instead of spread across tabs. Runs in the pipeline's `finally` block,
+    so it prints even when an earlier gate fails.
+  params:
+    - name: scorecard-route-host
+      type: string
+      default: ""
+      description: Host of the scorecard viewer Route, to print browsable links
+  workspaces:
+    - name: source
+  steps:
+    - name: summarize
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        HOST="$(params.scorecard-route-host)"
+        python3 - "$HOST" <<'PY'
+        import json, sys
+        host = sys.argv[1] if len(sys.argv) > 1 else ""
+        base = f"https://{host}" if host else "<scorecard Route>"
+        def load(p):
+            try: return json.load(open(p))
+            except Exception: return None
+        cov = load("out/coverage.json")
+        sc  = load("out/scorecard.json")
+        sel = load("out/routing-out/selection-report.json")
+        gate= load("out/routing-out/deploy-gate.json")
+        line = "=" * 64
+        print(line); print(" UPGRADE-DELTA VERDICT"); print(line)
+        if sc:
+            p = sc["project"]
+            print(f" Project grade : {p['headline_grade']}   "
+                  f"(would be {p['worst_without_best_path']} without the best remediation paths)")
+        if cov:
+            t = cov["totals"]; pct = round(100*t['exact']/t['dependencies']) if t['dependencies'] else 0
+            print(f" Coverage      : {pct}% drop-in  "
+                  f"({t['exact']} drop-in / {t['serviced_other_version']} serviced elsewhere "
+                  f"/ {t['uncovered']} uncovered of {t['dependencies']})")
+        if sel:
+            s = sel["totals"]
+            print(f" Tests routed  : {s['final']} of {s['suite']} classes  "
+                  f"({s['selected']} by coverage, {s['mandatory_appended']} mandatory)")
+        print(line)
+        if sc:
+            print(" Per-dependency (recommended path):")
+            for lib in sc["libraries"]:
+                r = lib["recommended"]; rt = r["rating"]
+                g = rt["grade"]; eff = rt.get("effective_grade")
+                grade = f"{g}->{eff} (signed off)" if eff and eff != g else g
+                tag = f" [transitive via {lib['parent']}]" if lib.get("transitive") else ""
+                print(f"   {lib['library']:<18} {lib['installed']} -> {r['new']:<12} "
+                      f"grade {grade:<22} {rt['lane']}{tag}")
+                chain = (r.get("ix") or {}).get("internal_chain")
+                if chain and chain.get("closure_methods_reached"):
+                    hits = (chain.get("internal_touched_incompatible", [])
+                            + chain.get("internal_touched_changed", [])
+                            + chain.get("internal_touched_impl_changed", []))
+                    if hits:
+                        more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
+                        print(f"     -> internal call chain: {chain['closure_methods_reached']} method(s) "
+                              f"from {chain['closure_seed_count']} entry point(s) reach {hits[0]}{more}")
+            lh = sc["project"]["lane_histogram"]
+            print(" Lanes         : " + ", ".join(f"{k}: {sum(v.values())}" for k, v in lh.items()))
+        if gate:
+            dow = [o["id"] for o in gate.get("obligations_downstream", [])]
+            if dow: print(f" Open at deploy: {', '.join(dow)}  (this build cannot close them)")
+        print(line)
+        print(f" Full scorecard  : {base}/out/reports/scorecard.html")
+        print(f" Coverage report : {base}/out/reports/coverage.html")
+        print(line)
+        PY

@@ -15,13 +15,16 @@ metadata:
     pipelinesascode.tekton.dev/task-3: ".upgrade-delta/real-pipeline/task-resolve-jars.yaml"
     pipelinesascode.tekton.dev/task-4: ".upgrade-delta/real-pipeline/task-live-diff.yaml"
     pipelinesascode.tekton.dev/task-5: ".upgrade-delta/real-pipeline/task-run-tests-maven.yaml"
-    # upgrade-delta-select-tests, upgrade-delta-summary, upgrade-delta-pr-comment
-    # are NOT annotated here on purpose: they're expected to already exist on
-    # the cluster (applied once from the upgrade-delta demo repo's setup). If
-    # they don't exist in this namespace yet, apply them once from the tool repo:
-    #   oc apply -f integration/tekton/task-upgrade-delta-select-tests.yaml
-    #   oc apply -f integration/tekton/task-upgrade-delta-summary.yaml
-    #   oc apply -f integration/tekton/task-upgrade-delta-pr-comment.yaml
+    # PaC's remote-pipeline resolution requires EVERY task the pipeline
+    # references to be explicitly annotated here -- it does NOT fall back to
+    # whatever Tasks already exist on the cluster, even if they're already
+    # applied (confirmed the hard way: "cannot find referenced task ... if
+    # it's a remote task make sure to add it in the annotations"). So these
+    # three -- reused unmodified from the fixture demo -- must be vendored
+    # and annotated too, not just applied once to the cluster.
+    pipelinesascode.tekton.dev/task-6: ".upgrade-delta/real-pipeline/task-upgrade-delta-select-tests.yaml"
+    pipelinesascode.tekton.dev/task-7: ".upgrade-delta/real-pipeline/task-upgrade-delta-summary.yaml"
+    pipelinesascode.tekton.dev/task-8: ".upgrade-delta/real-pipeline/task-upgrade-delta-pr-comment.yaml"
   name: upgrade-delta-live-pr
 spec:
   pipelineRef:
