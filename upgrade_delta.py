@@ -855,6 +855,11 @@ def analyze(args):
             "date": str(date.today()), "app": report["app"] or "app",
             "libraries": [{
                 "library": report["library"], "transitive": False, "parent": None,
+                # 'installed' and 'call_sites' are part of scan()'s library
+                # schema; summary/pr-comment read them directly, so a
+                # scorecard-compat payload must supply them too.
+                "installed": args.old_version,
+                "call_sites": (app_ix or {}).get("lib_call_sites", 0),
                 "recommended": {"old": args.old_version, "new": args.new_version,
                                  "rating": rating, "ix": app_ix or {}},
                 "worst": {"old": args.old_version, "new": args.new_version, "rating": rating},
