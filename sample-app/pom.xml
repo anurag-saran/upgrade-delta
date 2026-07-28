@@ -15,14 +15,18 @@
     <java.version>17</java.version>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- exact versions from the Lightwell remediated catalog -->
-    <spring-boot.version>2.7.18.redhat-00002</spring-boot.version>
-    <spring.version>5.3.18.redhat-00005</spring.version>
-    <spring-security.version>5.7.11.redhat-00004</spring-security.version>
-    <jackson.version>2.13.4.redhat-00001</jackson.version>
-    <commons-io.version>2.11.0.redhat-00001</commons-io.version>
-    <httpclient.version>4.5.12.redhat-00001</httpclient.version>
-    <json-smart.version>2.4.8.redhat-00001</json-smart.version>
+    <!-- exact versions from the Lightwell remediated catalog, verified current
+         via fetch-lightwell-catalog-metadata.sh -->
+    <spring-boot.version>2.7.18.rhlw-00004</spring-boot.version>
+    <spring.version>5.3.18.rhlw-00010</spring.version>
+    <spring-security.version>5.7.11.rhlw-00006</spring-security.version>
+    <!-- jackson-databind deliberately left on the plain community version
+         here: this is the dependency the demo PR adopts Lightwell for.
+         Do not "fix" this one to an rhlw- version in this baseline file. -->
+    <jackson.version>2.13.4</jackson.version>
+    <commons-io.version>2.11.0.rhlw-00001</commons-io.version>
+    <httpclient.version>4.5.12.rhlw-00001</httpclient.version>
+    <json-smart.version>2.5.0.rhlw-00001</json-smart.version>
   </properties>
 
   <!-- ============================================================
@@ -78,7 +82,8 @@
       <version>${spring-security.version}</version>
     </dependency>
 
-    <!-- the CVE-relevant leaf: jackson-databind, the Lightwell hero -->
+    <!-- the CVE-relevant leaf: jackson-databind, the Lightwell hero.
+         Community version here on purpose; see the note in <properties> above. -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
@@ -154,4 +159,3 @@
     </plugins>
   </build>
 </project>
-# trigger # any diff
