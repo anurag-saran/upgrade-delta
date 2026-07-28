@@ -1,0 +1,35 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-fetch-tool
+spec:
+  description: >-
+    This pipeline lives in YOUR application's repo, not the upgrade-delta tool's
+    repo -- so upgrade_delta.py / test_router.py / pr_comment.py aren't present
+    in the checkout. This task fetches them from the tool's repo before anything
+    else runs, so every downstream task (several of them reused byte-for-byte
+    from the upgrade-delta demo pipeline) finds the scripts exactly where it
+    already expects them.
+  params:
+    - name: tool-repo-raw-base
+      type: string
+      default: "https://raw.githubusercontent.com/anurag-saran/upgrade-delta/main"
+      description: Raw-content base URL of the upgrade-delta tool repo/branch to pull from
+  workspaces:
+    - name: source
+  steps:
+    - name: fetch
+      displayName: "Fetch upgrade-delta tool scripts"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mkdir -p integration/github-action
+        for f in upgrade_delta.py test_router.py; do
+          curl -fsSL "$(params.tool-repo-raw-base)/$f" -o "$f"
+        done
+        curl -fsSL "$(params.tool-repo-raw-base)/integration/github-action/pr_comment.py" \
+          -o integration/github-action/pr_comment.py
+        python3 -c "import ast; ast.parse(open('upgrade_delta.py').read())"
+        echo "fetched: $(wc -l < upgrade_delta.py) lines in upgrade_delta.py"

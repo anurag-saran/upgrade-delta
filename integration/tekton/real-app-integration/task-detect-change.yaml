@@ -1,0 +1,95 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-detect-change
+spec:
+  description: >-
+    Diffs pom.xml between this PR's head and the target branch to find which
+    dependency version changed -- so the developer only has to bump the
+    version in pom.xml; nothing else needs to name the dependency by hand.
+    Scope (v1): top-level <dependencies>/<dependency> entries with a literal
+    <version> only -- not <dependencyManagement>, not BOM-imported/inherited
+    versions, not properties-based versions (${foo.version}). If more than
+    one dependency's version changed in the same PR, the FIRST one found is
+    used and a warning is printed -- keep upgrade PRs to one dependency bump
+    each for this pipeline to grade correctly.
+  params:
+    - name: target-branch
+      type: string
+      description: The PR's target/base branch (e.g. main)
+    - name: pom-path
+      type: string
+      default: pom.xml
+  workspaces:
+    - name: source
+  results:
+    - name: HAS_CHANGE
+      description: "'true' if exactly one dependency version change was detected, else 'false'"
+    - name: CHANGED_GROUP
+      description: Maven groupId of the changed dependency
+    - name: CHANGED_ARTIFACT
+      description: Maven artifactId of the changed dependency
+    - name: CHANGED_OLD_VERSION
+      description: Version on the target branch (before this PR)
+    - name: CHANGED_NEW_VERSION
+      description: Version on this PR's head (expected to carry a real .rhlw-NNNNN suffix)
+  steps:
+    - name: detect
+      displayName: "Diff pom.xml against the target branch"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        git fetch origin "$(params.target-branch)" --quiet || true
+        BASE_REF="origin/$(params.target-branch)"
+        if ! git show "$BASE_REF:$(params.pom-path)" > /tmp/base-pom.xml 2>/dev/null; then
+          echo "could not read $(params.pom-path) from $BASE_REF -- treating as no detected change"
+          printf 'false' > "$(results.HAS_CHANGE.path)"
+          printf '' > "$(results.CHANGED_GROUP.path)"
+          printf '' > "$(results.CHANGED_ARTIFACT.path)"
+          printf '' > "$(results.CHANGED_OLD_VERSION.path)"
+          printf '' > "$(results.CHANGED_NEW_VERSION.path)"
+          exit 0
+        fi
+        python3 - "$(params.pom-path)" <<'PY'
+        import sys, xml.etree.ElementTree as ET
+
+        def deps(path):
+            root = ET.parse(path).getroot()
+            ns = root.tag.split("}")[0] + "}" if root.tag.startswith("{") else ""
+            out = {}
+            for dep in root.findall(f".//{ns}dependencies/{ns}dependency"):
+                g = dep.findtext(f"{ns}groupId", default="")
+                a = dep.findtext(f"{ns}artifactId", default="")
+                v = dep.findtext(f"{ns}version", default="")
+                if g and a and v and not v.startswith("${"):
+                    out[(g, a)] = v
+            return out
+
+        head_path = sys.argv[1]
+        base = deps("/tmp/base-pom.xml")
+        head = deps(head_path)
+        changed = [(g, a, base[(g, a)], v) for (g, a), v in head.items()
+                   if (g, a) in base and base[(g, a)] != v]
+
+        if not changed:
+            print("no dependency version change detected between base and head pom.xml")
+            open("$(results.HAS_CHANGE.path)", "w").write("false")
+            for p in ["$(results.CHANGED_GROUP.path)", "$(results.CHANGED_ARTIFACT.path)",
+                      "$(results.CHANGED_OLD_VERSION.path)", "$(results.CHANGED_NEW_VERSION.path)"]:
+                open(p, "w").write("")
+        else:
+            if len(changed) > 1:
+                print(f"WARNING: {len(changed)} dependency versions changed in this PR; "
+                      f"using the first one. Keep upgrade PRs to one dependency bump each.")
+                for g, a, ov, nv in changed:
+                    print(f"  - {g}:{a}  {ov} -> {nv}")
+            g, a, ov, nv = sorted(changed)[0]
+            print(f"detected: {g}:{a}  {ov} -> {nv}")
+            open("$(results.HAS_CHANGE.path)", "w").write("true")
+            open("$(results.CHANGED_GROUP.path)", "w").write(g)
+            open("$(results.CHANGED_ARTIFACT.path)", "w").write(a)
+            open("$(results.CHANGED_OLD_VERSION.path)", "w").write(ov)
+            open("$(results.CHANGED_NEW_VERSION.path)", "w").write(nv)
+        PY

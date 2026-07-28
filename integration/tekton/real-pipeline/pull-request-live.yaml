@@ -1,0 +1,56 @@
+# Copy this file to .tekton/pull-request-live.yaml IN YOUR APPLICATION REPO.
+# Named differently from the fixture demo's "upgrade-delta-pr" so both can
+# coexist if you ever run the demo pipeline in the same namespace too.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+    pipelinesascode.tekton.dev/pipeline: ".upgrade-delta/real-pipeline/pipeline-real.yaml"
+    pipelinesascode.tekton.dev/task: "git-clone"
+    pipelinesascode.tekton.dev/task-1: ".upgrade-delta/real-pipeline/task-detect-pom-changes.yaml"
+    pipelinesascode.tekton.dev/task-2: ".upgrade-delta/real-pipeline/task-live-coverage.yaml"
+    pipelinesascode.tekton.dev/task-3: ".upgrade-delta/real-pipeline/task-live-scan.yaml"
+    # summary + pr-comment are NOT annotated here on purpose: they're expected
+    # to already exist on the cluster (applied once from the upgrade-delta
+    # demo repo's setup). If they don't exist in this namespace yet, apply
+    # them once: oc apply -f task-upgrade-delta-summary.yaml
+    #            oc apply -f task-upgrade-delta-pr-comment.yaml
+  name: upgrade-delta-live-pr
+spec:
+  pipelineRef:
+    name: upgrade-delta-live
+  params:
+    - name: git-url
+      value: '{{ repo_url }}'
+    - name: git-revision
+      value: '{{ revision }}'
+    - name: target-branch
+      value: '{{ target_branch }}'
+    - name: pom-path
+      value: 'pom.xml'                 # change if your pom.xml isn't at the repo root
+    - name: app-name
+      value: 'CHANGE-ME-your-app-name'
+    - name: fail-on
+      value: 'D'
+    - name: repo-owner
+      value: '{{ repo_owner }}'
+    - name: repo-name
+      value: '{{ repo_name }}'
+    - name: pull-request-number
+      value: '{{ pull_request_number }}'
+    - name: scorecard-route-host
+      value: ''                        # optional: your scorecard viewer Route host
+    - name: maven-settings-secret
+      value: ''                        # optional: name of a Secret with key settings.xml
+    - name: lightwell-creds-secret
+      value: 'lightwell-live-scan-creds'
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: upgrade-delta-reports   # reuse the same reports PVC from the demo setup
+    - name: basic-auth
+      secret:
+        secretName: "{{ git_auth_secret }}"

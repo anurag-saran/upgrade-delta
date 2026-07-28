@@ -18,6 +18,12 @@ files directly — no JVM, no pip installs.
 
 ## Demo it on OpenShift — console + GitHub only
 
+> **Want it grading your team's real repo instead of this fixture?** See
+> [`integration/tekton/real-pipeline/README.md`](integration/tekton/real-pipeline/README.md) —
+> a separate pipeline that diffs a PR's real `pom.xml`, downloads the real old/new jars, and
+> grades the real impact. This section below is the fixture-based demo.
+
+
 The headline path: open a pull request on GitHub, and an OpenShift pipeline automatically
 scores the upgrade and shows the verdict in the console. **No terminal on your side.** The
 base demo runs on fixtures committed to this repo, so it needs **no credentials, no JDK, no

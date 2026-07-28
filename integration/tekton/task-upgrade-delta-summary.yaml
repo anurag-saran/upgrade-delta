@@ -61,6 +61,15 @@ spec:
                 tag = f" [transitive via {lib['parent']}]" if lib.get("transitive") else ""
                 print(f"   {lib['library']:<18} {lib['installed']} -> {r['new']:<12} "
                       f"grade {grade:<22} {rt['lane']}{tag}")
+                chain = (r.get("ix") or {}).get("internal_chain")
+                if chain and chain.get("closure_methods_reached"):
+                    hits = (chain.get("internal_touched_incompatible", [])
+                            + chain.get("internal_touched_changed", [])
+                            + chain.get("internal_touched_impl_changed", []))
+                    if hits:
+                        more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
+                        print(f"     -> internal call chain: {chain['closure_methods_reached']} method(s) "
+                              f"from {chain['closure_seed_count']} entry point(s) reach {hits[0]}{more}")
             lh = sc["project"]["lane_histogram"]
             print(" Lanes         : " + ", ".join(f"{k}: {sum(v.values())}" for k, v in lh.items()))
         if gate:

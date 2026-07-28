@@ -1,0 +1,79 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-resolve-jars
+spec:
+  description: >-
+    Resolves the OLD and NEW dependency jars (whichever repo actually has each
+    -- the old one may be plain community/Central, the new one is expected on
+    Lightwell) and builds the application's own jar from source, so the next
+    task can diff them for real instead of reading a pre-published evidence
+    file. ASSUMES your pom.xml already declares the Lightwell repository
+    (one-time setup, not per-PR) -- this task only supplies credentials via
+    settings.xml, matching the standard Maven credentials/repository split:
+      <repositories><repository>
+        <id>lightwell-remediated</id>
+        <url>https://packages.redhat.com/lightwell/java/remediated</url>
+      </repository></repositories>
+    The <id> here MUST match the <server><id> in the lightwell-maven-settings
+    secret (see CREDENTIALS.md / setup-openshift.sh) for the credentials to
+    actually apply.
+  params:
+    - name: group
+    - name: artifact
+    - name: old-version
+    - name: new-version
+    - name: app-module-dir
+      type: string
+      default: "."
+      description: Directory containing the pom.xml to build (root, or a module path)
+  workspaces:
+    - name: source
+    - name: maven-settings
+      description: Secret volume containing settings.xml with Lightwell server credentials
+  results:
+    - name: OLD_JAR
+      description: Path (in workspace) to the resolved OLD dependency jar
+    - name: NEW_JAR
+      description: Path (in workspace) to the resolved NEW dependency jar
+    - name: APP_JAR
+      description: Path (in workspace) to the freshly-built application jar
+  steps:
+    - name: resolve-and-build
+      displayName: "Resolve dependency jars + build the app"
+      image: docker.io/library/maven:3.9-eclipse-temurin-21
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
+        mkdir -p out/jars
+        G="$(params.group)"; A="$(params.artifact)"
+        OV="$(params.old-version)"; NV="$(params.new-version)"
+
+        echo "resolving OLD: $G:$A:$OV"
+        mvn -B -s "$SETTINGS" dependency:copy \
+          -Dartifact="$G:$A:$OV:jar" -DoutputDirectory=out/jars \
+          -Dmdep.stripVersion=false
+
+        echo "resolving NEW: $G:$A:$NV"
+        mvn -B -s "$SETTINGS" dependency:copy \
+          -Dartifact="$G:$A:$NV:jar" -DoutputDirectory=out/jars \
+          -Dmdep.stripVersion=false
+
+        OLD_JAR="out/jars/${A}-${OV}.jar"
+        NEW_JAR="out/jars/${A}-${NV}.jar"
+        [ -f "$OLD_JAR" ] || { echo "FATAL: could not resolve $OLD_JAR"; exit 1; }
+        [ -f "$NEW_JAR" ] || { echo "FATAL: could not resolve $NEW_JAR"; exit 1; }
+
+        echo "building app module: $(params.app-module-dir)"
+        ( cd "$(params.app-module-dir)" && mvn -B -s "$SETTINGS" -DskipTests package )
+        APP_JAR=$(find "$(params.app-module-dir)/target" -maxdepth 1 -name '*.jar' \
+                   -not -name '*-sources.jar' -not -name '*-javadoc.jar' -not -name 'original-*' \
+                   | head -1)
+        [ -n "$APP_JAR" ] || { echo "FATAL: no built app jar found under target/"; exit 1; }
+
+        printf '%s' "$OLD_JAR" > "$(results.OLD_JAR.path)"
+        printf '%s' "$NEW_JAR" > "$(results.NEW_JAR.path)"
+        printf '%s' "$APP_JAR" > "$(results.APP_JAR.path)"
+        echo "OLD_JAR=$OLD_JAR  NEW_JAR=$NEW_JAR  APP_JAR=$APP_JAR"

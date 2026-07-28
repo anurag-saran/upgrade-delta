@@ -529,13 +529,16 @@ def intersect_app(app, lib_old, delta):
 
     call_sites = set()
     class_uses = set()
-    for c in app["classes"].values():
+    owners = defaultdict(set)   # app class -> refs it owns into the library
+    for cname, c in app["classes"].items():
         for (cls, name, desc) in c["refs"]:
             if in_lib(cls):
                 call_sites.add((cls, name, desc))
+                owners[cname].add((cls, name, desc))
         for cls in c["class_refs"]:
             if in_lib(cls):
                 class_uses.add(cls)
+                owners[cname].add((cls, None, None))
 
     changed = set(delta["api_removed"]) | set(delta["api_modified"])
     incompat = set(delta["api_incompatible"])
@@ -555,6 +558,10 @@ def intersect_app(app, lib_old, delta):
         "touched_changed": touched_changed,
         "touched_incompatible": sorted(set(touched_incompat), key=sk),
         "touched_impl_changed": sorted(c.replace("/", ".") for c in touched_impl),
+        "affected_app_classes": sorted(o.replace("/", ".") for o in owners),
+        "affected_app_classes_changed": sorted(
+            o.replace("/", ".") for o, refs in owners.items()
+            if refs & (changed | incompat)),
     }
 
 
@@ -801,6 +808,71 @@ def analyze(args):
         with open(args.html, "w") as f:
             f.write(render_card(report))
         print(f"  report:   {args.html}")
+    if getattr(args, "routing_payload", None):
+        shrinkable = {"Fast lane", "Targeted tests"}
+        eff = rating.get("effective_grade")
+        payload = {
+            "schema": "upgrade-delta/routing/v1",
+            "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
+            "date": str(date.today()), "app": report["app"] or "app",
+            "project_grade": eff or rating["grade"],
+            "shrink_allowed": rating["lane"] in shrinkable,
+            "upgrades": [{
+                "library": report["library"],
+                "path": f"{args.old_version} -> {args.new_version}",
+                "lane": rating["lane"], "grade": rating["grade"],
+                "effective_grade": eff, "transitive": False, "parent": None,
+                "affected_app_classes": (app_ix or {}).get("affected_app_classes", []),
+                "affected_app_classes_changed": (app_ix or {}).get("affected_app_classes_changed", []),
+                "confidence": {"evidence": "direct", "signed_off": bool(eff)},
+            }],
+            "obligations": [
+                {"id": "boot-test", "stage": "in-scope",
+                 "declaration": {"type": "tag", "value": "upgrade-gate"}, "min_resolved": 1},
+                {"id": "canary", "stage": "downstream",
+                 "note": "deployment-stage activity; a build plugin cannot run or verify this"},
+                {"id": "rollback-path", "stage": "downstream",
+                 "note": "verify rollback artifact + procedure before promotion"},
+            ],
+            "blind_spots": [
+                "Reflection/config-driven use invisible to static analysis; compounds across hops.",
+                "Selection strength depends on the consumer-side coverage map, which this payload knows nothing about.",
+            ],
+        }
+        with open(args.routing_payload, "w") as f:
+            json.dump(payload, f, indent=2)
+        print(f"  routing payload: {args.routing_payload}")
+    if getattr(args, "scorecard_compat", None):
+        # Wraps this single live-diffed dependency in the same {project, libraries}
+        # shape scan() produces, so upgrade-delta-summary and
+        # upgrade-delta-pr-comment work completely UNCHANGED downstream --
+        # whether the grade came from a whole-project scan against published
+        # evidence, or a live pom.xml-diff-triggered single-dependency check.
+        eff2 = rating.get("effective_grade")
+        histogram = {rating["lane"]: {"direct": 1, "transitive": 0}}
+        compat = {
+            "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
+            "date": str(date.today()), "app": report["app"] or "app",
+            "libraries": [{
+                "library": report["library"], "transitive": False, "parent": None,
+                "recommended": {"old": args.old_version, "new": args.new_version,
+                                 "rating": rating, "ix": app_ix or {}},
+                "worst": {"old": args.old_version, "new": args.new_version, "rating": rating},
+            }],
+            "unrated_packages": [], "heuristics": [], "hazards": [],
+            "shipped_dependencies": [],
+            "project": {
+                "headline_grade": eff2 or rating["grade"],
+                "headline_note": "grade for this specific dependency bump, from a live "
+                                  "pom.xml-diff -- not a whole-project scan",
+                "worst_without_best_path": rating["grade"],
+                "rated_libraries": 1, "unrated_package_roots": 0,
+                "lane_histogram": histogram,
+            },
+        }
+        with open(args.scorecard_compat, "w") as f:
+            json.dump(compat, f, indent=2)
+        print(f"  scorecard (compat): {args.scorecard_compat}")
     return report
 
 
@@ -1688,7 +1760,7 @@ def scan(args):
             "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
             "date": str(date.today()), "app": result["app"],
             "project_grade": worst_rec,
-            "shrink_allowed": all(eff and l["recommended"]["rating"]["lane"] in shrinkable
+            "shrink_allowed": all(l["recommended"]["rating"]["lane"] in shrinkable
                                   for l in libs) if libs else False,
             "upgrades": [{
                 "library": l["library"],
@@ -1905,6 +1977,17 @@ def _base_version(v):
     return RHSUFFIX.sub("", v or "")
 
 
+def _version_key(v):
+    """Loose semantic-version sort key: '5.3.18' -> (5,3,18); tolerant of
+    non-numeric segments ('1.0.0-beta' -> (1,0,0,'beta')). Used only to
+    compare direction (newer/older), not to validate version syntax."""
+    parts = re.split(r"[.\-+]", v or "")
+    key = []
+    for p in parts:
+        key.append((0, int(p)) if p.isdigit() else (1, p))
+    return tuple(key)
+
+
 def load_catalog(path):
     """Lightwell catalog SBOM -> {(group, artifact): {base_version: full_version}}"""
     with open(path) as f:
@@ -1932,12 +2015,35 @@ def coverage(args):
         if not n or not v:
             continue
         entry = cat.get((g, n)) or cat.get((None, n))
+        base_v = _base_version(v)
         if entry is None:
             uncovered.append((g, n, v))
         elif v in entry:
+            # v itself is a plain (unsuffixed) version Red Hat also publishes.
             exact.append((g, n, v, entry[v]))
+        elif base_v in entry and entry[base_v] == v:
+            # v IS ALREADY the exact remediated build (…rhlw-NNNNN) -- the
+            # developer already adopted it. This is the best possible state,
+            # not a gap: report it as covered, using itself as the target.
+            exact.append((g, n, v, v))
         else:
-            near.append((g, n, v, sorted(entry.keys())))
+            # Only count a base version as "serviced" if Red Hat's build is
+            # the same version or NEWER than what's running -- a catalog
+            # entry that's strictly older is a downgrade, not a usable
+            # remediation path, so it doesn't belong in this bucket.
+            # Compare on the STRIPPED base version on both sides, so a
+            # running version that already carries its own build suffix
+            # (adopted, but for a different release than the catalog's
+            # current one) still compares correctly against plain catalog
+            # base-version keys.
+            run_key = _version_key(base_v)
+            forward = sorted(
+                (base for base in entry if _version_key(base) >= run_key),
+                key=_version_key)
+            if forward:
+                near.append((g, n, v, [entry[b] for b in forward]))
+            else:
+                uncovered.append((g, n, v))
 
     total = len(exact) + len(near) + len(uncovered)
     result = {
@@ -1998,7 +2104,7 @@ def render_coverage(r):
         f'<tr><td class="dep">{gav(e)}</td>'
         f'<td class="ver">{esc(e["version"])}</td>'
         f'<td class="ver arrow">{esc(e["remediated"])}</td>'
-        f'<td class="act">Swap the version suffix. No code change.</td></tr>'
+        f'<td class="act">{"Already on the Red Hat remediated build." if e["version"] == e["remediated"] else "Swap the version suffix. No code change."}</td></tr>'
         for e in r["exact"])
     near_rows = "".join(
         f'<tr><td class="dep">{gav(e)}</td>'
@@ -2030,9 +2136,9 @@ def render_coverage(r):
         section("ok", "var(--pass)", "Covered — drop-in remediated build",
                 "Red Hat rebuilt the exact version you run, with the fix. A configuration "
                 "change, not an upgrade.", t["exact"], covered_rows, "Remediated build") +
-        section("watch", "var(--watch)", "Serviced — at a different version",
-                "Red Hat services this library, but not the version you run. A real upgrade, "
-                "or a request for your version.", t["serviced_other_version"], near_rows,
+        section("watch", "var(--pass)", "Serviced — at a different version",
+                "Red Hat services this library at a newer or matching version. A real "
+                "upgrade, or a request for your exact version.", t["serviced_other_version"], near_rows,
                 "Serviced versions") +
         section("stop", "var(--stop)", "Not covered",
                 "No remediated build exists. Any upgrade here carries the full, unscoped test "
@@ -2077,15 +2183,15 @@ td.act{{color:var(--ink);font-size:12.5px}}
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
       <span class="n" style="color:var(--pass)">{t['exact']}</span>
       <span class="t">drop-in remediated<br>({pct}% of deps)</span></div>
-    <div class="li"><span class="dot" style="background:var(--watch)"></span>
-      <span class="n" style="color:var(--watch)">{t['serviced_other_version']}</span>
+    <div class="li"><span class="dot" style="background:var(--pass)"></span>
+      <span class="n" style="color:var(--pass)">{t['serviced_other_version']}</span>
       <span class="t">serviced, other version<br>({near_pct}%)</span></div>
     <div class="li"><span class="dot" style="background:var(--stop)"></span>
       <span class="n" style="color:var(--stop)">{t['uncovered']}</span>
       <span class="t">not covered<br>({unc_pct}%)</span></div>
   </div>
   {body}
-  <div class="footer"><span>Covered = same base version, rebuilt by Red Hat (\u2026.redhat-NNNNN / \u2026.rhlw-NNNNN suffix)</span>
+  <div class="footer"><span>Covered = same base version, rebuilt by Red Hat (\u2026.rhlw-NNNNN suffix)</span>
   <span>upgrade-delta v{TOOL_VERSION} · {esc(r['date'])}</span></div>
 </div></body></html>"""
 
@@ -2166,6 +2272,10 @@ def main():
     a.add_argument("--library", help="display name")
     a.add_argument("--json", help="write evidence JSON here")
     a.add_argument("--html", help="write HTML report card here")
+    a.add_argument("--routing-payload", help="write the affected-code payload for the "
+                   "consumer-side test router (requires --app)")
+    a.add_argument("--scorecard-compat", help="write a scan()-schema-compatible scorecard.json "
+                   "so upgrade-delta-summary/upgrade-delta-pr-comment work unchanged")
     a.set_defaults(fn=analyze)
 
     s = sub.add_parser("scan", help="score a whole application against published delta reports")

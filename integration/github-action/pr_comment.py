@@ -25,6 +25,22 @@ def main(scorecard_path, out_path):
                      f"{BADGE.get(rt.get('effective_grade') or rt['grade'],'⚪')} {shown} | {rt['lane']} |")
     if r.get("hazards"):
         lines += ["", "**⚠️ Hazards**"] + [f"- `{k}` — {m}" for k, m in r["hazards"]]
+    chain_hits = []
+    for l in r["libraries"]:
+        chain = l["recommended"]["ix"].get("internal_chain") if l["recommended"].get("ix") else None
+        if not chain or not chain.get("closure_methods_reached"):
+            continue
+        hits = (chain.get("internal_touched_incompatible", []) + chain.get("internal_touched_changed", [])
+                + chain.get("internal_touched_impl_changed", []))
+        if hits:
+            chain_hits.append((l["library"], chain, hits))
+    if chain_hits:
+        lines += ["", "**🔗 Internal call-chain reachability** "
+                       "*(reaches changed code this app never calls by name)*"]
+        for name, chain, hits in chain_hits:
+            more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
+            lines.append(f"- **{name}** — traced {chain['closure_methods_reached']} method(s) from "
+                         f"{chain['closure_seed_count']} entry point(s) → reaches `{hits[0]}`{more}")
     hits = [h for h in r.get("heuristics", []) if h["intersects_change"]]
     if hits:
         lines += ["", "**🔍 Config/reflection reachability**"] + \

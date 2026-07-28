@@ -1,0 +1,105 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: upgrade-delta-live
+spec:
+  description: >-
+    Lives in the APPLICATION'S OWN repo. Triggered on every PR: diffs
+    pom.xml to find any dependency this PR moved to a Lightwell (rhlw)
+    build, downloads the real old/new jars, builds the app from THIS PR's
+    source, and grades the real impact -- reachability, same-library
+    internal call-chain, the real rating. No fixtures. If the PR changes
+    nothing Lightwell-related, this passes through cleanly with an empty
+    scorecard. Reuses the summary and pr-comment Tasks already applied to
+    this namespace from the fixture demo pipeline -- unmodified, no copy
+    needed in this repo.
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: target-branch
+      type: string
+      description: The PR's base branch (PaC provides this as {{ target_branch }})
+    - name: pom-path
+      type: string
+      default: pom.xml
+    - name: app-name
+      type: string
+    - name: fail-on
+      type: string
+      default: "D"
+    - name: repo-owner
+      type: string
+    - name: repo-name
+      type: string
+    - name: pull-request-number
+      type: string
+    - name: scorecard-route-host
+      type: string
+      default: ""
+    - name: maven-settings-secret
+      type: string
+      default: ""
+    - name: lightwell-creds-secret
+      type: string
+      default: "lightwell-live-scan-creds"
+  workspaces:
+    - name: source
+    - name: basic-auth
+      description: PaC-provided git auth secret, for posting the CAB comment. Optional.
+      optional: true
+  tasks:
+    - name: clone
+      displayName: "1. Clone this PR's real source"
+      taskRef: {name: git-clone}
+      workspaces: [{name: output, workspace: source}]
+      params:
+        - {name: url, value: $(params.git-url)}
+        - {name: revision, value: $(params.git-revision)}
+    - name: detect-pom-changes
+      displayName: "2. Diff pom.xml for Lightwell adoptions"
+      runAfter: [clone]
+      taskRef: {name: detect-pom-changes}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: target-branch, value: $(params.target-branch)}
+        - {name: pom-path, value: $(params.pom-path)}
+    - name: live-coverage
+      displayName: "3. Coverage meter on the real pom.xml"
+      runAfter: [detect-pom-changes]
+      taskRef: {name: live-coverage}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: pom-path, value: $(params.pom-path)}
+        - {name: app-name, value: $(params.app-name)}
+    - name: live-scan
+      displayName: "4. Build the app and grade the real change"
+      runAfter: [live-coverage]
+      taskRef: {name: live-scan}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: fail-on, value: $(params.fail-on)}
+        - {name: maven-settings-secret, value: $(params.maven-settings-secret)}
+        - {name: lightwell-creds-secret, value: $(params.lightwell-creds-secret)}
+  finally:
+    - name: summary
+      displayName: "5. Print the verdict banner"
+      taskRef: {name: upgrade-delta-summary}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: scorecard-route-host, value: $(params.scorecard-route-host)}
+    - name: pr-comment
+      displayName: "6. Post CAB comment to the PR"
+      taskRef: {name: upgrade-delta-pr-comment}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: basic-auth, workspace: basic-auth}
+      params:
+        - {name: repo-owner, value: $(params.repo-owner)}
+        - {name: repo-name, value: $(params.repo-name)}
+        - {name: pull-request-number, value: $(params.pull-request-number)}
+  results:
+    - {name: LIGHTWELL_ADOPTIONS_COUNT, value: $(tasks.detect-pom-changes.results.LIGHTWELL_ADOPTIONS_COUNT)}
+    - {name: COVERAGE_PCT_EXACT_MATCH, value: $(tasks.live-coverage.results.COVERAGE_PCT_EXACT_MATCH)}

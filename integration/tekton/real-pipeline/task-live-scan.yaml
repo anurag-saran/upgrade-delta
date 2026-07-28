@@ -1,0 +1,93 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: live-scan
+spec:
+  description: >-
+    Builds the application from THIS PR's source, then -- for every
+    dependency the pom.xml diff showed adopting a Lightwell (rhlw) build --
+    downloads the real old (community) and new (Lightwell) jars and runs the
+    actual upgrade_delta grading engine (diff, app-reachability intersection,
+    same-library internal call-chain check, rating) against them. Writes
+    out/scorecard.json in the same shape the fixture demo pipeline produces,
+    so the summary and pr-comment tasks work unmodified. Fails the run
+    (exit 2) if the worst graded dependency breaches --fail-on.
+  params:
+    - name: fail-on
+      type: string
+      default: "D"
+    - name: maven-settings-secret
+      type: string
+      default: ""
+      description: >-
+        Optional. Name of a Secret with key settings.xml, if the app itself
+        needs authenticated Maven repos (e.g. Lightwell) to BUILD. Leave
+        blank if the app only depends on public artifacts.
+    - name: lightwell-creds-secret
+      type: string
+      default: "lightwell-live-scan-creds"
+      description: >-
+        Name of a Secret with keys RHLN_USER and RHLN_TOKEN -- the console
+        service-account credentials used to download the real Lightwell
+        remediated jar for each adopted dependency. Required.
+  workspaces:
+    - name: source
+  steps:
+    - name: build-app
+      displayName: "Build the app from this PR's source"
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        # If a Maven settings secret is provided, mount it at ~/.m2/settings.xml
+        # NOTE: the settings.xml file itself must already be present in the
+        # workspace (copied in by an earlier step or a Secret volume in the
+        # pipeline's workspace binding) -- this task does not fetch secrets
+        # directly, Tekton Tasks can't reference Secrets outside params/env.
+        if [ -f "$(workspaces.source.path)/.upgrade-delta/settings.xml" ]; then
+          mkdir -p ~/.m2
+          cp "$(workspaces.source.path)/.upgrade-delta/settings.xml" ~/.m2/settings.xml
+          echo "using vendored Maven settings.xml"
+        fi
+        mvn -v || { echo "mvn not found in this image -- see task comments for an alternative builder image"; exit 1; }
+        mvn -B -DskipTests package
+        echo "build complete:"; find . -name "*.jar" -newer pom.xml -not -path "*/target/*-sources.jar" | head -5
+    - name: live-grade
+      displayName: "Download real jars and grade this PR's Lightwell adoption"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      env:
+        - name: RHLN_USER
+          valueFrom:
+            secretKeyRef:
+              name: $(params.lightwell-creds-secret)
+              key: RHLN_USER
+              optional: true
+        - name: RHLN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: $(params.lightwell-creds-secret)
+              key: RHLN_TOKEN
+              optional: true
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        APP_JAR=$(find target -maxdepth 1 -name "*.jar" ! -name "*-sources.jar" ! -name "original-*" | head -1)
+        if [ -z "$APP_JAR" ]; then
+          echo "! could not find a built app jar under target/ -- did the build-app step actually produce one?"
+          exit 1
+        fi
+        echo "app jar: $APP_JAR"
+        mkdir -p /tmp/lw-jars
+
+        mkdir -p out/reports
+        python3 .upgrade-delta/real-pipeline/scripts/live_scan.py \
+          --changed-deps out/changed-deps.json \
+          --app-jar "$APP_JAR" \
+          --workdir /tmp/lw-jars \
+          --fail-on "$(params.fail-on)" \
+          --json out/scorecard.json \
+          --html out/reports/scorecard.html
+        RC=$?
+        [ "$RC" -eq 0 ] || { echo "GATE: live scan breached --fail-on $(params.fail-on)"; exit "$RC"; }

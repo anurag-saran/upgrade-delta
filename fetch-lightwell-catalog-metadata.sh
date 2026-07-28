@@ -35,13 +35,18 @@ mkdir -p "$OUT_DIR"
 
 # ---- build the GAV list -----------------------------------------------------
 GAV_FILE="${1:-}"
+GAVS=()
 if [ -n "$GAV_FILE" ]; then
   [ -f "$GAV_FILE" ] || { echo "${RED}not found: $GAV_FILE${RESET}"; exit 1; }
-  mapfile -t GAVS < "$GAV_FILE"
+  while IFS= read -r line; do
+    [ -n "$line" ] && GAVS+=("$line")
+  done < "$GAV_FILE"
   echo "Using custom list: $GAV_FILE (${#GAVS[@]} coordinates)"
 else
   echo "No list given -- using every group:artifact already in $CATALOG"
-  mapfile -t GAVS < <(python3 -c "
+  while IFS= read -r line; do
+    [ -n "$line" ] && GAVS+=("$line")
+  done < <(python3 -c "
 import json
 c = json.load(open('$CATALOG'))
 pairs = sorted({(x['group'], x['name']) for x in c['components']})
