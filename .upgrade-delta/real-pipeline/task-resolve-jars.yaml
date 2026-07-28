@@ -5,19 +5,17 @@ metadata:
 spec:
   description: >-
     Resolves the OLD and NEW dependency jars via Maven's own dependency:copy
-    -- whichever repository actually has each (old may be plain
-    community/Central, new is expected on Lightwell) -- and builds the
-    application's own jar from source, so live-diff can diff them for real
-    instead of reading a pre-published evidence file. Using Maven itself
-    (not a hand-rolled URL) means this works through whatever repos/mirrors
-    your pom.xml and settings.xml actually define, not just a hardcoded
-    Central/Lightwell assumption.
+    -- the OLD (community) version from Maven Central, the NEW (rhlw) version
+    from the Lightwell repository -- and builds the application's own jar
+    from source, so live-diff can diff them for real instead of reading a
+    pre-published evidence file.
 
-    ASSUMES your pom.xml already declares the Lightwell repository
-    (one-time setup, not per-PR). This task only supplies credentials via
-    settings.xml -- the <id> in your pom's <repository> block MUST match the
-    <server><id> in the settings.xml secret for credentials to apply. See
-    sample-app/settings.xml.template.
+    NOTE: dependency:copy runs against a standalone STUB pom, so it does NOT
+    read the application's pom.xml and ignores any <repositories> declared
+    there. The Lightwell repo is therefore passed explicitly via
+    -DremoteRepositories (see the lightwell-repo param). Credentials still
+    come from the settings.xml secret, and its <server><id> MUST be
+    'lightwell-remediated' to match.
   params:
     - name: group
       type: string
@@ -31,6 +29,13 @@ spec:
       type: string
       default: "."
       description: Directory containing the pom.xml to build (root, or a module path)
+    - name: lightwell-repo
+      type: string
+      default: "https://packages.redhat.com/lightwell/java/remediated"
+      description: >-
+        Lightwell remediated Maven repository URL. Passed explicitly to
+        dependency:copy via -DremoteRepositories, because that goal runs
+        against a stub POM and ignores the application pom's <repositories>.
   workspaces:
     - name: source
     - name: maven-settings
@@ -55,6 +60,7 @@ spec:
         mkdir -p out/jars
         G="$(params.group)"; A="$(params.artifact)"
         OV="$(params.old-version)"; NV="$(params.new-version)"
+        LIGHTWELL_REPO="$(params.lightwell-repo)"
 
         echo "resolving OLD: $G:$A:$OV"
         mvn -B -s "$SETTINGS" dependency:copy \
@@ -62,9 +68,15 @@ spec:
           -Dmdep.stripVersion=false
 
         echo "resolving NEW: $G:$A:$NV"
+        # dependency:copy runs against a standalone STUB pom -- it does NOT read
+        # the application's pom.xml, so the <repositories> block there is ignored
+        # and only Maven Central is searched by default. The Lightwell repo must
+        # be passed explicitly. The 'lightwell-remediated' id must match the
+        # <server><id> in the settings.xml secret for credentials to apply.
         mvn -B -s "$SETTINGS" dependency:copy \
           -Dartifact="$G:$A:$NV:jar" -DoutputDirectory=out/jars \
-          -Dmdep.stripVersion=false
+          -Dmdep.stripVersion=false \
+          -DremoteRepositories="lightwell-remediated::::$LIGHTWELL_REPO"
 
         OLD_JAR="out/jars/${A}-${OV}.jar"
         NEW_JAR="out/jars/${A}-${NV}.jar"

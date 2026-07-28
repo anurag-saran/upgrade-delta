@@ -59,7 +59,7 @@ spec:
   workspaces:
     - name: source
       persistentVolumeClaim:
-        claimName: upgrade-delta-reports   # reuse the same reports PVC from the demo setup
+        claimName: upgrade-delta-live-reports   # reuse the same reports PVC from the demo setup
     - name: maven-settings
       secret:
         secretName: lightwell-maven-settings   # same secret the demo's sample-app already uses
