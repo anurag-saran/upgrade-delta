@@ -37,11 +37,11 @@ spec:
     - name: target-branch
       value: '{{ target_branch }}'
     - name: pom-path
-      value: 'pom.xml'                 # change if your pom.xml isn't at the repo root
+      value: 'sample-app/pom.xml'                 # change if your pom.xml isn't at the repo root
     - name: app-name
       value: 'RealTimePaymentsApp'
     - name: app-module-dir
-      value: '.'                       # change if pom.xml is in a subdirectory/module
+      value: 'sample-app'                       # change if pom.xml is in a subdirectory/module
     - name: fail-on
       value: 'D'
     - name: coverage-map
