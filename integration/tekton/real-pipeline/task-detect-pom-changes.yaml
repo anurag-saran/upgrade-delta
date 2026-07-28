@@ -4,10 +4,13 @@ metadata:
   name: detect-pom-changes
 spec:
   description: >-
-    Diffs pom.xml between the PR's target (base) branch and the PR head to
-    find every dependency whose <version> changed, and flags the ones whose
-    new version carries a Red Hat Lightwell build suffix (rhlw-NNNNN) as
-    adoptions to grade downstream. Pure Python stdlib -- no Maven, no network.
+    Diffs pom.xml between the PR's target (base) branch and the PR head using
+    the tested detect_pom_changes.py (resolves Maven ${property} indirection,
+    finds every Lightwell rhlw adoption). Writes the full list to
+    out/changed-deps.json, AND surfaces the FIRST adoption as individual
+    Tekton results for the rest of this pipeline to consume directly --
+    keep upgrade PRs to one dependency bump each for this pipeline to grade
+    correctly; a warning is printed (not a failure) if more than one changed.
   params:
     - name: target-branch
       type: string
@@ -21,6 +24,16 @@ spec:
   results:
     - name: LIGHTWELL_ADOPTIONS_COUNT
       description: How many dependencies in this PR adopted a Lightwell (rhlw) build
+    - name: HAS_CHANGE
+      description: "'true' if at least one Lightwell adoption was detected, else 'false'"
+    - name: CHANGED_GROUP
+      description: Maven groupId of the first detected adoption
+    - name: CHANGED_ARTIFACT
+      description: Maven artifactId of the first detected adoption
+    - name: CHANGED_OLD_VERSION
+      description: Version on the target branch (before this PR)
+    - name: CHANGED_NEW_VERSION
+      description: Version on this PR's head (carries the real rhlw-NNNNN suffix)
   steps:
     - name: detect
       displayName: "Diff pom.xml for Lightwell adoptions"
@@ -41,8 +54,27 @@ spec:
           --head "$(params.pom-path)" \
           --out out/changed-deps.json
 
-        python3 -c "
+        python3 - <<'PY'
         import json
-        d = json.load(open('out/changed-deps.json'))
-        open('$(results.LIGHTWELL_ADOPTIONS_COUNT.path)', 'w').write(str(len(d['lightwell_adopted'])))
-        "
+        d = json.load(open("out/changed-deps.json"))
+        adopted = d["lightwell_adopted"]
+        open("$(results.LIGHTWELL_ADOPTIONS_COUNT.path)", "w").write(str(len(adopted)))
+        if not adopted:
+            open("$(results.HAS_CHANGE.path)", "w").write("false")
+            for p in ["$(results.CHANGED_GROUP.path)", "$(results.CHANGED_ARTIFACT.path)",
+                      "$(results.CHANGED_OLD_VERSION.path)", "$(results.CHANGED_NEW_VERSION.path)"]:
+                open(p, "w").write("")
+        else:
+            if len(adopted) > 1:
+                print(f"WARNING: {len(adopted)} Lightwell adoptions in this PR; using the "
+                      f"first one below. Keep upgrade PRs to one dependency bump each for "
+                      f"this pipeline to grade correctly.")
+                for e in adopted:
+                    print(f"  - {e['group']}:{e['artifact']}  {e['old_version']} -> {e['new_version']}")
+            e = sorted(adopted, key=lambda x: (x["group"], x["artifact"]))[0]
+            open("$(results.HAS_CHANGE.path)", "w").write("true")
+            open("$(results.CHANGED_GROUP.path)", "w").write(e["group"])
+            open("$(results.CHANGED_ARTIFACT.path)", "w").write(e["artifact"])
+            open("$(results.CHANGED_OLD_VERSION.path)", "w").write(e["old_version"])
+            open("$(results.CHANGED_NEW_VERSION.path)", "w").write(e["new_version"])
+        PY

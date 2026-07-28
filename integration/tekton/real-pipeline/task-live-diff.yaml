@@ -1,0 +1,67 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: live-diff
+spec:
+  description: >-
+    The core of the live pipeline: runs upgrade_delta.py's own `analyze`
+    command on the ACTUAL old/new jars for THIS PR's specific version bump,
+    against the ACTUAL freshly-built application jar -- a real, fresh delta,
+    not a pre-published evidence file. Uses --routing-payload and
+    --scorecard-compat (both real, already-implemented flags on `analyze`)
+    to write out/routing.json and out/scorecard.json in the exact shapes
+    upgrade-delta-select-tests / upgrade-delta-summary / upgrade-delta-pr-comment
+    already expect, so all three are reused completely unchanged. This
+    includes the same-library internal call-chain check (via app_ix,
+    computed by analyze() the same way as everywhere else in this tool).
+  params:
+    - name: group
+      type: string
+    - name: artifact
+      type: string
+    - name: old-version
+      type: string
+    - name: new-version
+      type: string
+    - name: old-jar
+      type: string
+      description: Path from resolve-jars' OLD_JAR result
+    - name: new-jar
+      type: string
+      description: Path from resolve-jars' NEW_JAR result
+    - name: app-jar
+      type: string
+      description: Path from resolve-jars' APP_JAR result
+    - name: fail-on
+      type: string
+      default: "D"
+  workspaces:
+    - name: source
+  results:
+    - name: PROJECT_GRADE_RECOMMENDED_PATH
+      description: "The grade for this specific dependency bump (A-F)"
+  steps:
+    - name: diff
+      displayName: "Diff the real jars for this PR's version bump"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set +e
+        mkdir -p out/reports
+        python3 .upgrade-delta/upgrade_delta.py analyze "$(params.old-jar)" "$(params.new-jar)" \
+          --app "$(params.app-jar)" \
+          --old-version "$(params.old-version)" --new-version "$(params.new-version)" \
+          --library "$(params.group):$(params.artifact)" \
+          --json out/live-delta.json --html out/reports/live-delta.html \
+          --routing-payload out/routing.json --scorecard-compat out/scorecard.json
+        set -e
+        GRADE=$(python3 -c "import json;p=json.load(open('out/scorecard.json'))['project'];print(p['headline_grade'] or '-')")
+        printf '%s' "$GRADE" > "$(results.PROJECT_GRADE_RECOMMENDED_PATH.path)"
+        echo "grade=$GRADE"
+
+        gi() { python3 -c "print(['A','B','C','D','F'].index('$1'))"; }
+        if [ "$GRADE" != "-" ] && [ "$(gi "$GRADE")" -ge "$(gi "$(params.fail-on)")" ]; then
+          echo "GATE: project grade $GRADE breaches --fail-on $(params.fail-on)"
+          exit 2
+        fi

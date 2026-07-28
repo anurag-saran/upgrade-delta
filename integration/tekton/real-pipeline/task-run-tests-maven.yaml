@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: upgrade-delta-run-tests-maven
+  name: run-tests-maven
 spec:
   description: >-
     Real-app replacement for upgrade-delta-run-tests (which is tied to the
@@ -9,7 +9,7 @@ spec:
     ACTUAL test suite for real, via Maven Surefire, filtered by the
     surefire-includes.txt file upgrade-delta-select-tests already writes --
     that file is in Surefire's own native <includesFile> format
-    (`**/TestClass.java` per line), so select-tests needs no changes at all.
+    (one test class per line), so select-tests needs no changes at all.
   params:
     - name: app-module-dir
       type: string
@@ -28,7 +28,7 @@ spec:
   steps:
     - name: run
       displayName: "RUN the selected tests for real (Maven Surefire)"
-      image: docker.io/library/maven:3.9-eclipse-temurin-21
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
       workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash

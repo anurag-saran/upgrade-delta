@@ -1,28 +1,32 @@
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: upgrade-delta-resolve-jars
+  name: resolve-jars
 spec:
   description: >-
-    Resolves the OLD and NEW dependency jars (whichever repo actually has each
-    -- the old one may be plain community/Central, the new one is expected on
-    Lightwell) and builds the application's own jar from source, so the next
-    task can diff them for real instead of reading a pre-published evidence
-    file. ASSUMES your pom.xml already declares the Lightwell repository
-    (one-time setup, not per-PR) -- this task only supplies credentials via
-    settings.xml, matching the standard Maven credentials/repository split:
-      <repositories><repository>
-        <id>lightwell-remediated</id>
-        <url>https://packages.redhat.com/lightwell/java/remediated</url>
-      </repository></repositories>
-    The <id> here MUST match the <server><id> in the lightwell-maven-settings
-    secret (see CREDENTIALS.md / setup-openshift.sh) for the credentials to
-    actually apply.
+    Resolves the OLD and NEW dependency jars via Maven's own dependency:copy
+    -- whichever repository actually has each (old may be plain
+    community/Central, new is expected on Lightwell) -- and builds the
+    application's own jar from source, so live-diff can diff them for real
+    instead of reading a pre-published evidence file. Using Maven itself
+    (not a hand-rolled URL) means this works through whatever repos/mirrors
+    your pom.xml and settings.xml actually define, not just a hardcoded
+    Central/Lightwell assumption.
+
+    ASSUMES your pom.xml already declares the Lightwell repository
+    (one-time setup, not per-PR). This task only supplies credentials via
+    settings.xml -- the <id> in your pom's <repository> block MUST match the
+    <server><id> in the settings.xml secret for credentials to apply. See
+    sample-app/settings.xml.template.
   params:
     - name: group
+      type: string
     - name: artifact
+      type: string
     - name: old-version
+      type: string
     - name: new-version
+      type: string
     - name: app-module-dir
       type: string
       default: "."
@@ -41,11 +45,12 @@ spec:
   steps:
     - name: resolve-and-build
       displayName: "Resolve dependency jars + build the app"
-      image: docker.io/library/maven:3.9-eclipse-temurin-21
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
       workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
+        mvn -v || { echo "mvn not found in this image"; exit 1; }
         SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
         mkdir -p out/jars
         G="$(params.group)"; A="$(params.artifact)"

@@ -2,83 +2,93 @@
 
 This is the pipeline described in the original ask: a developer bumps a dependency to its
 Red Hat Lightwell (`rhlw-`) build in `pom.xml`, opens a PR, and the pipeline diffs the real
-old-vs-new jars and grades the real impact on the real app — no fixtures, no committed
-sample jars standing in for the real thing.
+old-vs-new jars and grades the real impact on the real app — no fixtures.
 
 It's separate from, and does not replace, the fixture demo pipeline (`pipeline-demo.yaml`
 at the top of `integration/tekton/`). That one is for presenting the *mechanism* reliably
 in a demo. This one is for actually running against your team's real repo.
 
-## What's genuinely new here
+## A note on this directory's history
 
-| Piece | What it does |
-|---|---|
-| `scripts/detect_pom_changes.py` | Diffs `pom.xml` between the PR's base branch and head. Finds every dependency whose `<version>` changed, resolves Maven `${property}` indirection, and flags the ones whose new version carries a Lightwell `rhlw-NNNNN` suffix. Pure Python stdlib — no Maven needed for this step. |
-| `scripts/pom_to_cyclonedx.py` | Converts the *current* `pom.xml`'s declared dependencies into the CycloneDX shape the coverage meter expects — so the coverage report reflects what's actually in the repo right now, not a static SBOM fixture. |
-| `scripts/live_scan.py` | The real grading engine. For every Lightwell adoption the pom diff found: downloads the real old jar (Maven Central) and the real new jar (Lightwell, authenticated), loads the app jar built from this PR's actual source, and calls `upgrade_delta`'s own `diff_jars` / `intersect_app` / `internal_chain_intersect` / `rate` functions directly — the exact same grading logic as the fixture demo, just fed real, live-downloaded data instead of committed evidence files. |
-| Fixed in `upgrade_delta.py`'s `coverage()` | A real bug this build surfaced: once a dependency is *already* on its Lightwell version, the old coverage-matching logic didn't recognize it as covered (it never stripped the suffix before comparing). Fixed and regression-tested — this benefits every use of `coverage`, not just this pipeline. |
+Two independent first attempts at this pipeline were built in the same session and both
+ended up committed (`real-pipeline/` and a since-superseded `real-app-integration/`). This
+version is the **consolidation** of both — it kept whichever half of each was actually
+better, and dropped the rest. If you still have `integration/tekton/real-app-integration/`
+in your repo, **delete it** — everything in it that was worth keeping is folded in here.
 
-`task-upgrade-delta-summary.yaml` and `task-upgrade-delta-pr-comment.yaml` are **reused
-completely unmodified** — `live_scan.py` writes `out/scorecard.json` in the exact same
-shape `scan()` produces, so those two tasks can't tell the difference.
+## What's in the consolidated design, and where each piece came from
+
+| Piece | What it does | Source |
+|---|---|---|
+| `scripts/detect_pom_changes.py` | Diffs `pom.xml`, resolves Maven `${property}` indirection, finds every `rhlw-` adoption. | Kept from the first `real-pipeline/` draft — the only one of the two pom-diff implementations that actually handles property indirection, which your real `pom.xml` uses throughout. |
+| `task-detect-pom-changes.yaml` | Runs the script above, then extracts the first adoption into individual Tekton results for downstream tasks. | The script is the tested one; the single-result extraction glue is new in this consolidation, adapted from the simpler `real-app-integration` result contract. |
+| `scripts/pom_to_cyclonedx.py` + `task-live-coverage.yaml` | Whole-project coverage meter against the real, current `pom.xml`. | Kept from `real-pipeline/` — `real-app-integration/` didn't have an equivalent step at all. |
+| `task-resolve-jars.yaml` | Resolves the OLD and NEW dependency jars via **Maven's own `dependency:copy`**, then builds the app from source. | Taken from `real-app-integration/` — more robust than the first draft's hand-rolled Maven Central/Lightwell URL construction, because it works through whatever repos/mirrors your `pom.xml`/`settings.xml` actually define. Fixed to use the Red Hat registry image instead of the original's Docker Hub image. |
+| `task-live-diff.yaml` | Calls `upgrade_delta.py analyze --scorecard-compat` directly. | Taken from `real-app-integration/` — this discovered that `analyze` already has a real, complete `--scorecard-compat` flag that does exactly what the first `real-pipeline/` draft's custom `live_scan.py` reimplemented by hand. Using the flag directly means less custom code and one fewer place for the two implementations to drift apart. `live_scan.py` has been deleted. |
+| `task-run-tests-maven.yaml` | Runs the selected tests for real via **Maven Surefire**. | Taken from `real-app-integration/` — the first `real-pipeline/` draft explicitly left real test execution out of scope; this fills that gap. Fixed to use the Red Hat registry image. |
+
+`upgrade-delta-select-tests`, `upgrade-delta-summary`, and `upgrade-delta-pr-comment` are
+reused **completely unmodified** from the fixture demo pipeline — `task-live-diff.yaml`
+writes `out/scorecard.json` and `out/routing.json` in the exact shapes those three tasks
+already expect.
 
 ## What's deliberately out of scope for this version
 
 - **Transitive (two-hop) grading.** The demo's `acme-codec via acme-http-client` story
-  needs a *published catalog* of transitive delta reports to work from. A live single-PR
-  diff doesn't have that — it only knows what changed in *this* `pom.xml`. Direct
-  dependencies (including the new internal-call-chain check) are fully live; transitives
-  are not, in this version.
-- **Test selection/execution.** Needs a real per-test JaCoCo coverage map, which is a
-  separate prerequisite documented as Tier 3 in `docs/REAL-LIBRARIES.md` in the main
-  upgrade-delta tool repo. `summary`/`pr-comment` already degrade gracefully when
-  `out/routing-out/*.json` doesn't exist — they just skip the "tests routed" line.
+  needs a *published catalog* of transitive delta reports. A live single-PR diff only knows
+  what changed in *this* `pom.xml`. Direct dependencies (including the internal-call-chain
+  check) are fully live; transitives are not, in this version.
+- **More than one dependency bump per PR.** `detect-pom-changes` finds every adoption, but
+  only the first is graded (with a printed warning if there's more than one). Keep upgrade
+  PRs to one dependency each.
 
-## What I could verify from this sandbox, and what I could not
+## What I could verify, and what only your cluster can prove
 
-I have no network access to Maven Central or your Lightwell endpoint from here, so I
-could not run an actual jar download. What I *did* verify, for real:
-- `detect_pom_changes.py` against real fixture `pom.xml` files, including Maven property
-  (`${spring.version}`) indirection, a non-Lightwell version bump, and a no-op diff.
-- `pom_to_cyclonedx.py` feeding straight into the real `upgrade_delta.py coverage` command.
-- The coverage-matching bug fix, regression-tested against your actual `customer-sbom.json`
-  and the demo fixture — identical results except the one case it was meant to fix.
-- `live_scan.py`'s full grading path end-to-end, with its two download functions swapped
-  for local fixture jars — every other line ran for real: jar loading, diffing, app
-  reachability, the internal-chain check, rating, JSON assembly, and the exit-code gate.
-  Fed the result into the real, unmodified `pr_comment.py` and the `summary` task's own
-  logic — both consumed it without any error.
+Verified for real, this session:
+- `detect_pom_changes.py` and the single-result extraction glue, against real fixture
+  `pom.xml` files (including Maven property indirection) — confirmed it correctly identifies
+  exactly the intended adoption and nothing else.
+- `analyze --scorecard-compat` end-to-end against real local jars — confirmed the grade,
+  the internal-call-chain evidence, and full downstream compatibility with the real
+  (unmodified) `pr_comment.py` and `select-tests`.
+- Every YAML file in this directory, for syntax validity.
+- **Caught and fixed a real bug during this verification**: the first draft of
+  `task-live-diff.yaml` passed `--accept-transitive-scope` to `analyze`, a flag `analyze`
+  doesn't support (it's `scan`-only — transitive de-escalation only makes sense across a
+  multi-library project scan, not a single direct-dependency live diff). Removed.
 
-The one thing that can only be proven on your real cluster: the actual HTTP calls to
-Maven Central and Lightwell inside `fetch_old_jar`/`fetch_new_jar`. Budget your first real
-PR run as the point where that gets exercised for the first time.
+Not verifiable from this sandbox (no network access to Maven Central or your Lightwell
+endpoint): the actual `mvn dependency:copy` HTTP calls inside `task-resolve-jars.yaml`, and
+the real `mvn test` run inside `task-run-tests-maven.yaml`. Your first real PR run is where
+those get exercised for the first time.
 
 ## Setup — what to do in your application's own repo
 
 1. **Copy `.upgrade-delta/`** (the sibling directory next to this README, at the root of
    the upgrade-delta tool repo) into the **root of your application repo**, as-is.
 2. **Copy `.tekton/pull-request-live.yaml`** from `.upgrade-delta/real-pipeline/` into
-   your app repo's `.tekton/` directory. Edit the `app-name` param.
+   your app repo's `.tekton/` directory. Edit `app-name`, `app-module-dir`, `pom-path` if
+   your pom.xml isn't at the repo root.
 3. **Apply the pipeline + new tasks** (once, to your cluster):
    ```bash
    oc apply -f .upgrade-delta/real-pipeline/pipeline-real.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-detect-pom-changes.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-live-coverage.yaml
-   oc apply -f .upgrade-delta/real-pipeline/task-live-scan.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-resolve-jars.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-live-diff.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-run-tests-maven.yaml
    ```
-4. **Confirm `upgrade-delta-summary` and `upgrade-delta-pr-comment` already exist** in the
-   target namespace (they should, from the demo setup):
+4. **Confirm `upgrade-delta-select-tests`, `upgrade-delta-summary`, and
+   `upgrade-delta-pr-comment` already exist** in the target namespace (they should, from
+   the demo setup):
    ```bash
-   oc get task upgrade-delta-summary upgrade-delta-pr-comment -n <namespace>
+   oc get task upgrade-delta-select-tests upgrade-delta-summary upgrade-delta-pr-comment -n <namespace>
    ```
-   If they don't, apply them from the main upgrade-delta tool repo first.
-5. **Create the Lightwell credentials secret** (new — separate from the demo's
-   `lightwell-maven-settings`, which holds a `settings.xml` file rather than raw env vars):
-   ```bash
-   oc create secret generic lightwell-live-scan-creds -n <namespace> \
-     --from-literal=RHLN_USER='<orgID|service-account-name>' \
-     --from-literal=RHLN_TOKEN='<your token>'
-   ```
+5. **Reuse the existing `lightwell-maven-settings` secret** — the same one `sample-app`
+   already uses (a `settings.xml` file with your Lightwell console credentials). No new
+   secret needed; this consolidation dropped the earlier draft's separate
+   `lightwell-live-scan-creds` secret in favor of the one credential pattern the rest of
+   the repo already uses.
 6. **Set up Pipelines-as-Code on your app repo** (same pattern as the demo repo's
    `INSTALL-OPENSHIFT.md` steps 4–6): GitHub App, provider-token secret, Repository CR.
 7. **Reuse the same reports PVC** the demo already created (`upgrade-delta-reports`), or
