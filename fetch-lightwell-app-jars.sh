@@ -13,17 +13,17 @@ OUT="sample-app/lib"; mkdir -p "$OUT"
 
 # group|artifact|remediated-version
 DEPS="
-com.fasterxml.jackson.core|jackson-databind|2.13.4.redhat-00001
-org.springframework|spring-web|5.3.18.redhat-00005
-org.springframework|spring-webmvc|5.3.18.redhat-00005
-org.springframework|spring-core|5.3.18.redhat-00005
-org.springframework.boot|spring-boot|2.7.18.redhat-00002
-org.springframework.boot|spring-boot-autoconfigure|2.7.18.redhat-00002
-org.springframework.security|spring-security-core|5.7.11.redhat-00004
-org.springframework.security|spring-security-web|5.7.11.redhat-00004
-commons-io|commons-io|2.11.0.redhat-00001
-org.apache.httpcomponents|httpclient|4.5.12.redhat-00001
-net.minidev|json-smart|2.4.8.redhat-00001
+com.fasterxml.jackson.core|jackson-databind|2.13.4.rhlw-00001
+org.springframework|spring-web|5.3.18.rhlw-00010
+org.springframework|spring-webmvc|5.3.18.rhlw-00010
+org.springframework|spring-core|5.3.18.rhlw-00010
+org.springframework.boot|spring-boot|2.7.18.rhlw-00004
+org.springframework.boot|spring-boot-autoconfigure|2.7.18.rhlw-00004
+org.springframework.security|spring-security-core|5.7.11.rhlw-00006
+org.springframework.security|spring-security-web|5.7.11.rhlw-00006
+commons-io|commons-io|2.11.0.rhlw-00001
+org.apache.httpcomponents|httpclient|4.5.12.rhlw-00001
+net.minidev|json-smart|2.5.0.rhlw-00001
 "
 echo "$DEPS" | while IFS='|' read -r g a v; do
   [[ -n "$a" ]] || continue
@@ -34,5 +34,7 @@ echo "$DEPS" | while IFS='|' read -r g a v; do
     || echo "   ! failed: $url (check version/suffix — some are .rhlw- not .redhat-)"
 done
 echo "done -> ${OUT}/"
-echo "Note: suffixes vary (.redhat- in the catalog, .rhlw- in some repo paths). If a"
-echo "download 404s, browse the repo dir and adjust the version in this script + pom.xml."
+echo "Note: build numbers advance over time -- these versions were verified current"
+echo "as of this script's last update. If a download 404s, re-run"
+echo "./fetch-lightwell-catalog-metadata.sh to check the real current build number,"
+echo "and update the DEPS list above + pom.xml to match."

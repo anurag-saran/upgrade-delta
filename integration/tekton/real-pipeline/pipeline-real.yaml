@@ -1,0 +1,180 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: upgrade-delta-live
+spec:
+  description: >-
+    Lives in the APPLICATION'S OWN repo. Triggered on every PR: diffs
+    pom.xml (with Maven ${property} resolution) to find any dependency this
+    PR moved to a Lightwell (rhlw) build, runs the whole-project coverage
+    meter against the real current pom.xml, resolves the real old/new jars
+    via Maven's own dependency:copy, builds the app from THIS PR's source,
+    grades the real impact (reachability, same-library internal call-chain,
+    the real rating), routes the tests it owes, and RUNS them for real via
+    Maven Surefire. No fixtures. If the PR changes nothing Lightwell-related,
+    this passes through cleanly with an empty scorecard. Reuses
+    upgrade-delta-select-tests, upgrade-delta-summary, and
+    upgrade-delta-pr-comment already applied to this namespace from the
+    fixture demo pipeline -- unmodified, no copy needed in this repo.
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: target-branch
+      type: string
+      description: The PR's base branch (PaC provides this as {{ target_branch }})
+    - name: pom-path
+      type: string
+      default: pom.xml
+    - name: app-name
+      type: string
+    - name: app-module-dir
+      type: string
+      default: "."
+    - name: fail-on
+      type: string
+      default: "D"
+    - name: coverage-map
+      type: string
+      default: "target/jacoco-per-test-coverage.json"
+      description: >-
+        REAL per-test JaCoCo coverage map (see docs/REAL-LIBRARIES.md Tier 3
+        in the upgrade-delta tool repo for how to generate one). If this file
+        doesn't exist yet, select-tests correctly fails open to the full
+        suite, so it's safe to leave unset while you're still generating a
+        real baseline.
+    - name: tests-dir
+      type: string
+      default: "src/test/java"
+    - name: repo-owner
+      type: string
+    - name: repo-name
+      type: string
+    - name: pull-request-number
+      type: string
+    - name: scorecard-route-host
+      type: string
+      default: ""
+  workspaces:
+    - name: source
+    - name: maven-settings
+      description: Secret volume with settings.xml (Lightwell server credentials)
+    - name: basic-auth
+      description: PaC-provided git auth secret, for posting the CAB comment. Optional.
+      optional: true
+  tasks:
+    - name: clone
+      displayName: "1. Clone this PR's real source"
+      taskRef: {name: git-clone}
+      workspaces: [{name: output, workspace: source}]
+      params:
+        - {name: url, value: $(params.git-url)}
+        - {name: revision, value: $(params.git-revision)}
+
+    - name: detect-pom-changes
+      displayName: "2. Diff pom.xml for Lightwell adoptions"
+      runAfter: [clone]
+      taskRef: {name: detect-pom-changes}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: target-branch, value: $(params.target-branch)}
+        - {name: pom-path, value: $(params.pom-path)}
+
+    - name: live-coverage
+      displayName: "3. Coverage meter on the real pom.xml"
+      runAfter: [detect-pom-changes]
+      taskRef: {name: live-coverage}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: pom-path, value: $(params.pom-path)}
+        - {name: app-name, value: $(params.app-name)}
+
+    - name: resolve-jars
+      displayName: "4. Resolve the real jars + build the app"
+      runAfter: [live-coverage]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+      taskRef: {name: resolve-jars}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: maven-settings, workspace: maven-settings}
+      params:
+        - {name: group, value: $(tasks.detect-pom-changes.results.CHANGED_GROUP)}
+        - {name: artifact, value: $(tasks.detect-pom-changes.results.CHANGED_ARTIFACT)}
+        - {name: old-version, value: $(tasks.detect-pom-changes.results.CHANGED_OLD_VERSION)}
+        - {name: new-version, value: $(tasks.detect-pom-changes.results.CHANGED_NEW_VERSION)}
+        - {name: app-module-dir, value: $(params.app-module-dir)}
+
+    - name: live-diff
+      displayName: "5. Diff the real jars for this PR's bump"
+      runAfter: [resolve-jars]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+      taskRef: {name: live-diff}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: group, value: $(tasks.detect-pom-changes.results.CHANGED_GROUP)}
+        - {name: artifact, value: $(tasks.detect-pom-changes.results.CHANGED_ARTIFACT)}
+        - {name: old-version, value: $(tasks.detect-pom-changes.results.CHANGED_OLD_VERSION)}
+        - {name: new-version, value: $(tasks.detect-pom-changes.results.CHANGED_NEW_VERSION)}
+        - {name: old-jar, value: $(tasks.resolve-jars.results.OLD_JAR)}
+        - {name: new-jar, value: $(tasks.resolve-jars.results.NEW_JAR)}
+        - {name: app-jar, value: $(tasks.resolve-jars.results.APP_JAR)}
+        - {name: fail-on, value: $(params.fail-on)}
+
+    - name: select-tests
+      displayName: "6. Pick which tests this upgrade owes"
+      runAfter: [live-diff]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+      taskRef: {name: upgrade-delta-select-tests}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: coverage-map, value: $(params.coverage-map)}
+        - {name: tests-dir, value: $(params.tests-dir)}
+        - {name: head-sha, value: $(params.git-revision)}
+
+    - name: run-tests
+      displayName: "7. RUN the selected tests for real (Maven Surefire)"
+      runAfter: [select-tests]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+      taskRef: {name: run-tests-maven}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: maven-settings, workspace: maven-settings}
+      params:
+        - {name: app-module-dir, value: $(params.app-module-dir)}
+
+  finally:
+    - name: summary
+      displayName: "8. Print the verdict banner"
+      taskRef: {name: upgrade-delta-summary}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: scorecard-route-host, value: $(params.scorecard-route-host)}
+    - name: pr-comment
+      displayName: "9. Post CAB comment + test plan to the PR"
+      taskRef: {name: upgrade-delta-pr-comment}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: basic-auth, workspace: basic-auth}
+      params:
+        - {name: repo-owner, value: $(params.repo-owner)}
+        - {name: repo-name, value: $(params.repo-name)}
+        - {name: pull-request-number, value: $(params.pull-request-number)}
+
+  results:
+    - {name: LIGHTWELL_ADOPTIONS_COUNT, value: $(tasks.detect-pom-changes.results.LIGHTWELL_ADOPTIONS_COUNT)}
+    - {name: COVERAGE_PCT_EXACT_MATCH, value: $(tasks.live-coverage.results.COVERAGE_PCT_EXACT_MATCH)}
+    - {name: PROJECT_GRADE_RECOMMENDED_PATH, value: $(tasks.live-diff.results.PROJECT_GRADE_RECOMMENDED_PATH)}

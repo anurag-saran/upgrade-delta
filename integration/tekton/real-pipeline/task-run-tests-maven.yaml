@@ -1,0 +1,68 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: run-tests-maven
+spec:
+  description: >-
+    Real-app replacement for upgrade-delta-run-tests (which is tied to the
+    demo's fixture jars and a bespoke MiniRunner class). This task runs the
+    ACTUAL test suite for real, via Maven Surefire, filtered by the
+    surefire-includes.txt file upgrade-delta-select-tests already writes --
+    that file is in Surefire's own native <includesFile> format
+    (one test class per line), so select-tests needs no changes at all.
+  params:
+    - name: app-module-dir
+      type: string
+      default: "."
+  workspaces:
+    - name: source
+    - name: maven-settings
+      description: Secret volume with settings.xml (Lightwell server credentials)
+  results:
+    - name: TEST_METHODS_PASSED_COUNT
+      description: "Test METHODS that were EXECUTED and passed"
+    - name: TEST_METHODS_FAILED_COUNT
+      description: "Test METHODS that were executed and FAILED. 0 = all green."
+    - name: TESTS_ACTUALLY_EXECUTED_SUMMARY
+      description: "One human-readable sentence confirming tests were run for real"
+  steps:
+    - name: run
+      displayName: "RUN the selected tests for real (Maven Surefire)"
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
+        INCLUDES="$(workspaces.source.path)/out/routing-out/surefire-includes.txt"
+        [ -f "$INCLUDES" ] || { echo "FATAL: $INCLUDES not found -- did select-tests run first?"; exit 1; }
+        (
+          cd "$(params.app-module-dir)"
+          mvn -B -s "$SETTINGS" test -Dsurefire.includesFile="$INCLUDES"
+        )
+        MVN_RC=$?
+        # Sum every surefire-reports/*.txt summary line across all modules --
+        # more robust than parsing a single console summary line.
+        python3 - "$(params.app-module-dir)" <<'PY'
+        import glob, re, sys
+        base = sys.argv[1]
+        total_run = total_fail = total_err = 0
+        pat = re.compile(r"Tests run:\s*(\d+),\s*Failures:\s*(\d+),\s*Errors:\s*(\d+)")
+        for f in glob.glob(f"{base}/**/surefire-reports/*.txt", recursive=True):
+            text = open(f, errors="replace").read()
+            m = pat.search(text)
+            if m:
+                run, fail, err = (int(x) for x in m.groups())
+                total_run += run; total_fail += fail; total_err += err
+        failed = total_fail + total_err
+        open("$(results.TEST_METHODS_PASSED_COUNT.path)", "w").write(str(total_run - failed))
+        open("$(results.TEST_METHODS_FAILED_COUNT.path)", "w").write(str(failed))
+        if failed == 0:
+            msg = f"Ran {total_run} test method(s) for real via Maven Surefire -- all passed, 0 failed."
+        else:
+            msg = f"Ran {total_run} test method(s) for real via Maven Surefire -- {failed} FAILED."
+        open("$(results.TESTS_ACTUALLY_EXECUTED_SUMMARY.path)", "w").write(msg)
+        print(msg)
+        PY
+        # a genuine test failure (or a build failure) turns the PipelineRun red
+        exit $MVN_RC

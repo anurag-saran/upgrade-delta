@@ -1,0 +1,162 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-pr-comment
+  labels: {app.kubernetes.io/part-of: upgrade-delta}
+spec:
+  description: >-
+    Submit the result to GitHub for CAB review. Renders the scorecard as a
+    change-board comment — project grade, per-library before/after + lane, the
+    B-vs-F "what the backport is worth" gap, same-library internal call-chain
+    evidence (code this app reaches without calling it by name), and the
+    named test plan with a reason for every RUN and skip — then posts it on
+    the pull request. Runs in `finally`, so it comments on RED runs too (the
+    tool blocked it, and says why). If no PR token is available (e.g. a
+    manual run), it prints the comment to the log instead of posting, so it
+    is always safe to run.
+
+    Rendering is fully self-contained in this Task (no dependency on a
+    pr_comment.py file existing in the checked-out repo) so it works
+    unmodified whether this runs in the upgrade-delta demo repo or a target
+    application's own repo via the live pipeline.
+  params:
+    - name: repo-owner
+      type: string
+      default: ""
+    - name: repo-name
+      type: string
+      default: ""
+    - name: pull-request-number
+      type: string
+      default: ""
+    - name: github-api
+      type: string
+      default: "https://api.github.com"
+      description: Change for GitHub Enterprise (e.g. https://ghe.example.com/api/v3)
+  workspaces:
+    - name: source
+    - name: basic-auth
+      description: PaC-provided git auth secret (key git-provider-token). Optional.
+      optional: true
+  steps:
+    - name: comment
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        if [ ! -f out/scorecard.json ]; then
+          echo "no out/scorecard.json — scan did not produce a scorecard; nothing to post."
+          exit 0
+        fi
+
+        # 1) render the CAB comment -- fully self-contained, no external script path
+        python3 - <<'PY'
+        import json, os
+
+        BADGE = {"A": "\U0001f7e2", "B": "\U0001f7e1", "C": "\U0001f7e1", "D": "\U0001f534", "F": "\U0001f534"}
+        DEFAULT_BADGE = "\u26aa"
+
+        r = json.load(open("out/scorecard.json"))
+        p = r["project"]
+        g = p["headline_grade"] or "\u2014"
+        lines = [f"## {BADGE.get(g, DEFAULT_BADGE)} upgrade-delta: project grade **{g}**",
+                 f"*{p['headline_note']}* \u2014 {p['rated_libraries']} rated dependencies, "
+                 f"{p['unrated_package_roots']} unrated package roots"]
+        if p.get("worst_without_best_path") and p["worst_without_best_path"] != g:
+            lines.append(f"> Without the best available remediation paths this project scores "
+                         f"**{p['worst_without_best_path']}** \u2014 that gap is the measured value "
+                         f"of the maintained backports.")
+
+        libs = r.get("libraries", [])
+        if libs:
+            lines += ["", "| Dependency | Path | Grade | Lane |", "|---|---|---|---|"]
+            for l in libs:
+                rec = l["recommended"]; rt = rec["rating"]
+                shown = f"{rt['grade']} \u2192 {rt['effective_grade']} \u270d\ufe0f" if rt.get("effective_grade") else rt["grade"]
+                name = f"\u21b3 {l['library']} *(via {l['parent']})*" if l.get("transitive") else f"**{l['library']}**"
+                lines.append(f"| {name} | `{rec['old']} \u2192 {rec['new']}` | "
+                             f"{BADGE.get(rt.get('effective_grade') or rt['grade'], DEFAULT_BADGE)} {shown} | {rt['lane']} |")
+        else:
+            lines += ["", "_No Lightwell adoption detected in this change \u2014 nothing to grade._"]
+
+        if r.get("hazards"):
+            lines += ["", "**\u26a0\ufe0f Hazards**"] + [f"- `{k}` \u2014 {m}" for k, m in r["hazards"]]
+
+        chain_hits = []
+        for l in libs:
+            chain = (l["recommended"].get("ix") or {}).get("internal_chain")
+            if not chain or not chain.get("closure_methods_reached"):
+                continue
+            hits = (chain.get("internal_touched_incompatible", []) + chain.get("internal_touched_changed", [])
+                    + chain.get("internal_touched_impl_changed", []))
+            if hits:
+                chain_hits.append((l["library"], chain, hits))
+        if chain_hits:
+            lines += ["", "**\U0001f517 Internal call-chain reachability** "
+                          "*(reaches changed code this app never calls by name)*"]
+            for name, chain, hits in chain_hits:
+                more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
+                lines.append(f"- **{name}** \u2014 traced {chain['closure_methods_reached']} method(s) from "
+                             f"{chain['closure_seed_count']} entry point(s) \u2192 reaches `{hits[0]}`{more}")
+
+        hits2 = [h for h in r.get("heuristics", []) if h["intersects_change"]]
+        if hits2:
+            lines += ["", "**\U0001f50d Config/reflection reachability**"] + \
+                     [f"- `{h['fqcn']}` found in {h['found_in'][0]} \u2014 treat as reachable" for h in hits2]
+        if r.get("unrated_packages"):
+            lines += ["", f"**Unrated:** {', '.join(x.replace('/', '.') for x in r['unrated_packages'])} "
+                          f"\u2014 upgrades here are currently tested blind."]
+
+        sel_path = "out/routing-out/selection-report.json"
+        if os.path.exists(sel_path):
+            rep = json.load(open(sel_path)); t = rep["totals"]
+            lines += ["", f"### Test plan \u2014 {t['final']} of {t['suite']} test classes",
+                      "Every RUN carries a printed reason; skips are recorded too.", ""]
+            for s in rep["selected"]:
+                lines.append(f"- \u2705 **{s['test']}** \u2014 {s['reason']}")
+            for m in rep["mandatory"]["appended"]:
+                lines.append(f"- \U0001f512 **{m}** \u2014 mandatory `@Tag(upgrade-gate)`, always runs")
+            for s in rep["skipped"]:
+                lines.append(f"- \u26aa {s['test']} \u2014 {s['reason']}")
+
+        lines += ["", "---", "**CAB approval:** this comment is the change-board summary. "
+                  "Approve by reviewing here and merging \u2014 branch protection requires this "
+                  "check to pass.", "*Grade \u2265 D auto-fails the pipeline; any de-escalation is "
+                  "signed off and recorded on the sealed evidence.*",
+                  "", "<sub>Ratings computed by upgrade-delta; evidence JSON is sealed \u2014 "
+                  "verify with `upgrade-delta verify`. \u270d\ufe0f = de-escalation signed off.</sub>"]
+
+        open("out/pr-comment.md", "w").write("\n".join(lines) + "\n")
+        print("wrote out/pr-comment.md")
+        PY
+
+        # 2) post to the PR if we have a token + PR context; otherwise print it
+        OWNER="$(params.repo-owner)"; REPO="$(params.repo-name)"; PR="$(params.pull-request-number)"
+        TOKEN_FILE="$(workspaces.basic-auth.path)/git-provider-token"
+        if [ -n "$OWNER" ] && [ -n "$REPO" ] && [ -n "$PR" ] && [ -f "$TOKEN_FILE" ]; then
+          echo "Posting CAB comment to $OWNER/$REPO PR #$PR ..."
+          python3 - "$OWNER" "$REPO" "$PR" "$(params.github-api)" "$TOKEN_FILE" <<'PY'
+        import json, sys, urllib.request
+        owner, repo, pr, api, tokfile = sys.argv[1:6]
+        token = open(tokfile).read().strip()
+        body = open("out/pr-comment.md").read()
+        url = f"{api}/repos/{owner}/{repo}/issues/{pr}/comments"
+        req = urllib.request.Request(url, data=json.dumps({"body": body}).encode(),
+                                     method="POST", headers={
+                                         "Authorization": f"Bearer {token}",
+                                         "Accept": "application/vnd.github+json",
+                                         "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as r:
+                print("posted:", r.status, json.loads(r.read()).get("html_url", ""))
+        except Exception as e:
+            print("WARN: could not post comment:", e)
+            print("---- comment body ----"); print(body)
+        PY
+        else
+          echo "No PR token/context — printing the comment instead of posting:"
+          echo "==================== CAB COMMENT ===================="
+          cat out/pr-comment.md
+          echo "===================================================="
+        fi

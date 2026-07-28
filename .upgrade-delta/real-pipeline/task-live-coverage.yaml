@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: live-coverage
+spec:
+  description: >-
+    Coverage meter driven by the REAL, current pom.xml in this checkout --
+    not a committed fixture SBOM. Converts pom.xml's declared dependencies
+    to a CycloneDX SBOM (pure Python, no Maven plugin needed) and matches
+    against the vendored Lightwell catalog.
+  params:
+    - name: pom-path
+      type: string
+      default: pom.xml
+    - name: app-name
+      type: string
+  workspaces:
+    - name: source
+  results:
+    - name: COVERAGE_PCT_EXACT_MATCH
+      description: "Percent of directly-declared dependencies with an exact-version drop-in remediated build"
+  steps:
+    - name: coverage
+      displayName: "Coverage meter on the real pom.xml"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mkdir -p out/reports
+
+        python3 .upgrade-delta/real-pipeline/scripts/pom_to_cyclonedx.py \
+          --pom "$(params.pom-path)" --name "$(params.app-name)" --out out/live-sbom.json
+
+        python3 .upgrade-delta/upgrade_delta.py coverage \
+          --sbom out/live-sbom.json \
+          --catalog .upgrade-delta/catalogs/lightwell-remediated-java-sbom.json \
+          --json out/coverage.json --html out/reports/coverage.html
+
+        python3 -c "
+        import json
+        c = json.load(open('out/coverage.json'))['totals']
+        pct = round(100 * c['exact'] / c['dependencies']) if c['dependencies'] else 0
+        open('$(results.COVERAGE_PCT_EXACT_MATCH.path)', 'w').write(str(pct))
+        "

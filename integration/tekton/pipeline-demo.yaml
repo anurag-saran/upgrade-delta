@@ -6,19 +6,37 @@ spec:
   description: >-
     Self-contained demo: clone the repo, run the coverage meter against the REAL
     Lightwell catalog, score the committed sample app (transitives, sign-off),
-    route the tests. Everything needed is committed under examples/ — one Python
-    image, no JDK, no network beyond the clone. The PipelineRun's results ARE
-    the summary you show.
+    route + run the selected tests, then print one VERDICT banner. Everything
+    needed is committed under examples/ — one Python image plus a JDK for the
+    test-execution step. The PipelineRun's Results (Output tab) and the summary
+    task's log ARE the executive summary.
   params:
     - name: git-url
       type: string
     - name: git-revision
       type: string
       default: main
+    - name: scorecard-route-host
+      type: string
+      default: ""
+      description: Host of the scorecard viewer Route (optional; prints browsable links)
+    - name: repo-owner
+      type: string
+      default: ""
+    - name: repo-name
+      type: string
+      default: ""
+    - name: pull-request-number
+      type: string
+      default: ""
   workspaces:
     - name: source
+    - name: basic-auth
+      description: PaC-provided git auth secret, for posting the CAB comment. Optional.
+      optional: true
   tasks:
     - name: clone
+      displayName: "1. Clone the repo at this PR's commit"
       # git-clone must exist in this namespace. Install it once with:
       #   oc apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml
       taskRef: {name: git-clone}
@@ -26,27 +44,63 @@ spec:
       params:
         - {name: url, value: $(params.git-url)}
         - {name: revision, value: $(params.git-revision)}
-    - name: score
+    - name: coverage
+      displayName: "2. Check Lightwell coverage for every dependency"
       runAfter: [clone]
-      taskRef: {name: upgrade-delta}
+      taskRef: {name: upgrade-delta-coverage}
       workspaces: [{name: source, workspace: source}]
       params:
         - {name: app-sbom, value: samples/realworld-springboot-sbom.json}
-        - {name: scan-sbom, value: examples/demo-jars/payments-service.sbom.json}
+    - name: scan
+      displayName: "3. Grade the upgrade risk (reachability + sign-off)"
+      runAfter: [coverage]
+      taskRef: {name: upgrade-delta-scan}
+      workspaces: [{name: source, workspace: source}]
+      params:
         - {name: app-jar, value: examples/demo-jars/payments-service-1.0.0.jar}
+        - {name: sbom, value: examples/demo-jars/payments-service.sbom.json}
         - {name: evidence-dir, value: examples/evidence}
         - {name: lib-jars, value: examples/demo-jars}
         - {name: accept-transitive-scope, value: "true"}
         - {name: fail-on, value: "D"}
-    - name: route
-      runAfter: [score]
-      taskRef: {name: upgrade-delta-route}
+    - name: select-tests
+      displayName: "4. Pick which tests this upgrade owes"
+      runAfter: [scan]
+      taskRef: {name: upgrade-delta-select-tests}
       workspaces: [{name: source, workspace: source}]
+    - name: run-tests
+      displayName: "5. RUN the selected tests for real"
+      runAfter: [select-tests]
+      taskRef: {name: upgrade-delta-run-tests}
+      workspaces: [{name: source, workspace: source}]
+  finally:
+    - name: summary
+      displayName: "6. Print the verdict banner"
+      taskRef: {name: upgrade-delta-summary}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: scorecard-route-host, value: $(params.scorecard-route-host)}
+    - name: pr-comment
+      displayName: "7. Post CAB comment + test plan to the PR"
+      taskRef: {name: upgrade-delta-pr-comment}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: basic-auth, workspace: basic-auth}
+      params:
+        - {name: repo-owner, value: $(params.repo-owner)}
+        - {name: repo-name, value: $(params.repo-name)}
+        - {name: pull-request-number, value: $(params.pull-request-number)}
   results:
-    - {name: PROJECT_GRADE, value: $(tasks.score.results.PROJECT_GRADE)}
-    - {name: COVERAGE_PCT, value: $(tasks.score.results.COVERAGE_PCT)}
-    - {name: COVERED, value: $(tasks.score.results.COVERED)}
-    - {name: UNCOVERED, value: $(tasks.score.results.UNCOVERED)}
-    - {name: TESTS_SELECTED, value: $(tasks.route.results.TESTS_SELECTED)}
-    - {name: TESTS_PASSED, value: $(tasks.route.results.TESTS_PASSED)}
-    - {name: SUITE_SIZE, value: $(tasks.route.results.SUITE_SIZE)}
+    - {name: PROJECT_GRADE_RECOMMENDED_PATH, value: $(tasks.scan.results.PROJECT_GRADE_RECOMMENDED_PATH)}
+    - {name: PROJECT_GRADE_WITHOUT_REMEDIATION, value: $(tasks.scan.results.PROJECT_GRADE_WITHOUT_REMEDIATION)}
+    - {name: GRADE_SCALE_LEGEND, value: $(tasks.scan.results.GRADE_SCALE_LEGEND)}
+    - {name: COVERAGE_PCT_EXACT_MATCH, value: $(tasks.coverage.results.COVERAGE_PCT_EXACT_MATCH)}
+    - {name: DEPENDENCIES_COVERED_EXACT, value: $(tasks.coverage.results.DEPENDENCIES_COVERED_EXACT)}
+    - {name: DEPENDENCIES_NEAR_OTHER_VERSION, value: $(tasks.coverage.results.DEPENDENCIES_NEAR_OTHER_VERSION)}
+    - {name: DEPENDENCIES_UNCOVERED, value: $(tasks.coverage.results.DEPENDENCIES_UNCOVERED)}
+    - {name: TEST_CLASSES_SELECTED_COUNT, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_COUNT)}
+    - {name: TEST_CLASSES_TOTAL_SUITE, value: $(tasks.select-tests.results.TEST_CLASSES_TOTAL_SUITE)}
+    - {name: TEST_CLASSES_SELECTED_NAMES, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_NAMES)}
+    - {name: TEST_METHODS_PASSED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_PASSED_COUNT)}
+    - {name: TEST_METHODS_FAILED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_FAILED_COUNT)}
+    - {name: TESTS_ACTUALLY_EXECUTED_SUMMARY, value: $(tasks.run-tests.results.TESTS_ACTUALLY_EXECUTED_SUMMARY)}

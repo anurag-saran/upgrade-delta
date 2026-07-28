@@ -58,7 +58,7 @@ many tests," "a failed build," and "a blocked deploy" — never a silently skipp
 
 ```bash
 python3 upgrade_delta.py analyze old.jar new.jar \
-    --old-version 2.13.4 --new-version 2.13.4.redhat-00001 --library jackson-databind \
+    --old-version 2.13.4 --new-version 2.13.4.rhlw-00001 --library jackson-databind \
     --json evidence/backport.json --html report.html
 ```
 
@@ -194,4 +194,4 @@ highly polymorphic code remain wider than a true points-to analysis would produc
 `dependency:tree` text is a planned second graph input; today the declared graph must be a
 CycloneDX SBOM. For real, credentialed numbers, build `sample-app/` against the Lightwell
 remediated repo (see `sample-app/README.md`) — its jackson-databind path is the measured
-hero: grade B, 0.3% churn, 0 incompatible on the real `2.13.4 → 2.13.4.redhat-00001` rebuild.
+hero: grade B, 0.3% churn, 0 incompatible on the real `2.13.4 → 2.13.4.rhlw-00001` rebuild.

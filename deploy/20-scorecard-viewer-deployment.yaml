@@ -1,0 +1,83 @@
+# Scorecard viewer: a tiny read-only nginx that serves the reports the pipeline
+# writes into the shared PVC, so you can open the rendered scorecard/coverage
+# HTML in a browser straight from the OpenShift console (via the Route in 22-...).
+#
+# Image: Red Hat's supported ubi9 nginx (runs unprivileged on :8080, docroot
+# /opt/app-root/src). The PVC is mounted read-only at the docroot, so browse to:
+#     https://<route-host>/out/reports/scorecard.html
+#     https://<route-host>/out/reports/coverage.html
+#     https://<route-host>/out/reports/           (directory listing; autoindex on)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scorecard-viewer-nginx
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+data:
+  # ubi9/nginx includes /opt/app-root/etc/nginx.default.d/*.conf inside its server{}
+  # block. Turning autoindex on lets /out/reports/ render as a browsable listing.
+  autoindex.conf: |
+    autoindex on;
+    autoindex_exact_size off;
+    autoindex_localtime on;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scorecard-viewer
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scorecard-viewer
+  template:
+    metadata:
+      labels:
+        app: scorecard-viewer
+    spec:
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi9/nginx-124:latest
+          # ubi9/nginx-124 is an S2I BUILDER image: its default entrypoint checks
+          # whether the source was S2I-assembled and, if not (we bind-mount a PVC
+          # directly instead), prints the S2I usage help and exits 0 -- which looks
+          # like a clean exit but still gets restarted forever (CrashLoopBackOff).
+          # Bypass that check and just run nginx directly in the foreground:
+          command: ["nginx"]
+          args: ["-g", "daemon off;"]
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: reports
+              mountPath: /opt/app-root/src
+              readOnly: true
+            - name: nginx-config
+              mountPath: /opt/app-root/etc/nginx.default.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: reports
+          persistentVolumeClaim:
+            claimName: upgrade-delta-reports
+        - name: nginx-config
+          configMap:
+            name: scorecard-viewer-nginx

@@ -1,0 +1,74 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-scan
+  labels: {app.kubernetes.io/part-of: upgrade-delta}
+spec:
+  description: >-
+    Project scan / score. Grades every pending upgrade for the application jar
+    against published delta evidence (method-level reachability + transitive
+    sign-off), writes the scorecard, emits the routing payload the router
+    consumes, and surfaces the project grade — and what it would be WITHOUT the
+    best remediation paths — as Tekton results. Fails the run (exit 2) when the
+    grade breaches fail-on.
+  params:
+    - name: app-jar
+      type: string
+      description: Path to the application jar (enables intersection + grades)
+    - name: sbom
+      type: string
+      description: CycloneDX SBOM for the scanned app (declared graph)
+    - name: evidence-dir
+      type: string
+      default: examples/evidence
+      description: Directory of published delta-report JSONs
+    - name: lib-jars
+      type: string
+      default: ""
+      description: Directory of resolved dependency jars (two-hop reachability)
+    - name: accept-transitive-scope
+      type: string
+      default: "false"
+      description: Sign-off flag for transitive de-escalation (a human decision)
+    - name: fail-on
+      type: string
+      default: "D"
+      description: Fail the task when the project grade is this bad or worse
+  workspaces:
+    - name: source
+  results:
+    - name: PROJECT_GRADE_RECOMMENDED_PATH
+      description: "Worst pending grade (A-F) across the BEST remediation path per library. A=safest, F=blocked/needs migration."
+    - name: PROJECT_GRADE_WITHOUT_REMEDIATION
+      description: "What the grade would be WITHOUT the Lightwell backports. Compare to PROJECT_GRADE_RECOMMENDED_PATH to see the value of remediation."
+    - name: GRADE_SCALE_LEGEND
+      description: "Fixed reference text for reading the grade letters above"
+  steps:
+    - name: scan
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set +e
+        mkdir -p out/reports
+        EXTRA=""
+        [ -n "$(params.lib-jars)" ] && EXTRA="$EXTRA --lib-jars $(params.lib-jars)"
+        [ "$(params.accept-transitive-scope)" = "true" ] && EXTRA="$EXTRA --accept-transitive-scope"
+        # shellcheck disable=SC2086
+        python3 upgrade_delta.py scan "$(params.app-jar)" \
+          --evidence "$(params.evidence-dir)" --sbom "$(params.sbom)" $EXTRA \
+          --routing-payload out/routing.json \
+          --json out/scorecard.json --html out/reports/scorecard.html \
+          --fail-on "$(params.fail-on)"
+        RC=$?
+        set -e
+        GRADE="-"; WITHOUT="-"
+        if [ -f out/scorecard.json ]; then
+          GRADE=$(python3 -c "import json;print(json.load(open('out/scorecard.json'))['project']['headline_grade'] or '-')")
+          WITHOUT=$(python3 -c "import json;print(json.load(open('out/scorecard.json'))['project']['worst_without_best_path'] or '-')")
+        fi
+        printf '%s' "$GRADE"   > "$(results.PROJECT_GRADE_RECOMMENDED_PATH.path)"
+        printf '%s' "$WITHOUT" > "$(results.PROJECT_GRADE_WITHOUT_REMEDIATION.path)"
+        printf '%s' "A=fast lane, safest | B=targeted tests | C=partial regression | D=full regression | F=blocked, migrate first" > "$(results.GRADE_SCALE_LEGEND.path)"
+        # exit 2 = grade gate breached -> fail the Task (and the PipelineRun)
+        [ "$RC" -eq 0 ] || { echo "GATE: project grade $GRADE breached fail-on=$(params.fail-on)"; exit "$RC"; }

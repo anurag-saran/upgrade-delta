@@ -30,5 +30,5 @@ python3 ../upgrade_delta.py scan target/payments-service.jar \
 ```
 
 The jackson-databind row is the hero: your app calls `ObjectMapper.readValue` /
-`writeValueAsString` directly, and the Lightwell rebuild `2.13.4 → 2.13.4.redhat-00001`
+`writeValueAsString` directly, and the Lightwell rebuild `2.13.4 → 2.13.4.rhlw-00001`
 is a drop-in that touches none of it — measured, grade B, 0.3% churn.

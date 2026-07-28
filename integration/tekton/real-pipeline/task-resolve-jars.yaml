@@ -1,0 +1,96 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: resolve-jars
+spec:
+  description: >-
+    Resolves the OLD and NEW dependency jars via Maven's own dependency:copy
+    -- the OLD (community) version from Maven Central, the NEW (rhlw) version
+    from the Lightwell repository -- and builds the application's own jar
+    from source, so live-diff can diff them for real instead of reading a
+    pre-published evidence file.
+
+    NOTE: dependency:copy runs against a standalone STUB pom, so it does NOT
+    read the application's pom.xml and ignores any <repositories> declared
+    there. The Lightwell repo is therefore passed explicitly via
+    -DremoteRepositories (see the lightwell-repo param). Credentials still
+    come from the settings.xml secret, and its <server><id> MUST be
+    'lightwell-remediated' to match.
+  params:
+    - name: group
+      type: string
+    - name: artifact
+      type: string
+    - name: old-version
+      type: string
+    - name: new-version
+      type: string
+    - name: app-module-dir
+      type: string
+      default: "."
+      description: Directory containing the pom.xml to build (root, or a module path)
+    - name: lightwell-repo
+      type: string
+      default: "https://packages.redhat.com/lightwell/java/remediated"
+      description: >-
+        Lightwell remediated Maven repository URL. Passed explicitly to
+        dependency:copy via -DremoteRepositories, because that goal runs
+        against a stub POM and ignores the application pom's <repositories>.
+  workspaces:
+    - name: source
+    - name: maven-settings
+      description: Secret volume containing settings.xml with Lightwell server credentials
+  results:
+    - name: OLD_JAR
+      description: Path (in workspace) to the resolved OLD dependency jar
+    - name: NEW_JAR
+      description: Path (in workspace) to the resolved NEW dependency jar
+    - name: APP_JAR
+      description: Path (in workspace) to the freshly-built application jar
+  steps:
+    - name: resolve-and-build
+      displayName: "Resolve dependency jars + build the app"
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mvn -v || { echo "mvn not found in this image"; exit 1; }
+        SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
+        mkdir -p out/jars
+        G="$(params.group)"; A="$(params.artifact)"
+        OV="$(params.old-version)"; NV="$(params.new-version)"
+        LIGHTWELL_REPO="$(params.lightwell-repo)"
+
+        echo "resolving OLD: $G:$A:$OV"
+        mvn -B -s "$SETTINGS" dependency:copy \
+          -Dartifact="$G:$A:$OV:jar" -DoutputDirectory=out/jars \
+          -Dmdep.stripVersion=false
+
+        echo "resolving NEW: $G:$A:$NV"
+        # dependency:copy runs against a standalone STUB pom -- it does NOT read
+        # the application's pom.xml, so the <repositories> block there is ignored
+        # and only Maven Central is searched by default. The Lightwell repo must
+        # be passed explicitly. The 'lightwell-remediated' id must match the
+        # <server><id> in the settings.xml secret for credentials to apply.
+        mvn -B -s "$SETTINGS" dependency:copy \
+          -Dartifact="$G:$A:$NV:jar" -DoutputDirectory=out/jars \
+          -Dmdep.stripVersion=false \
+          -DremoteRepositories="lightwell-remediated::::$LIGHTWELL_REPO"
+
+        OLD_JAR="out/jars/${A}-${OV}.jar"
+        NEW_JAR="out/jars/${A}-${NV}.jar"
+        [ -f "$OLD_JAR" ] || { echo "FATAL: could not resolve $OLD_JAR"; exit 1; }
+        [ -f "$NEW_JAR" ] || { echo "FATAL: could not resolve $NEW_JAR"; exit 1; }
+
+        echo "building app module: $(params.app-module-dir)"
+        ( cd "$(params.app-module-dir)" && mvn -B -s "$SETTINGS" -DskipTests package )
+        APP_JAR=$(find "$(params.app-module-dir)/target" -maxdepth 1 -name '*.jar' \
+                   -not -name '*-sources.jar' -not -name '*-javadoc.jar' -not -name 'original-*' \
+                   | head -1)
+        [ -n "$APP_JAR" ] || { echo "FATAL: no built app jar found under target/"; exit 1; }
+
+        printf '%s' "$OLD_JAR" > "$(results.OLD_JAR.path)"
+        printf '%s' "$NEW_JAR" > "$(results.NEW_JAR.path)"
+        printf '%s' "$APP_JAR" > "$(results.APP_JAR.path)"
+        echo "OLD_JAR=$OLD_JAR  NEW_JAR=$NEW_JAR  APP_JAR=$APP_JAR"

@@ -1,0 +1,68 @@
+# Copy this file to .tekton/pull-request-live.yaml IN YOUR APPLICATION REPO.
+# Named differently from the fixture demo's "upgrade-delta-pr" so both can
+# coexist if you ever run the demo pipeline in the same namespace too.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations:
+    pipelinesascode.tekton.dev/on-event: "[pull_request]"
+    pipelinesascode.tekton.dev/on-target-branch: "[main]"
+    pipelinesascode.tekton.dev/max-keep-runs: "5"
+    pipelinesascode.tekton.dev/pipeline: ".upgrade-delta/real-pipeline/pipeline-real.yaml"
+    pipelinesascode.tekton.dev/task: "git-clone"
+    pipelinesascode.tekton.dev/task-1: ".upgrade-delta/real-pipeline/task-detect-pom-changes.yaml"
+    pipelinesascode.tekton.dev/task-2: ".upgrade-delta/real-pipeline/task-live-coverage.yaml"
+    pipelinesascode.tekton.dev/task-3: ".upgrade-delta/real-pipeline/task-resolve-jars.yaml"
+    pipelinesascode.tekton.dev/task-4: ".upgrade-delta/real-pipeline/task-live-diff.yaml"
+    pipelinesascode.tekton.dev/task-5: ".upgrade-delta/real-pipeline/task-run-tests-maven.yaml"
+    # PaC's remote-pipeline resolution requires EVERY task the pipeline
+    # references to be explicitly annotated here -- it does NOT fall back to
+    # whatever Tasks already exist on the cluster, even if they're already
+    # applied (confirmed the hard way: "cannot find referenced task ... if
+    # it's a remote task make sure to add it in the annotations"). So these
+    # three -- reused unmodified from the fixture demo -- must be vendored
+    # and annotated too, not just applied once to the cluster.
+    pipelinesascode.tekton.dev/task-6: ".upgrade-delta/real-pipeline/task-upgrade-delta-select-tests.yaml"
+    pipelinesascode.tekton.dev/task-7: ".upgrade-delta/real-pipeline/task-upgrade-delta-summary.yaml"
+    pipelinesascode.tekton.dev/task-8: ".upgrade-delta/real-pipeline/task-upgrade-delta-pr-comment.yaml"
+  name: upgrade-delta-live-pr
+spec:
+  pipelineRef:
+    name: upgrade-delta-live
+  params:
+    - name: git-url
+      value: '{{ repo_url }}'
+    - name: git-revision
+      value: '{{ revision }}'
+    - name: target-branch
+      value: '{{ target_branch }}'
+    - name: pom-path
+      value: 'pom.xml'                 # change if your pom.xml isn't at the repo root
+    - name: app-name
+      value: 'CHANGE-ME-your-app-name'
+    - name: app-module-dir
+      value: '.'                       # change if pom.xml is in a subdirectory/module
+    - name: fail-on
+      value: 'D'
+    - name: coverage-map
+      value: 'target/jacoco-per-test-coverage.json'   # optional; falls open to full suite if missing
+    - name: tests-dir
+      value: 'src/test/java'
+    - name: repo-owner
+      value: '{{ repo_owner }}'
+    - name: repo-name
+      value: '{{ repo_name }}'
+    - name: pull-request-number
+      value: '{{ pull_request_number }}'
+    - name: scorecard-route-host
+      value: ''                        # optional: your scorecard viewer Route host
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: upgrade-delta-reports   # reuse the same reports PVC from the demo setup
+    - name: maven-settings
+      secret:
+        secretName: lightwell-maven-settings   # same secret the demo's sample-app already uses
+    - name: basic-auth
+      secret:
+        secretName: "{{ git_auth_secret }}"

@@ -6,7 +6,7 @@
   "date": "2026-07-19",
   "library": "acme-http-client",
   "old_version": "4.5.13",
-  "new_version": "4.5.14",
+  "new_version": "4.5.14.rhlw-00001",
   "old_jar": "acme-http-client-4.5.13.jar",
   "new_jar": "acme-http-client-4.5.14.jar",
   "app": "payments-service-1.0.0.jar",

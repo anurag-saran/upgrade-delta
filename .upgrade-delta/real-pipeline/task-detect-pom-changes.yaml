@@ -1,0 +1,80 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: detect-pom-changes
+spec:
+  description: >-
+    Diffs pom.xml between the PR's target (base) branch and the PR head using
+    the tested detect_pom_changes.py (resolves Maven ${property} indirection,
+    finds every Lightwell rhlw adoption). Writes the full list to
+    out/changed-deps.json, AND surfaces the FIRST adoption as individual
+    Tekton results for the rest of this pipeline to consume directly --
+    keep upgrade PRs to one dependency bump each for this pipeline to grade
+    correctly; a warning is printed (not a failure) if more than one changed.
+  params:
+    - name: target-branch
+      type: string
+      description: The PR's base/target branch (e.g. main)
+    - name: pom-path
+      type: string
+      default: pom.xml
+      description: Path to the pom.xml within the repo, if not at the root
+  workspaces:
+    - name: source
+  results:
+    - name: LIGHTWELL_ADOPTIONS_COUNT
+      description: How many dependencies in this PR adopted a Lightwell (rhlw) build
+    - name: HAS_CHANGE
+      description: "'true' if at least one Lightwell adoption was detected, else 'false'"
+    - name: CHANGED_GROUP
+      description: Maven groupId of the first detected adoption
+    - name: CHANGED_ARTIFACT
+      description: Maven artifactId of the first detected adoption
+    - name: CHANGED_OLD_VERSION
+      description: Version on the target branch (before this PR)
+    - name: CHANGED_NEW_VERSION
+      description: Version on this PR's head (carries the real rhlw-NNNNN suffix)
+  steps:
+    - name: detect
+      displayName: "Diff pom.xml for Lightwell adoptions"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mkdir -p out
+        git config --global --add safe.directory "$(workspaces.source.path)"
+        # Fetch the base branch so we can read its pom.xml as it stood before
+        # this PR -- git-clone by default only brings the PR's own revision.
+        git fetch --depth 50 origin "$(params.target-branch)"
+        git show "origin/$(params.target-branch):$(params.pom-path)" > /tmp/base-pom.xml
+
+        python3 .upgrade-delta/real-pipeline/scripts/detect_pom_changes.py \
+          --base /tmp/base-pom.xml \
+          --head "$(params.pom-path)" \
+          --out out/changed-deps.json
+
+        python3 - <<'PY'
+        import json
+        d = json.load(open("out/changed-deps.json"))
+        adopted = d["lightwell_adopted"]
+        open("$(results.LIGHTWELL_ADOPTIONS_COUNT.path)", "w").write(str(len(adopted)))
+        if not adopted:
+            open("$(results.HAS_CHANGE.path)", "w").write("false")
+            for p in ["$(results.CHANGED_GROUP.path)", "$(results.CHANGED_ARTIFACT.path)",
+                      "$(results.CHANGED_OLD_VERSION.path)", "$(results.CHANGED_NEW_VERSION.path)"]:
+                open(p, "w").write("")
+        else:
+            if len(adopted) > 1:
+                print(f"WARNING: {len(adopted)} Lightwell adoptions in this PR; using the "
+                      f"first one below. Keep upgrade PRs to one dependency bump each for "
+                      f"this pipeline to grade correctly.")
+                for e in adopted:
+                    print(f"  - {e['group']}:{e['artifact']}  {e['old_version']} -> {e['new_version']}")
+            e = sorted(adopted, key=lambda x: (x["group"], x["artifact"]))[0]
+            open("$(results.HAS_CHANGE.path)", "w").write("true")
+            open("$(results.CHANGED_GROUP.path)", "w").write(e["group"])
+            open("$(results.CHANGED_ARTIFACT.path)", "w").write(e["artifact"])
+            open("$(results.CHANGED_OLD_VERSION.path)", "w").write(e["old_version"])
+            open("$(results.CHANGED_NEW_VERSION.path)", "w").write(e["new_version"])
+        PY

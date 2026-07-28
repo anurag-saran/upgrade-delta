@@ -1,213 +1,165 @@
-# Demo Script — presenter's guide
+# Demo script — OpenShift console + GitHub
 
-Total: ~25 minutes plus questions. The terminal does the proving; you do the framing.
-Run `./demo.sh` with Enter-to-advance (default) so you control pacing. Rehearse once with
-`DEMO_AUTOPLAY=1 DEMO_TYPE_DELAY=0 ./demo.sh` to see every beat land.
+**Runs in two browser tabs: GitHub and the OpenShift console.** No terminal.
+Total ~8–10 minutes. Setup must already be done — see
+[`INSTALL-OPENSHIFT.md`](INSTALL-OPENSHIFT.md).
 
-Audience calibration before you start: if the room is CAB/release-management heavy, spend
-longer on beats 6, 9, and 11 (reports, sealing, deploy gate). If it is engineering heavy,
-spend longer on beats 7 and 8 (method-level precision, fat-jar hazards). Never cut beat 10
-(failure modes) for either audience — it is where trust is actually earned.
+**The one-line story:** *A developer opens a PR to bump a dependency. The pipeline
+automatically measures how much the library actually changed, intersects that with this
+app's bytecode, grades the risk, routes only the tests the change owes, and produces a
+scorecard a change board can audit — all before anyone approves the merge.*
 
----
+### The verified numbers this demo produces
+Grade **B** · coverage **61%** (11 drop-in / 3 serviced-elsewhere / 4 uncovered) · **7 of
+11 test classes** selected · **8 test methods** executed, **0 failed**. (7 classes but 8
+methods is correct — one class holds two methods.)
 
-## Opening (2 min, before touching the terminal)
-
-> "Quick history: we came to you before with a demo about patching without rebuilding.
-> You told us — correctly — that you're not changing how you package applications. We
-> listened. Nothing you'll see today asks you to change anything about your build. Fat
-> jars, rebuild-and-redeploy, exactly as you work now.
->
-> Here's the question we're answering instead. When a critical CVE forces an upgrade, the rebuild took four
-> minutes. The six weeks went to the regression run nobody could justify shrinking, and
-> the change board that wouldn't approve until someone could. So: **an upgrade fixes the
-> CVE — how much of your test suite does it actually owe, and can you prove that number
-> to your change board?** Today the honest answer everywhere is 'we don't know, so we run
-> everything.' Let's replace that."
-
-Do not oversell the corpus: say once, plainly, that the opening beats use compiled samples
-mirroring real library shapes. The sample corpus exists because the app-intersection story
-needs an app whose versions we control. For the real, credentialed path, the Spring Boot
-sample-app builds against genuine Lightwell remediated artifacts (jackson-databind et al.).
-
-## Beat 1 — Setup (1 min)
-
-The script states the scenario: one CVE, two artifacts that close it — the community
-forward-upgrade and a maintained backport. Land the line: "Same CVE. Nobody today can say
-in advance how much testing each path owes. Watch the tool say it."
-
-## Beat 2 — Forward upgrade → F (2 min)
-
-Let the output breathe, then:
-
-> "That verdict *is* the six weeks. And notice what it isn't: it isn't a policy or an
-> opinion. It's a structural diff of two real jars intersected with this application's
-> own bytecode. The app calls a member that no longer exists — this path doesn't need a
-> bigger test plan, it needs a migration, and now you know that *before* you start."
-
-## Beat 3 — Backport → A (2 min)
-
-> "Same CVE closed. One class changed. The application touches nothing that moved. Smoke,
-> canary, promote. The six-week difference was never the code — it was which artifact you
-> sourced. Until now that was a vendor claim; now it's a number anyone in this room can
-> recompute."
-
-This is the commercial heart. Pause here.
-
-## Beat 4 — The honest B (1 min)
-
-> "And the rule doesn't take version numbers on faith. This one *claims* to be a patch —
-> half the internals rewritten, a shipped default flipped — so it does not get the fast
-> lane. Escalation is automatic; that's what makes the fast lane defensible when it is
-> granted."
-
-## Beat 5 — Trusting the churn number (2 min)
-
-The verify harness runs live. This beat exists for the most skeptical engineer present:
-
-> "Your first instinct should be: hash two identical builds from different toolchains and
-> watch a naive tool report 100% churn. So we do exactly that, in front of you. Every
-> byte differs; semantic churn zero. The one real method edit still reads 6.2%. And
-> anything the fingerprint can't parse falls back to raw hashing — this metric is allowed
-> to over-report, it is structurally unable to under-report."
-
-## Beat 6 — Published catalog (1 min)
-
-Open `out/reports/index.html` in a browser beforehand; alt-tab to it.
-
-> "One certificate per remediated artifact — rating, evidence, and a printed section
-> called *what this report cannot see*. In most shops the bottleneck isn't the engineer's
-> confidence, it's the approval. The report is the product; the analysis is how we make it."
-
-## Beat 7 — Project scorecard, transitives, method-level precision (4 min)
-
-Three ideas, keep them separated:
-
-> "First: the score never averages and risk never rolls up. A transitive counts at full
-> weight — one migration-grade dependency makes this a migration-grade project. But the
-> *work plan* rolls up, because the fix lever lives at the parent: bump it or pin an
-> override. Two audiences, one page: the top third is for approval, the middle is
-> Monday's tasks.
->
-> Second: acme-codec never appears in this app's bytecode at all. The SBOM says the http
-> client brought it in; reachability walks app → parent's call graph → codec. And it does
-> that at *method* level — see the line where class-granular analysis would have flagged
-> the removed member, because a debug method the app never calls reaches it. Method-level
-> proves the path unreached. Without that precision, real frameworks inflate every blast
-> radius and the de-escalation value evaporates.
->
-> Third: the de-escalation is *offered, not applied*. It takes an explicit sign-off flag,
-> the flag is recorded, and the same project fails the CI gate without it and passes with
-> it. The gate enforces the conversation."
-
-## Beat 8 — Enterprise reality: reactors, fat jars, hazards (2 min)
-
-> "Same scan, three packagings — thin jar, reactor modules, uber jar — same grade.
-> On the uber jar, three things you've likely been bitten by: bundled dependency
-> internals are excluded from *your* code's view; the SBOM-vs-artifact drift check
-> catches the tree you declared not matching the tree you shipped; and there's a
-> relocated shaded copy of the codec in here — classpath roulette — surfaced as a
-> hazard row. The SBOM is the map. The artifact is the territory. We check both."
-
-## Beat 9 — Test routing and the CD handoff (4 min)
-
-> "Now the loop closes. The scanner emitted affected *code* — never test names, because
-> your test topology is yours. The router joins that with your own coverage map, with
-> provenance: which build, which SHA, how stale. Read the reasons: every RUN traces to a
-> changed member. That test ran because it's *absent from the map* — unknown means run.
-> That one widened in because it covers code modified since the map was collected. And
-> the boot test appended as mandatory — declared by a tag *in the test source*, resolved
-> at run time, and it would run even if the join selected nothing. 'Eight of eleven,
-> here's why for each' is what turns a shortcut into a CAB artifact.
->
-> Then watch a *different process* consume the gate file at deploy time. The build never
-> claims it ran the canary — a build plugin claiming that would be exactly the false
-> assurance we're eliminating. It emits the obligation OPEN; the deployment stage closes
-> it. One unbroken, truthful chain."
-
-**Beat 9 addendum:** after the selection prints, the mini-runner executes the selected tests live (ten methods, green) from the Surefire-native includes file — a labeled stand-in; Surefire consumes the same file in real builds.
-
-## Beat 10 — Failure modes (2 min) — do not cut this
-
-> "Any tool can demo its happy path. Watch this one fail, on purpose. Stale coverage —
-> full suite, loudly, with the refusal reason on every line. Someone untagged the boot
-> test — hard build failure naming the stale declaration; the gate cannot silently
-> vanish. Deploy without a gate file — blocked. The only failure modes this system
-> permits are too many tests, a failed build, and a blocked promotion. Never a silently
-> skipped gate. Tools in this category die the first time they're caught silently wrong."
-
-## Beat 11 — Sealing (1 min)
-
-> "Last: someone edits the grade from B to A after the fact. Caught — signatures are over
-> canonical JSON, so reformatting is harmless and a value edit is fatal. To a change
-> board, an unsigned JSON is a text document; a sealed one is an audit artifact.
-> Production path is Sigstore keyless in CI; local keys exist because some of you are
-> air-gapped, and this whole design assumes your code never leaves your building."
-
-## Close (1 min)
-
-> "So, end to end: measure the delta, rate it, publish it with every artifact, score your
-> whole project with transitives at full weight, route the exact tests with reasons, and
-> hand explicit obligations to your deploy gate — sealed at every step. And one caveat we
-> print on every report rather than whisper: static analysis can't see everything, which
-> is why the canary and the rollback never leave the plan, even at grade A. The tool
-> sizes the risk. It doesn't abolish it.
->
-> What we'd like from you isn't a purchase order — it's twenty minutes on three questions:
-> when a critical CVE lands, what's your longest pole; how do you decide today how much
-> to retest a dependency bump; and do you keep per-test coverage data. Your answers
-> decide what we build next."
+### Before you present (do NOT do live)
+- Two tabs open: your GitHub repo, and the OpenShift console on project
+  `upgrade-delta-demo`.
+- If you set up the viewer, open **Networking → Routes → `scorecard`** once so you have the
+  URL handy. Have a **screenshot of the rendered scorecard** as a backup slide.
+- Decide your trigger branch: either open a brand-new PR, or reuse an existing PR branch and
+  push one commit.
 
 ---
 
-## Objection handling
+## Beat 1 — The trigger, on GitHub (1 min)
 
-**"Endor Labs already does upgrade impact analysis."** Agree first — it validates the
-market, and their docs are honest that low risk isn't a no-break guarantee. Then the four
-specifics: they stop at a risk tier, we continue to a named test list with reasons and a
-deploy gate; our split means your bytecode never leaves your CI; we measure *any*
-maintainer's backport discipline, including unflatteringly, which is what makes the
-flattering number credible; and our output is a sealed offline-verifiable document, not a
-platform finding. If they need CVE-driven prioritization in one pane, Endor may genuinely
-be the better buy — say so; the candor buys more than the point costs.
+On GitHub, open a small pull request against `main`. The simplest, most legible change is to
+bump a version in the sample SBOM the scan reads — e.g. edit
+`examples/demo-jars/payments-service.sbom.json` (or just add a line to a README) and open the
+PR. Use the GitHub web editor → "Create a new branch and start a pull request."
 
-**"We use Develocity PTS / Launchable for test selection."** Keep them — they're the
-right tool for *your commits*. Their unit of change is your code; a dependency bump is a
-one-line diff whose real delta is a binary their models have no visibility into. We're
-the instrument for the dependency case, and both feed the same Surefire. Also note the
-audience split: ML selection answers 'likely useful signal'; a CAB needs 'runs because it
-covers the class that calls the member that changed.'
+> "A developer opens a PR to move a dependency. That's the only human action in this whole
+> flow. Everything after this is automatic — no Jenkins job to click, no manual test triage."
 
-**"Static analysis can't see reflection."** Correct, and we print it rather than footnote
-it. Three mitigations: the heuristics comb resources and string constants for library
-FQCNs and mark hits as reachable; two-hop evidence carries lower confidence *by rule* —
-de-escalating a transitive requires a recorded sign-off; and the canary stays in every
-lane including A. Then invert it: today you have the same blind spot with zero of the
-visibility.
+As the PR opens, a check named **`upgrade-delta-pr`** appears as *pending*. Click **Details**
+— it links straight into the OpenShift console. Switch tabs.
 
-**"Our jars are shaded/relocated beyond recognition."** Show the hazard row again.
-Relocation without bytecode rewriting keeps internal class names, so we detect it from
-zip entry paths; full relocation with rewriting is detectable by class-structure
-fingerprinting and is on the roadmap — and we'd rather tell you that than pretend.
+## Beat 2 — The pipeline runs, in the console (2 min)
 
-**"What does a stale SBOM do to this?"** Misleads the transitive analysis — which is why
-the artifact-vs-SBOM inventory exists. We trust neither the map nor the territory alone;
-disagreement is itself a finding.
+Console → **Pipelines → PipelineRuns**: a run named `upgrade-delta-pr-…` is executing. Open
+it and watch the graph fill in left to right:
 
-**"Can we gate on B instead of D?"** Yes — `--fail-on` is a threshold you own. Start at
-D, tighten when the histogram says you can afford to.
+> "**clone** pulls the PR. **coverage** buckets every dependency against the Lightwell
+> catalog. **scan** runs the reachability analysis — it reads the app's bytecode and
+> measures which changed members it actually reaches, and grades the risk.
+> **select-tests** picks which tests this change owes, and **run-tests** actually executes
+> them in a real JVM. Then **summary** prints the verdict."
 
-**"Is this a product?"** It's a verified prototype with a working pipeline and honest
-scaffolds where noted — the Maven plugin compiles the real JUnit-discovery piece, the
-mock CD gate stands in for your CD tooling reading one JSON file. What we're validating
-with you is which stage is the product. Don't dress this up; regulated buyers smell it.
+> ⚠️ The **Details** graph is just topology — seven green pills. The *meaning* lives on three
+> other tabs; that's Beat 3. Don't try to read the result off the graph.
 
-## Pre-flight checklist
+It finishes in about a minute (the fixtures are small).
 
-Run the full demo once on the presentation machine the same day. Open the catalog
-`index.html` and both scorecards in browser tabs beforehand. Terminal at 18pt+, dark
-theme, `demo.sh` from a clean `out/` regeneration. Have `docs/COMPARISON.md` and the
-sealed JSONs on hand for the inevitable deep-dive request. If any beat errors live,
-skip forward without apologizing twice — the failure-mode beat has, more than once,
-converted a live glitch into credibility. Know your one non-negotiable sentence: *from
-chosen upgrade to deploy gate, nobody else produces this chain.*
+## Beat 3 — The verdict: three places it lives (2 min)
+
+The graph is deliberately plain; the data is one click away, in increasing richness:
+
+1. **Logs tab → the `summary` task** — a single VERDICT banner, the fastest read:
+   > `Project grade : B  (would be F without the best remediation paths)`
+   > `Coverage : 61% drop-in (11 / 3 / 4 of 18)` · `Tests routed : 7 of 11` · per-dependency
+   > grades + lanes + the codec `D→B (signed off)` line + open deploy obligations.
+   Open this first — it *is* the executive summary, printed for you.
+2. **Output tab** — the same numbers as machine-readable PipelineRun **Results** (the audit
+   trail): `PROJECT_GRADE`, `GRADE_WITHOUT_REMEDIATION`, `COVERAGE_PCT`, `COVERED/NEAR/
+   UNCOVERED`, `TESTS_SELECTED/PASSED/FAILED`, `SUITE_SIZE`.
+3. **Logs tab → the `scan` task** — the full narrative if someone wants to see the working:
+   per-dependency reasons, the two-hop reachability chain, the config/reflection heuristic.
+
+Walk the Results table:
+
+| Result | Value | Say |
+|---|---|---|
+| `PROJECT_GRADE` | **B** | the worst pending grade across the best remediation path |
+| `COVERAGE_PCT` / `COVERED` / `NEAR` / `UNCOVERED` | **61 / 11 / 3 / 4** | 11 deps have a drop-in remediated build; 4 have none |
+| `TESTS_SELECTED` / `SUITE_SIZE` | **7 / 11** | ran 7 of 11 test classes… |
+| `TESTS_PASSED` / `TESTS_FAILED` | **8 / 0** | …which is 8 test methods, all green |
+
+> "Land this line: **without reachability analysis this project grades F.** Most
+> dependencies look scary until you prove which code paths the app actually reaches. The
+> tool didn't lower the bar — it measured the app and found the fear was unearned on the
+> paths that matter."
+
+## Beat 4 — The scorecard reveal (3 min)
+
+*(Skip to Beat 5 if you didn't deploy the viewer — the Results tab already carried the
+story.)*
+
+Open the viewer Route: `https://<route>/out/reports/scorecard.html`. Walk the rendered
+report:
+
+- **Per-dependency grades** — `acme-http-client` → B, `acme-logging` takes the A "fast-lane"
+  backport over the F forward-upgrade, `acme-json` → B.
+- **The de-escalation story — the money slide.** `acme-codec` is a transitive that grades
+  **D**. But method-level reachability proves no changed member is reachable through this
+  app's call paths, so it's de-escalated to **B with sign-off**:
+  > "This is class-level vs method-level precision. Class-granular analysis would flag the
+  > codec's removed `Hex.encode` and block the upgrade. Method-granular proves the app never
+  > reaches it — the one path to it is a `debugDump()` this app never calls. So the scan
+  > offers a scope shrink, a human signs off, and it's recorded `D → B`. Precision that
+  > avoids blocking a safe upgrade — without ever hiding the risk."
+- **Lane routing** — fast lane vs targeted tests: the pipeline runs only the tests the change
+  requires, not the whole suite.
+- **"What this report cannot see"** — reflection and config-driven paths. Point at it:
+  > "That's why the canary stays in the plan for every grade, including A. The honesty is
+  > the credibility."
+
+## Beat 5 — The close: the CAB summary lands on the PR (1 min)
+
+Switch back to the GitHub tab. The `pr-comment` step has posted a **change-board comment**
+right on the pull request: the project grade, the per-library before→after table with lanes,
+the "**would be F** without the backports" gap, and the **named test plan** with a reason for
+every RUN and skip.
+
+> "So a developer opened a PR, and the change board got back — *on the PR itself* — a graded,
+> evidence-backed upgrade analysis: which Lightwell libraries to adopt and at what risk, which
+> tests it owes and why, the results of running them, and a one-click merge gate. No manual
+> triage, no six-week 'run everything.' The reviewer reads this comment and approves by merging;
+> branch protection blocks the merge until the check is green."
+
+That comment posts on **red** runs too — when the gate trips (grade ≥ D, or a missing mandatory
+test), the PR gets a comment saying the tool blocked it and why. The audit trail writes itself.
+
+---
+
+## Two live "make it go red" levers
+
+Both are real gates. A red PipelineRun here is the product working, not a failure — say so.
+
+### Lever A — remove the sign-off, watch the gate bite
+In a PR, edit `integration/tekton/pipeline-demo.yaml`, in the `scan` task change
+`accept-transitive-scope` from `"true"` to `"false"`, and open/push the PR.
+
+> "I'm revoking the human sign-off on that codec de-escalation. Without it, the transitive
+> counts at its raw grade **D**, which breaches the pipeline's `fail-on: D`."
+
+The run goes **red** at the `scan` step. The cluster enforced that a de-escalation requires
+an explicit human decision — it isn't a suggestion the tool can grant itself.
+
+### Lever B — untag the mandatory gate test
+In a PR, open `samples/tests/BootSmokeIT.java` and remove its `@Tag("upgrade-gate")` line.
+
+> "Someone quietly untags the mandatory boot test. A naive router would just select fewer
+> tests and stay green — silently dropping a required gate."
+
+The `select-tests` step fails **loudly with exit 3**: a declared mandatory obligation resolved to
+zero tests → hard build failure. *"Wrong answers here are always loud — a failed build, a
+blocked deploy — never a silently skipped gate."*
+
+Reset either by closing the PR or reverting the line.
+
+---
+
+## If something misbehaves on the day
+
+- **Check stays pending, no run appears** → the PaC GitHub App webhook didn't fire. On the
+  GitHub App page → **Advanced**, check recent deliveries for a green ✓. Re-deliver, or
+  confirm the `pipelines-as-code-secret` (INSTALL 4d) matches the App.
+- **Run is red at `clone`** → the Repository CR `spec.url` doesn't match the PR's repo, or
+  the App isn't installed on this repo.
+- **Scorecard Route 403 / can't reach it** on the demo network → skip Beat 4 and stay on the
+  Results tab (Beat 3), or use your screenshot. The numbers are the same either way.
+- **`TESTS_PASSED` (8) looks bigger than `TESTS_SELECTED` (7)** → expected: selected counts
+  test *classes*, passed counts test *methods*. Say it before anyone asks.

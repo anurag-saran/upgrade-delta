@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: upgrade-delta-coverage
+  labels: {app.kubernetes.io/part-of: upgrade-delta}
+spec:
+  description: >-
+    Coverage meter. Buckets every application dependency against the Lightwell
+    remediated catalog — exact-version drop-in / serviced at another version /
+    uncovered — writes the coverage card, and surfaces the headline numbers as
+    Tekton results so they show on the PipelineRun's Output tab.
+  params:
+    - name: app-sbom
+      type: string
+      description: Path (in workspace) to the application CycloneDX SBOM
+    - name: catalog
+      type: string
+      default: catalogs/lightwell-remediated-java-sbom.json
+  workspaces:
+    - name: source
+  results:
+    - name: COVERAGE_PCT_EXACT_MATCH
+      description: "Percent of dependencies with an exact-version drop-in remediated build (0-100)"
+    - name: DEPENDENCIES_COVERED_EXACT
+      description: "Count of dependencies with a drop-in remediated build at the SAME version you run"
+    - name: DEPENDENCIES_NEAR_OTHER_VERSION
+      description: "Count of dependencies serviced by Lightwell, but at a DIFFERENT version than you run"
+    - name: DEPENDENCIES_UNCOVERED
+      description: "Count of dependencies with NO Lightwell remediated build at all"
+  steps:
+    - name: coverage
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mkdir -p out/reports
+        python3 upgrade_delta.py coverage \
+          --sbom "$(params.app-sbom)" --catalog "$(params.catalog)" \
+          --json out/coverage.json --html out/reports/coverage.html
+        python3 - <<'PY'
+        import json
+        c = json.load(open("out/coverage.json"))["totals"]
+        pct = round(100 * c["exact"] / c["dependencies"]) if c["dependencies"] else 0
+        open("$(results.COVERAGE_PCT_EXACT_MATCH.path)", "w").write(str(pct))
+        open("$(results.DEPENDENCIES_COVERED_EXACT.path)", "w").write(str(c["exact"]))
+        open("$(results.DEPENDENCIES_NEAR_OTHER_VERSION.path)", "w").write(str(c["serviced_other_version"]))
+        open("$(results.DEPENDENCIES_UNCOVERED.path)", "w").write(str(c["uncovered"]))
+        PY
