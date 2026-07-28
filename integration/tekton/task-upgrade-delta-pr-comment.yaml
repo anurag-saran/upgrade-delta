@@ -55,11 +55,12 @@ spec:
         import json, os
 
         BADGE = {"A": "\U0001f7e2", "B": "\U0001f7e1", "C": "\U0001f7e1", "D": "\U0001f534", "F": "\U0001f534"}
+        DEFAULT_BADGE = "\u26aa"
 
         r = json.load(open("out/scorecard.json"))
         p = r["project"]
         g = p["headline_grade"] or "\u2014"
-        lines = [f"## {BADGE.get(g,'\u26aa')} upgrade-delta: project grade **{g}**",
+        lines = [f"## {BADGE.get(g, DEFAULT_BADGE)} upgrade-delta: project grade **{g}**",
                  f"*{p['headline_note']}* \u2014 {p['rated_libraries']} rated dependencies, "
                  f"{p['unrated_package_roots']} unrated package roots"]
         if p.get("worst_without_best_path") and p["worst_without_best_path"] != g:
@@ -75,7 +76,7 @@ spec:
                 shown = f"{rt['grade']} \u2192 {rt['effective_grade']} \u270d\ufe0f" if rt.get("effective_grade") else rt["grade"]
                 name = f"\u21b3 {l['library']} *(via {l['parent']})*" if l.get("transitive") else f"**{l['library']}**"
                 lines.append(f"| {name} | `{rec['old']} \u2192 {rec['new']}` | "
-                             f"{BADGE.get(rt.get('effective_grade') or rt['grade'],'\u26aa')} {shown} | {rt['lane']} |")
+                             f"{BADGE.get(rt.get('effective_grade') or rt['grade'], DEFAULT_BADGE)} {shown} | {rt['lane']} |")
         else:
             lines += ["", "_No Lightwell adoption detected in this change \u2014 nothing to grade._"]
 
