@@ -1,0 +1,50 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: upgrade-delta-coverage-map
+spec:
+  description: >-
+    Builds the per-test coverage map the router needs for genuine test
+    selection. Kept SEPARATE from the per-PR pipeline on purpose: this runs
+    the entire test suite, which is exactly the cost the router exists to
+    avoid on every PR. Run it on a schedule (nightly/weekly) or by hand
+    after significant test changes.
+
+    Without a map, select-tests correctly fails open and runs everything --
+    safe, but you get no routing benefit. With a fresh map, it selects only
+    the tests the changed code actually owes, and prints the reason for each.
+  params:
+    - name: git-url
+      type: string
+    - name: git-revision
+      type: string
+      default: main
+    - name: app-module-dir
+      type: string
+      default: "."
+    - name: only-prefix
+      type: string
+      default: ""
+      description: "e.g. com/example/payments -- keeps the map to your own classes"
+  workspaces:
+    - name: source
+    - name: maven-settings
+  tasks:
+    - name: clone
+      displayName: "1. Clone the repo"
+      taskRef: {name: git-clone}
+      workspaces: [{name: output, workspace: source}]
+      params:
+        - {name: url, value: $(params.git-url)}
+        - {name: revision, value: $(params.git-revision)}
+    - name: build-coverage-map
+      displayName: "2. Run the full suite and build the per-test coverage map"
+      runAfter: [clone]
+      taskRef: {name: build-coverage-map}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: maven-settings, workspace: maven-settings}
+      params:
+        - {name: app-module-dir, value: $(params.app-module-dir)}
+        - {name: head-sha, value: $(params.git-revision)}
+        - {name: only-prefix, value: $(params.only-prefix)}

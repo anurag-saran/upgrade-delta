@@ -1,0 +1,97 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-coverage-map
+spec:
+  description: >-
+    Builds a REAL per-test coverage map, so the router can genuinely select
+    "which tests does this upgrade owe" instead of failing open to the whole
+    suite.
+
+    How it works: runs the full test suite once with JaCoCo in per-test mode
+    (a fresh JVM and fresh probes per test class, so each .exec file records
+    exactly what ONE test class touched), then converts those .exec files
+    into the router's coverage.json via jacoco2coverage.py.
+
+    This is deliberately a SEPARATE, OPTIONAL step -- it runs the whole
+    suite, which is the expensive thing the router exists to avoid. Run it
+    on a schedule (nightly/weekly), not on every PR. The router records the
+    map's git SHA and refuses to trust a map that has drifted too far from
+    HEAD, so a stale map degrades safely to "run everything" rather than
+    silently skipping tests.
+  params:
+    - name: app-module-dir
+      type: string
+      default: "."
+    - name: head-sha
+      type: string
+      description: The commit this map is being collected at (recorded as provenance)
+    - name: only-prefix
+      type: string
+      default: ""
+      description: >-
+        Optional package prefix (slash form, e.g. com/example/payments) to keep
+        the map to the application's own classes instead of every library class.
+    - name: out-file
+      type: string
+      default: "target/jacoco-per-test-coverage.json"
+      description: Path (relative to app-module-dir) to write the coverage map to
+  workspaces:
+    - name: source
+    - name: maven-settings
+  steps:
+    - name: collect
+      displayName: "Run the full suite once, per-test, to build the coverage map"
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
+        cd "$(params.app-module-dir)"
+
+        # Fresh JVM per test class => one .exec per test class, which is what
+        # makes the map PER-TEST rather than one lump for the whole run.
+        # -Dsurefire.includesFile is deliberately NOT set here: this step wants
+        # the complete suite, not the routed subset.
+        mvn -B -s "$SETTINGS" test \
+          -Djacoco.destFile="$(pwd)/target/jacoco-per-test/fork-\${surefire.forkNumber}.exec" \
+          -Djacoco.append=false \
+          -DforkCount=1 -DreuseForks=false
+
+        ls -la target/jacoco-per-test/ 2>/dev/null || {
+          echo "FATAL: no per-test .exec files were produced."
+          echo "The JaCoCo agent may not be configured for per-fork destFiles in this pom."
+          echo "See integration/jacoco/pom-profile.xml for the required profile."
+          exit 1
+        }
+    - name: convert
+      displayName: "Convert JaCoCo .exec files into the router's coverage map"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        EXTRA=""
+        [ -n "$(params.only-prefix)" ] && EXTRA="--only-prefix $(params.only-prefix)"
+        OUT="$(params.app-module-dir)/$(params.out-file)"
+        mkdir -p "$(dirname "$OUT")"
+
+        # shellcheck disable=SC2086
+        python3 .upgrade-delta/jacoco/jacoco2coverage.py \
+          "$(params.app-module-dir)/target/jacoco-per-test" \
+          --sha "$(params.head-sha)" \
+          --build "tekton-$(date +%Y%m%d-%H%M%S)" \
+          --age-commits 0 \
+          $EXTRA \
+          -o "$OUT"
+
+        echo
+        echo "coverage map written to $OUT"
+        python3 -c "
+        import json
+        d = json.load(open('$OUT'))
+        print(f\"  {len(d['tests'])} test class(es) mapped, collected at {d['collected_at_sha']}\")
+        for name, entry in list(d['tests'].items())[:5]:
+            print(f\"    {name}: covers {len(entry['covers'])} app class(es)\")
+        "

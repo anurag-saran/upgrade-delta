@@ -42,25 +42,48 @@ spec:
         )
         MVN_RC=$?
         # Sum every surefire-reports/*.txt summary line across all modules --
-        # more robust than parsing a single console summary line.
-        python3 - "$(params.app-module-dir)" <<'PY'
+        # more robust than parsing a single console summary line. Also cross-checks
+        # Maven's exit code: if Maven failed, or produced no reports at all, this
+        # must NOT report success -- a build that never ran the tests is a failure,
+        # not "0 failures".
+        python3 - "$(params.app-module-dir)" "$MVN_RC" <<'PY'
         import glob, re, sys
-        base = sys.argv[1]
+        base, mvn_rc = sys.argv[1], int(sys.argv[2])
         total_run = total_fail = total_err = 0
+        reports = glob.glob(f"{base}/**/surefire-reports/*.txt", recursive=True)
         pat = re.compile(r"Tests run:\s*(\d+),\s*Failures:\s*(\d+),\s*Errors:\s*(\d+)")
-        for f in glob.glob(f"{base}/**/surefire-reports/*.txt", recursive=True):
-            text = open(f, errors="replace").read()
-            m = pat.search(text)
+        for f in reports:
+            m = pat.search(open(f, errors="replace").read())
             if m:
                 run, fail, err = (int(x) for x in m.groups())
                 total_run += run; total_fail += fail; total_err += err
         failed = total_fail + total_err
-        open("$(results.TEST_METHODS_PASSED_COUNT.path)", "w").write(str(total_run - failed))
-        open("$(results.TEST_METHODS_FAILED_COUNT.path)", "w").write(str(failed))
-        if failed == 0:
+
+        if mvn_rc != 0:
+            # Maven itself failed. Whatever the reports say, this run is NOT green.
+            msg = (f"Maven FAILED (exit {mvn_rc}) -- the test suite did not complete. "
+                   f"{total_run} test method(s) had been recorded before the failure. "
+                   f"Treat this as a failed gate, not a pass.")
+            passed_count = 0
+            failed_count = max(failed, 1)   # never report 0 failures on a failed build
+        elif not reports:
+            # Maven "succeeded" but produced no surefire reports at all -- usually
+            # means no tests were selected/matched. Report it plainly rather than
+            # claiming everything passed.
+            msg = ("Maven completed but produced NO surefire reports -- 0 tests actually "
+                   "ran. This is not a pass; check that the selected tests exist and that "
+                   "the includes file matched them.")
+            passed_count = 0
+            failed_count = 0
+        elif failed == 0:
             msg = f"Ran {total_run} test method(s) for real via Maven Surefire -- all passed, 0 failed."
+            passed_count, failed_count = total_run, 0
         else:
             msg = f"Ran {total_run} test method(s) for real via Maven Surefire -- {failed} FAILED."
+            passed_count, failed_count = total_run - failed, failed
+
+        open("$(results.TEST_METHODS_PASSED_COUNT.path)", "w").write(str(passed_count))
+        open("$(results.TEST_METHODS_FAILED_COUNT.path)", "w").write(str(failed_count))
         open("$(results.TESTS_ACTUALLY_EXECUTED_SUMMARY.path)", "w").write(msg)
         print(msg)
         PY

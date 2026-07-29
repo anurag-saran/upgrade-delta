@@ -570,24 +570,25 @@ def intersect_app(app, lib_old, delta):
 GRADE_ORDER = ["A", "B", "C", "D", "F"]
 
 LANES = {
-    "A": ("Fast lane", ["Smoke test the service", "Canary one instance",
-                        "Watch health + error rate, then promote"]),
-    "B": ("Targeted tests", ["Smoke test the service",
-                             "Contract tests on the packages that call this library",
-                             "Re-verify any behavior driven by the changed defaults/resources",
-                             "Canary, watch, promote"]),
-    "C": ("Partial regression", ["Full test suites of every module that imports this library",
-                                 "One production-like boot test (DI wiring, classpath scanning)",
-                                 "Contract tests on external behavior",
-                                 "Canary, watch, promote"]),
-    "D": ("Full regression", ["Full regression suite",
-                              "Production-like boot test",
-                              "Integration tests on every path that reaches this library",
-                              "Canary, watch, promote"]),
-    "F": ("Full regression + migration", ["Code changes required before this upgrade compiles/runs",
-                                          "Full regression suite after migration",
-                                          "Production-like boot test",
-                                          "Extended canary window"]),
+    "A": ("Just smoke-test it", ["Smoke test the service",
+                                 "Roll out to one instance first",
+                                 "Watch health and error rate, then roll out fully"]),
+    "B": ("Test the parts you use", ["Smoke test the service",
+                             "Test the parts of your code that call this library",
+                             "Re-check anything that relied on a default setting that changed",
+                             "Roll out to one instance, watch, then roll out fully"]),
+    "C": ("Test each module that uses it", ["Run the full test suite of every module that uses this library",
+                                 "Do one production-like startup test (wiring, classpath scanning)",
+                                 "Test the behaviour other systems depend on",
+                                 "Roll out to one instance, watch, then roll out fully"]),
+    "D": ("Run your full test suite", ["Run the entire regression suite",
+                              "Do a production-like startup test",
+                              "Integration-test every path that reaches this library",
+                              "Roll out to one instance, watch, then roll out fully"]),
+    "F": ("Fix your code first", ["Change your code before this will even compile and run",
+                                          "Run the entire regression suite afterwards",
+                                          "Do a production-like startup test",
+                                          "Watch a single instance for longer than usual"]),
 }
 
 
@@ -724,17 +725,20 @@ def rate(stream, delta, app_ix, transitive=False, signoff=False):
             if grade in ("C", "D"):
                 if not transitive:
                     if not delta["api_incompatible"]:
-                        scope_note = ("Scope-shrink candidate: nothing this app calls changed shape. "
-                                      "With sign-off, run the targeted lane instead — keep the canary either way.")
+                        scope_note = ("You could test this more lightly: nothing your app calls "
+                                      "actually changed shape. With sign-off, run the lighter test "
+                                      "set instead — but still roll out to one instance first.")
                 elif signoff:
                     effective_grade = "B"
-                    scope_note = ("De-escalated with sign-off: no changed member is reachable through "
-                                  "the app's call paths into the parent. Two-hop evidence — reflection "
-                                  "blindness compounds across hops, so the canary is not optional.")
+                    scope_note = ("Downgraded from D to B, with sign-off: nothing that changed is "
+                                  "reachable from your app's code paths. This evidence crosses two "
+                                  "libraries, and indirect calls are harder to see through, so still "
+                                  "roll out to one instance first and watch it.")
                 else:
-                    scope_note = ("De-escalation available WITH SIGN-OFF (--accept-transitive-scope): "
-                                  "no changed member reachable through your call paths. Not applied by "
-                                  "default — two-hop evidence carries lower confidence than direct analysis.")
+                    scope_note = ("This could be downgraded to B, but it needs explicit sign-off "
+                                  "(--accept-transitive-scope): nothing that changed is reachable "
+                                  "from your code paths. Not applied automatically, because evidence "
+                                  "that crosses two libraries is less certain than direct evidence.")
 
     lane, recipe = LANES[effective_grade or grade]
     return {"grade": grade, "effective_grade": effective_grade, "lane": lane,
@@ -969,6 +973,11 @@ td a:hover{text-decoration:underline}
 .chip{display:inline-block;font-family:var(--sans);font-weight:700;font-size:13px;
   background:var(--c);color:#fff;border-radius:4px;padding:2px 10px;line-height:1.5}
 .lane{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.sub{margin:7px 0 0 0;padding-left:11px;border-left:2px solid var(--rule);
+  font-size:12.5px;color:var(--ink-soft);line-height:1.55}
+.sub b{color:var(--ink);font-weight:600}
+.eg{margin-top:5px;padding:5px 9px;background:#FAFAFA;border-radius:4px;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink);word-break:break-all}
 .scale{background:#FAFAFA;border:1px solid var(--rule);border-radius:8px;
   padding:16px 18px;margin:0 0 26px}
 .scale-h{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.06em;
@@ -1072,21 +1081,21 @@ and uses <b>{len(a['lib_classes_used'])}</b> of its classes. Against this upgrad
 
 # rating scale: the legend shown on the catalog index
 RATING_SCALE = [
-    ("A", "var(--pass)",  "Fast lane",
-     "Disciplined patch — no API change, minimal churn, no shipped-default changes"),
-    ("B", "var(--watch)", "Targeted tests",
-     "Patch with added surface, heavy internal churn, or a changed default"),
-    ("C", "var(--watch)", "Partial regression",
-     "Minor release with no binary-incompatible changes"),
-    ("D", "var(--stop)",  "Full regression",
-     "Binary-incompatible changes, or a major release"),
-    ("F", "var(--stop)",  "Migration required",
-     "Incompatible changes your application provably calls — it will break"),
+    ("A", "var(--pass)",  "Just smoke-test it",
+     "A clean patch. Nothing in the public API changed and almost no code moved."),
+    ("B", "var(--watch)", "Test the parts you use",
+     "A patch, but it added new methods, rewrote a lot internally, or changed a default setting."),
+    ("C", "var(--watch)", "Test each module that uses it",
+     "A minor release. New functionality, but nothing that should break existing code."),
+    ("D", "var(--stop)",  "Run your full test suite",
+     "Something was removed or changed shape, or this is a major release."),
+    ("F", "var(--stop)",  "Fix your code first",
+     "Something your app actually calls was removed or changed. It will break as-is."),
 ]
 _GRADE_ORDER = {g: i for i, (g, *_ ) in enumerate(RATING_SCALE)}
 
 
-def _grade_legend_html(title="How to read the grade"):
+def _grade_legend_html(title="What each grade means for you"):
     """Shared A-F legend block, reused on every report that shows a letter
     grade. There is no 'E' -- the scale intentionally skips it, same as a
     US school report card (A, B, C, D, F)."""
@@ -1807,8 +1816,9 @@ def scan(args):
 def render_scorecard(r):
     p = r["project"]
     color = GRADE_COLOR.get(p["headline_grade"], "var(--steel)")
-    lanes_order = ["Fast lane", "Targeted tests", "Partial regression",
-                   "Full regression", "Full regression + migration"]
+    # Derive the display order from LANES itself (A..F) rather than hardcoding
+    # the names -- a hardcoded list silently drops every bar if a lane is renamed.
+    lanes_order = [LANES[g][0] for g in GRADE_ORDER]
     total = max(sum(h.get("direct", 0) + h.get("transitive", 0)
                     for h in p["lane_histogram"].values()), 1)
     bars = ""
@@ -1818,14 +1828,17 @@ def render_scorecard(r):
             continue
         d_n, t_n = h.get("direct", 0), h.get("transitive", 0)
         d_pct = round(100 * d_n / total); t_pct = round(100 * t_n / total)
-        label = f"{d_n + t_n}" + (f" ({t_n}t)" if t_n else "")
+        label = f"{d_n + t_n}" + (f" ({t_n} indirect)" if t_n else "")
         bars += (f'<div class="bar-row"><span class="bar-label">{esc(lane)}</span>'
                  f'<span class="bar"><i style="width:{d_pct}%"></i>'
                  f'<i class="t" style="width:{t_pct}%"></i></span>'
                  f'<span class="bar-n">{label}</span></div>')
     bars += ('<div class="bar-row"><span class="bar-label"></span>'
-             '<span class="lane" style="grid-column:2/4">solid = direct · '
-             'hatched = transitive (counted at full weight — risk does not roll up)</span></div>')
+             '<div class="bar-key" style="grid-column:2/4">'
+             '<span><i class="k-solid"></i>solid — your app uses it directly</span>'
+             '<span><i class="k-hatch"></i>striped — it comes in through another '
+             'dependency (counted the same, because the risk is the same)</span>'
+             '</div></div>')
 
     rows = ""
     for l in r["libraries"]:
@@ -1846,16 +1859,25 @@ def render_scorecard(r):
         if l["transitive"]:
             via = rec["ix"].get("via", {})
             via_line = next(iter(via.items()), None)
-            via_html = (f'<br><span class="lane">e.g. {esc(via_line[1])} → '
-                        f'<span class="m">{esc(via_line[0])}</span></span>') if via_line else ""
+            via_html = (f'<div class="eg">for example: <span class="m">{esc(via_line[1])}</span>'
+                        f' calls <span class="m">{esc(via_line[0])}</span></div>') if via_line else ""
             note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
                     if g["scope_note"] else "")
-            rows += f"""<tr class="sub"><td><span class="lane">↳ transitive</span> <b>{esc(l['library'])}</b><br>
-<span class="lane">brought in by {esc(l['parent'])} · fix lever: bump {esc(l['parent'])} or pin an override<br>
-{rec['ix'].get('reachable_parent_methods', '?')} parent methods in reachability closure
-(class-granular: {rec['ix']['reachable_parent_classes']} classes) ·
-touches {touched[1]} changed / {touched[0]} incompatible through your paths</span>{via_html}
-{f"<br><span class='lane'>precision: class-level analysis would have flagged {len(rec['ix'].get('class_level_would_touch') or [])} member(s) — method-level shows those paths are unreached</span>" if (rec['ix'].get('class_level_would_touch') and not (rec['ix']['touched_changed'] or rec['ix']['touched_incompatible'])) else ""}</td>
+            n_would = len(rec["ix"].get("class_level_would_touch") or [])
+            precision_html = (
+                f'<div class="sub"><b>Why this is safe:</b> a rougher, class-level check would '
+                f'have flagged {n_would} item(s) here and blocked the upgrade. Looking at the '
+                f'individual methods shows your app never actually reaches them.</div>'
+                if (rec["ix"].get("class_level_would_touch")
+                    and not (rec["ix"]["touched_changed"] or rec["ix"]["touched_incompatible"]))
+                else "")
+            rows += f"""<tr class="sub"><td><span class="lane">↳ indirect</span> <b>{esc(l['library'])}</b><br>
+<span class="lane">You don't depend on this directly — <b>{esc(l['parent'])}</b> pulls it in.
+To change it, upgrade {esc(l['parent'])} or pin an override.</span>
+<div class="sub">Following the calls from your app through {esc(l['parent'])} reaches
+{rec['ix'].get('reachable_parent_methods', '?')} method(s) in it. Of what changed in this
+upgrade, those paths touch <b>{touched[1]}</b> changed and <b>{touched[0]}</b> breaking item(s).
+{via_html}</div>{precision_html}</td>
 <td>{opts_html}{note}</td></tr>"""
         else:
             note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
@@ -1865,20 +1887,29 @@ touches {touched[1]} changed / {touched[0]} incompatible through your paths</spa
             if chain and chain.get("closure_methods_reached"):
                 hits = (chain["internal_touched_incompatible"] + chain["internal_touched_changed"]
                         + chain["internal_touched_impl_changed"])
+                seeds = chain.get("internal_seed_owners") or []
+                seed_html = (f'<div class="eg">starting from your code in '
+                             f'<span class="m">{esc(seeds[0])}</span>'
+                             + (f' (+{len(seeds)-1} more)' if len(seeds) > 1 else '')
+                             + '</div>') if seeds else ''
                 if hits:
-                    chain_html = (f'<br><span class="lane">internal call chain traced '
-                                   f'{chain["closure_methods_reached"]} method(s) from your '
-                                   f'{chain["closure_seed_count"]} entry point(s) — reaches changed: '
-                                   f'<span class="m">{esc(hits[0])}</span>'
-                                   + (f' (+{len(hits)-1} more)' if len(hits) > 1 else '')
-                                   + '</span>')
+                    more = f' <span class="lane">(and {len(hits)-1} more)</span>' if len(hits) > 1 else ''
+                    chain_html = (
+                        f'<div class="sub"><b>Reached indirectly:</b> your code doesn\'t call it '
+                        f'by name, but following the calls '
+                        f'{chain["closure_methods_reached"]} steps in leads to changed code:'
+                        f'<div class="eg"><span class="m">{esc(hits[0])}</span>{more}</div>'
+                        f'{seed_html}</div>')
                 else:
-                    chain_html = (f'<br><span class="lane">internal call chain traced '
-                                   f'{chain["closure_methods_reached"]} method(s) from your '
-                                   f'{chain["closure_seed_count"]} entry point(s) — none reach a changed '
-                                   f'member</span>')
+                    chain_html = (
+                        f'<div class="sub">Followed {chain["closure_methods_reached"]} method call(s) '
+                        f'inward from your code — none of them reach anything that changed.</div>')
+            touched_html = (
+                f'<span class="lane">Your app calls it in <b>{l["call_sites"]}</b> place(s). '
+                f'Of what changed in this upgrade, your code touches '
+                f'<b>{touched[1]}</b> changed and <b>{touched[0]}</b> breaking item(s).</span>')
             rows += f"""<tr><td><b>{esc(l['library'])}</b><br>
-<span class="lane">{l['call_sites']} direct call sites · touches {touched[1]} changed / {touched[0]} incompatible on best path</span>{chain_html}</td>
+{touched_html}{chain_html}</td>
 <td>{opts_html}{note}</td></tr>"""
 
     hazards_html = ""
@@ -1920,36 +1951,45 @@ delta report covers them. Every entry here is an upgrade you would be testing bl
     compare = ""
     if p["worst_without_best_path"] and p["worst_without_best_path"] != p["headline_grade"]:
         c2 = GRADE_COLOR[p["worst_without_best_path"]]
-        compare = (f'<div class="note">Without the best available remediation paths this project '
-                   f'scores <span class="chip" style="--c:{c2}">{p["worst_without_best_path"]}</span> — '
-                   f'the gap between the two numbers is what a maintained backport is worth, measured.</div>')
+        compare = (f'<div class="note">Upgrading to the community releases instead of the '
+                   f'Red Hat builds would score this project '
+                   f'<span class="chip" style="--c:{c2}">{p["worst_without_best_path"]}</span>. '
+                   f'The difference between the two grades is the measured value of the '
+                   f'Red Hat builds.</div>')
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(r['app'])} — project delta scorecard</title>
 {FONTS}<style>{CSS}
-.bar-row{{display:grid;grid-template-columns:200px 1fr 30px;gap:10px;align-items:center;margin:6px 0}}
-.bar-label{{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}}
-.bar{{background:color-mix(in srgb,var(--rule) 55%,transparent);height:14px;display:block}}
-.bar{{display:flex}}
+.bar-row{{display:grid;grid-template-columns:210px 1fr 90px;gap:12px;align-items:center;margin:7px 0}}
+.bar-label{{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink)}}
+.bar{{background:color-mix(in srgb,var(--rule) 55%,transparent);height:16px;
+  display:flex;border-radius:3px;overflow:hidden}}
 .bar i{{display:block;height:100%;background:var(--steel)}}
 .bar i.t{{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}}
+.bar-key{{display:flex;flex-direction:column;gap:5px;margin-top:9px;
+  font-size:12.5px;color:var(--ink-soft);line-height:1.5}}
+.bar-key span{{display:flex;align-items:flex-start;gap:8px}}
+.bar-key i{{flex:none;width:13px;height:13px;border-radius:3px;margin-top:2px}}
+.bar-key i.k-solid{{background:var(--steel)}}
+.bar-key i.k-hatch{{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}}
 tr.sub td{{background:color-mix(in srgb,var(--rule) 22%,var(--card))}}
 tr.sub td:first-child{{padding-left:28px}}
-.bar-n{{font-family:var(--mono);font-size:13px;text-align:right}}
+.bar-n{{font-family:var(--mono);font-size:12.5px;text-align:left;color:var(--ink-soft)}}
 </style></head><body>
 <div class="sheet" style="--stamp-c:{color}">
   <div class="stamp"><span class="g">{esc(p['headline_grade'] or '—')}</span><span class="l">project</span></div>
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
   <h1>{esc(r['app'])}</h1>
-  <div class="vers">{p['rated_libraries']} rated dependencies · {p['unrated_package_roots']} unrated package roots</div>
-  <p style="max-width:62ch;color:var(--ink-soft)">The headline is the <b>worst pending grade across
-  the best available remediation path per library</b> — never an average. One migration-grade
-  dependency makes this a migration-grade project, no matter how clean the rest is.</p>
+  <div class="vers">{p['rated_libraries']} dependencies checked · {p['unrated_package_roots']} not covered by any report</div>
+  <p style="max-width:62ch;color:var(--ink-soft)">The project grade reflects
+  <b>the highest-risk dependency in this upgrade, not an average</b>. A single dependency
+  requiring migration sets the grade for the whole project, regardless of how clean the
+  others are. Each dependency is assessed on its <b>lowest-risk available upgrade path</b>.</p>
   {compare}
-  <h2>Test-effort budget to get current</h2>{bars}
+  <h2>How much testing this upgrade needs</h2>{bars}
   <h2>Dependencies</h2>{_grade_legend_html()}
-  <table><thead><tr><th>Library · exposure</th><th>Remediation paths (best first)</th></tr></thead>
+  <table><thead><tr><th>Dependency · how your app uses it</th><th>Upgrade options (best first)</th></tr></thead>
   <tbody>{rows}</tbody></table>
   {hazards_html}
   {heur_html}

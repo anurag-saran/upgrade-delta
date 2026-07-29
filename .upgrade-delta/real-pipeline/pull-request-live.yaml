@@ -55,7 +55,7 @@ spec:
     - name: pull-request-number
       value: '{{ pull_request_number }}'
     - name: scorecard-route-host
-      value: ''                        # optional: your scorecard viewer Route host
+      value: 'scorecard-upgrade-delta-demo.apps.asaran.na-launch.com'
   workspaces:
     - name: source
       persistentVolumeClaim:
