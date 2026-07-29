@@ -1,0 +1,35 @@
+# Run this by hand (or on a schedule) to (re)generate the per-test coverage map:
+#   oc create -f pipelinerun-coverage-map.yaml -n upgrade-delta-demo
+#
+# Edit git-revision to the branch you want the map committed to -- almost
+# always the branch your demo PR is based on (e.g. main), NOT the PR branch
+# itself, so every PR against that branch benefits from the same map.
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: upgrade-delta-coverage-map-
+spec:
+  pipelineRef:
+    name: upgrade-delta-coverage-map
+  params:
+    - name: git-url
+      value: 'https://github.com/anurag-saran/upgrade-delta'
+    - name: git-revision
+      value: 'main'
+    - name: app-module-dir
+      value: 'sample-app'
+    - name: only-prefix
+      value: 'com/example/payments'
+  workspaces:
+    - name: source
+      persistentVolumeClaim:
+        claimName: upgrade-delta-live-reports
+    - name: maven-settings
+      secret:
+        secretName: lightwell-maven-settings
+    - name: basic-auth
+      secret:
+        secretName: "REPLACE-WITH-YOUR-GIT-PROVIDER-TOKEN-SECRET"
+        # This is the SAME secret PaC injects as {{ git_auth_secret }} in your
+        # PR triggers. Find its current name with:
+        #   oc get repository upgrade-delta -n upgrade-delta-demo -o jsonpath='{.spec.git_provider.secret.name}'

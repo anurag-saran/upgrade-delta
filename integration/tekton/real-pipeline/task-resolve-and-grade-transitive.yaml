@@ -1,0 +1,178 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: resolve-and-grade-transitive
+spec:
+  description: >-
+    Finds and grades transitive dependencies the direct bump silently pulled
+    a different version of -- e.g. bumping jackson-databind to its Lightwell
+    build might also resolve a different (remediated) jackson-core, even
+    though nobody touched jackson-core in pom.xml.
+
+    Mechanism: builds two tiny scratch poms (one pinned to the OLD version
+    of the direct dependency, one to the NEW), runs `mvn dependency:tree` on
+    each, and diffs the resolved version of every transitive artifact. For
+    each one that changed, resolves both its jars and runs the SAME two-hop
+    reachability check the fixture demo uses for acme-codec-via-acme-http-client
+    (analyze --transitive-of), appending each result to the SAME
+    out/scorecard.json the direct dependency's grade is already in -- so one
+    PR comment shows the whole chain.
+
+    This step is best-effort: if a transitive jar can't be resolved (wrong
+    coordinates, not covered by Lightwell, network hiccup), it's skipped with
+    a warning rather than failing the pipeline -- the direct dependency's
+    grade, already computed by live-diff, stands on its own either way.
+  params:
+    - name: group
+      type: string
+      description: groupId of the direct dependency that was bumped
+    - name: artifact
+      type: string
+      description: artifactId of the direct dependency that was bumped
+    - name: old-version
+      type: string
+    - name: new-version
+      type: string
+    - name: app-jar
+      type: string
+      description: Path from resolve-jars' APP_JAR result
+    - name: lightwell-repo
+      type: string
+      default: "https://packages.redhat.com/lightwell/java/remediated"
+    - name: accept-transitive-scope
+      type: string
+      default: "false"
+      description: >-
+        Sign off on de-escalating a transitive whose changed members are all
+        unreachable through the app's call paths into the parent. This is a
+        deliberate policy decision -- default is "false" so nothing gets
+        silently de-escalated; a D-grade transitive stays D (and can fail the
+        gate) unless you explicitly set this to "true".
+    - name: fail-on
+      type: string
+      default: "D"
+      description: Fail this task if any transitive's grade reaches this severity or worse
+  workspaces:
+    - name: source
+    - name: maven-settings
+  results:
+    - name: TRANSITIVE_CHANGES_COUNT
+      description: How many transitive dependencies had their resolved version change
+  steps:
+    - name: detect-and-grade
+      displayName: "Find + grade transitive version changes"
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
+        G="$(params.group)"; A="$(params.artifact)"
+        OV="$(params.old-version)"; NV="$(params.new-version)"
+        LIGHTWELL_REPO="$(params.lightwell-repo)"
+        SIGNOFF="$(params.accept-transitive-scope)"
+        mkdir -p out/transitive
+
+        # --- scratch poms: minimal, single-dependency projects just so
+        # `dependency:tree` will resolve against the real repos ---
+        make_scratch_pom() {
+          local version="$1" outfile="$2"
+          cat > "$outfile" <<POM
+        <project xmlns="http://maven.apache.org/POM/4.0.0">
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>upgrade-delta.scratch</groupId><artifactId>scratch</artifactId><version>1.0</version>
+          <repositories>
+            <repository><id>lightwell-remediated</id><url>${LIGHTWELL_REPO}</url></repository>
+          </repositories>
+          <dependencies>
+            <dependency><groupId>${G}</groupId><artifactId>${A}</artifactId><version>${version}</version></dependency>
+          </dependencies>
+        </project>
+        POM
+        }
+        make_scratch_pom "$OV" out/transitive/old-pom.xml
+        make_scratch_pom "$NV" out/transitive/new-pom.xml
+
+        echo "resolving OLD dependency tree ($G:$A:$OV)..."
+        mvn -B -s "$SETTINGS" -f out/transitive/old-pom.xml dependency:tree \
+          -DoutputFile=out/transitive/old-tree.txt > out/transitive/old-tree.log 2>&1 \
+          || { echo "  ! could not resolve old tree -- see out/transitive/old-tree.log"; }
+
+        echo "resolving NEW dependency tree ($G:$A:$NV)..."
+        mvn -B -s "$SETTINGS" -f out/transitive/new-pom.xml dependency:tree \
+          -DoutputFile=out/transitive/new-tree.txt > out/transitive/new-tree.log 2>&1 \
+          || { echo "  ! could not resolve new tree -- see out/transitive/new-tree.log"; }
+
+        if [ ! -f out/transitive/old-tree.txt ] || [ ! -f out/transitive/new-tree.txt ]; then
+          echo "Could not build one or both dependency trees -- skipping transitive analysis."
+          printf '0' > "$(results.TRANSITIVE_CHANGES_COUNT.path)"
+          exit 0
+        fi
+
+        python3 .upgrade-delta/real-pipeline/scripts/detect_transitive_changes.py \
+          out/transitive/old-tree.txt out/transitive/new-tree.txt \
+          --exclude "$G:$A" \
+          -o out/transitive/changes.json
+
+        COUNT=$(python3 -c "import json; print(len(json.load(open('out/transitive/changes.json'))['transitive_changes']))")
+        printf '%s' "$COUNT" > "$(results.TRANSITIVE_CHANGES_COUNT.path)"
+        [ "$COUNT" = "0" ] && exit 0
+
+        # --- for each transitive change: resolve both jars, then grade it ---
+        python3 -c "
+        import json
+        for c in json.load(open('out/transitive/changes.json'))['transitive_changes']:
+            print(f\"{c['group']}|{c['artifact']}|{c['old_version']}|{c['new_version']}\")
+        " | while IFS='|' read -r TG TA TOV TNV; do
+          [ -z "$TA" ] && continue
+          echo
+          echo "=== grading transitive: $TG:$TA  $TOV -> $TNV ==="
+
+          mvn -B -s "$SETTINGS" dependency:copy \
+            -Dartifact="$TG:$TA:$TOV:jar" -DoutputDirectory=out/transitive -Dmdep.stripVersion=false \
+            || { echo "  ! could not resolve old $TG:$TA:$TOV -- skipping this transitive"; continue; }
+          mvn -B -s "$SETTINGS" dependency:copy \
+            -Dartifact="$TG:$TA:$TNV:jar" -DoutputDirectory=out/transitive -Dmdep.stripVersion=false \
+            -DremoteRepositories="lightwell-remediated::::${LIGHTWELL_REPO}" \
+            || { echo "  ! could not resolve new $TG:$TA:$TNV -- skipping this transitive"; continue; }
+
+          T_OLD_JAR="out/transitive/${TA}-${TOV}.jar"
+          T_NEW_JAR="out/transitive/${TA}-${TNV}.jar"
+          PARENT_OLD_JAR="out/jars/${A}-${OV}.jar"
+          [ -f "$T_OLD_JAR" ] && [ -f "$T_NEW_JAR" ] && [ -f "$PARENT_OLD_JAR" ] || {
+            echo "  ! one of the required jars is missing -- skipping this transitive"; continue; }
+
+          SIGNOFF_FLAG=""
+          [ "$SIGNOFF" = "true" ] && SIGNOFF_FLAG="--accept-transitive-scope"
+          # shellcheck disable=SC2086
+          python3 .upgrade-delta/upgrade_delta.py analyze "$T_OLD_JAR" "$T_NEW_JAR" \
+            --app "$(params.app-jar)" \
+            --old-version "$TOV" --new-version "$TNV" \
+            --library "$TG:$TA" \
+            --transitive-of "$G:$A" \
+            --parent-jar "$PARENT_OLD_JAR" \
+            $SIGNOFF_FLAG \
+            --json "out/transitive/${TA}-delta.json" \
+            --scorecard-compat out/scorecard.json \
+            || echo "  ! grading failed for $TG:$TA -- direct dependency's grade is unaffected"
+        done
+
+        # Gate: if any transitive's grade (after any sign-off) reaches --fail-on
+        # or worse, fail this task -- a transitive can block the build the same
+        # way the direct dependency's grade already can in live-diff.
+        python3 -c "
+        import json, sys
+        order = ['A','B','C','D','F']
+        d = json.load(open('out/scorecard.json'))
+        grades = [(l['recommended']['rating'].get('effective_grade')
+                   or l['recommended']['rating']['grade'])
+                  for l in d['libraries'] if l['transitive']]
+        if not grades:
+            print('no transitive dependencies were successfully graded -- nothing to gate on')
+            sys.exit(0)
+        worst = max(grades, key=order.index)
+        fail_on = '$(params.fail-on)'
+        if order.index(worst) >= order.index(fail_on):
+            print(f'GATE: a transitive dependency grades {worst}, breaching --fail-on {fail_on}')
+            sys.exit(2)
+        " || exit 2

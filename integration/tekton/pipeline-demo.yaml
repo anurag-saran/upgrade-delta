@@ -87,6 +87,7 @@ spec:
         - {name: source, workspace: source}
         - {name: basic-auth, workspace: basic-auth}
       params:
+        - {name: source-label, value: "\U0001F9EA **FIXTURE DEMO** \u2014 fictitious acme-* libraries, always runs on every PR regardless of what changed. For the real analysis of THIS PR's actual change, see the other upgrade-delta comment below (posted by the live pipeline)."}
         - {name: repo-owner, value: $(params.repo-owner)}
         - {name: repo-name, value: $(params.repo-name)}
         - {name: pull-request-number, value: $(params.pull-request-number)}

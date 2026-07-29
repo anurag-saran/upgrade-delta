@@ -752,12 +752,40 @@ def analyze(args):
     new = load_jar(args.new_jar)
     stream = classify_stream(args.old_version, args.new_version)
     delta = diff_jars(old, new)
+
+    # 'machine' is built here (not further down) because two-hop mode needs it
+    # as an input to two_hop_intersect -- it's the exact shape a published
+    # evidence file's "machine" section already has, by design.
+    machine_dict = {
+        "packages": sorted(old["packages"]),
+        "api_removed": [list(k) for k in delta["api_removed"]],
+        "api_modified": [list(k) for k in delta["api_modified"]],
+        "api_incompatible": [list(k) for k in delta["api_incompatible"]],
+        "classes_impl_changed": delta["classes_impl_changed"],
+    }
+
+    transitive_mode = bool(args.transitive_of)
+    if transitive_mode and not args.parent_jar:
+        print("FATAL: --transitive-of requires --parent-jar", file=sys.stderr)
+        sys.exit(2)
+
     app_ix = None
     if args.app:
         app_loaded = load_jar(args.app)
-        app_ix = intersect_app(app_loaded, old, delta)
-        app_ix["internal_chain"] = internal_chain_intersect(app_loaded, old, delta)
-    rating = rate(stream, delta, app_ix)
+        if transitive_mode:
+            parent_model = load_jar(args.parent_jar)
+            app_ix = two_hop_intersect(app_loaded, parent_model, machine_dict)
+            if app_ix is None:
+                # app never calls the parent at all -- nothing to grade through it
+                app_ix = {"touched_changed": [], "touched_incompatible": [],
+                          "lib_call_sites": 0, "lib_classes_used": [],
+                          "reachable_parent_methods": 0, "reachable_parent_classes": 0,
+                          "via": {}}
+        else:
+            app_ix = intersect_app(app_loaded, old, delta)
+            app_ix["internal_chain"] = internal_chain_intersect(app_loaded, old, delta)
+    rating = rate(stream, delta, app_ix, transitive=transitive_mode,
+                  signoff=args.accept_transitive_scope)
 
     report = {
         "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
@@ -775,12 +803,8 @@ def analyze(args):
         # machine section: everything a consumer-side scan needs to re-run the
         # app intersection locally without the jars
         "machine": {
-            "packages": sorted(old["packages"]),
-            "api_removed": [list(k) for k in delta["api_removed"]],
+            **machine_dict,
             "api_added": [list(k) for k in delta["api_added"]],
-            "api_modified": [list(k) for k in delta["api_modified"]],
-            "api_incompatible": [list(k) for k in delta["api_incompatible"]],
-            "classes_impl_changed": delta["classes_impl_changed"],
             "classes_build_noise": delta["classes_build_noise"],
             "classes_common": delta["classes_common"],
             "impl_churn_pct": delta["impl_churn_pct"],
@@ -853,35 +877,64 @@ def analyze(args):
         # whether the grade came from a whole-project scan against published
         # evidence, or a live pom.xml-diff-triggered single-dependency check.
         eff2 = rating.get("effective_grade")
-        histogram = {rating["lane"]: {"direct": 1, "transitive": 0}}
-        compat = {
-            "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
-            "date": str(date.today()), "app": report["app"] or "app",
-            "libraries": [{
-                "library": report["library"], "transitive": False, "parent": None,
-                # 'installed' and 'call_sites' are part of scan()'s library
-                # schema; summary/pr-comment read them directly, so a
-                # scorecard-compat payload must supply them too.
-                "installed": args.old_version,
-                "call_sites": (app_ix or {}).get("lib_call_sites", 0),
-                "recommended": {"old": args.old_version, "new": args.new_version,
-                                 "rating": rating, "ix": app_ix or {}},
-                "worst": {"old": args.old_version, "new": args.new_version, "rating": rating},
-            }],
-            "unrated_packages": [], "heuristics": [], "hazards": [],
-            "shipped_dependencies": [],
-            "project": {
-                "headline_grade": eff2 or rating["grade"],
-                "headline_note": "grade for this specific dependency bump, from a live "
-                                  "pom.xml-diff -- not a whole-project scan",
-                "worst_without_best_path": rating["grade"],
-                "rated_libraries": 1, "unrated_package_roots": 0,
-                "lane_histogram": histogram,
-            },
+        new_entry = {
+            "library": report["library"],
+            "transitive": transitive_mode,
+            "parent": args.transitive_of if transitive_mode else None,
+            # 'installed' and 'call_sites' are part of scan()'s library
+            # schema; summary/pr-comment read them directly, so a
+            # scorecard-compat payload must supply them too.
+            "installed": args.old_version,
+            "call_sites": (app_ix or {}).get("lib_call_sites", 0),
+            "recommended": {"old": args.old_version, "new": args.new_version,
+                             "rating": rating, "ix": app_ix or {}},
+            "worst": {"old": args.old_version, "new": args.new_version, "rating": rating},
+        }
+
+        # If the file already exists (a prior analyze --scorecard-compat run
+        # for a sibling dependency -- e.g. the direct dependency was already
+        # written, and this call is grading a transitive it pulled in),
+        # APPEND to it instead of overwriting, so one PR comment shows both.
+        if os.path.exists(args.scorecard_compat):
+            with open(args.scorecard_compat) as f:
+                compat = json.load(f)
+            compat["libraries"].append(new_entry)
+        else:
+            compat = {
+                "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
+                "date": str(date.today()), "app": report["app"] or "app",
+                "libraries": [new_entry],
+                "unrated_packages": [], "heuristics": [], "hazards": [],
+                "shipped_dependencies": [],
+                "project": {},
+            }
+
+        # Recompute the project-level rollup across EVERY entry now present,
+        # not just this one -- the worst grade of any dependency wins.
+        def _eff(lib):
+            r = lib["recommended"]["rating"]
+            return r.get("effective_grade") or r["grade"]
+        worst_rec = max((_eff(l) for l in compat["libraries"]), key=lambda g: GRADE_ORDER.index(g))
+        worst_any = max((l["worst"]["rating"]["grade"] for l in compat["libraries"]),
+                         key=lambda g: GRADE_ORDER.index(g))
+        histogram = {}
+        for l in compat["libraries"]:
+            lane = l["recommended"]["rating"]["lane"]
+            bucket = histogram.setdefault(lane, {"direct": 0, "transitive": 0})
+            bucket["transitive" if l["transitive"] else "direct"] += 1
+        compat["project"] = {
+            "headline_grade": worst_rec,
+            "headline_note": "grade for this specific dependency bump (and anything it "
+                              "transitively pulled in), from a live pom.xml-diff -- not a "
+                              "whole-project scan",
+            "worst_without_best_path": worst_any,
+            "rated_libraries": len(compat["libraries"]), "unrated_package_roots": 0,
+            "lane_histogram": histogram,
         }
         with open(args.scorecard_compat, "w") as f:
             json.dump(compat, f, indent=2)
-        print(f"  scorecard (compat): {args.scorecard_compat}")
+        print(f"  scorecard (compat): {args.scorecard_compat} "
+              f"({len(compat['libraries'])} librar{'y' if len(compat['libraries'])==1 else 'ies'} total)")
     return report
 
 
@@ -2320,7 +2373,18 @@ def main():
     a.add_argument("--routing-payload", help="write the affected-code payload for the "
                    "consumer-side test router (requires --app)")
     a.add_argument("--scorecard-compat", help="write a scan()-schema-compatible scorecard.json "
-                   "so upgrade-delta-summary/upgrade-delta-pr-comment work unchanged")
+                   "so upgrade-delta-summary/upgrade-delta-pr-comment work unchanged. If this "
+                   "file already exists, the new library is APPENDED to it instead of "
+                   "overwriting -- lets a direct dependency and its transitive dependencies "
+                   "land in the same scorecard/PR comment.")
+    a.add_argument("--transitive-of", help="GROUP:ARTIFACT of the DIRECT dependency that pulls "
+                   "this one in. Switches to two-hop reachability: --app must reach this "
+                   "library only THROUGH --parent-jar, not directly.")
+    a.add_argument("--parent-jar", help="the direct dependency's OLD jar (already resolved) -- "
+                   "required with --transitive-of, used as the two-hop BFS starting point")
+    a.add_argument("--accept-transitive-scope", action="store_true", help="sign off on "
+                   "de-escalating a transitive whose changed members are all unreachable "
+                   "through the app's call paths into the parent")
     a.set_defaults(fn=analyze)
 
     s = sub.add_parser("scan", help="score a whole application against published delta reports")

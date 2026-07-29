@@ -36,6 +36,13 @@ spec:
     - name: fail-on
       type: string
       default: "D"
+    - name: accept-transitive-scope
+      type: string
+      default: "false"
+      description: >-
+        Sign off on de-escalating a transitive dependency whose changed
+        members are all unreachable through the app's call paths into the
+        parent. Default "false" -- nothing gets silently de-escalated.
     - name: coverage-map
       type: string
       default: "target/jacoco-per-test-coverage.json"
@@ -128,9 +135,29 @@ spec:
         - {name: app-jar, value: $(tasks.resolve-jars.results.APP_JAR)}
         - {name: fail-on, value: $(params.fail-on)}
 
+    - name: grade-transitive
+      displayName: "5b. Find + grade transitives the bump silently pulled in"
+      runAfter: [live-diff]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+      taskRef: {name: resolve-and-grade-transitive}
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: maven-settings, workspace: maven-settings}
+      params:
+        - {name: group, value: $(tasks.detect-pom-changes.results.CHANGED_GROUP)}
+        - {name: artifact, value: $(tasks.detect-pom-changes.results.CHANGED_ARTIFACT)}
+        - {name: old-version, value: $(tasks.detect-pom-changes.results.CHANGED_OLD_VERSION)}
+        - {name: new-version, value: $(tasks.detect-pom-changes.results.CHANGED_NEW_VERSION)}
+        - {name: app-jar, value: $(tasks.resolve-jars.results.APP_JAR)}
+        - {name: accept-transitive-scope, value: $(params.accept-transitive-scope)}
+        - {name: fail-on, value: $(params.fail-on)}
+
     - name: select-tests
       displayName: "6. Pick which tests this upgrade owes"
-      runAfter: [live-diff]
+      runAfter: [grade-transitive]
       when:
         - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
           operator: in
@@ -170,6 +197,7 @@ spec:
         - {name: source, workspace: source}
         - {name: basic-auth, workspace: basic-auth}
       params:
+        - {name: source-label, value: "\u2705 **LIVE ANALYSIS** \u2014 real jars, downloaded and graded for THIS PR's actual pom.xml change."}
         - {name: repo-owner, value: $(params.repo-owner)}
         - {name: repo-name, value: $(params.repo-name)}
         - {name: pull-request-number, value: $(params.pull-request-number)}
@@ -178,3 +206,4 @@ spec:
     - {name: LIGHTWELL_ADOPTIONS_COUNT, value: $(tasks.detect-pom-changes.results.LIGHTWELL_ADOPTIONS_COUNT)}
     - {name: COVERAGE_PCT_EXACT_MATCH, value: $(tasks.live-coverage.results.COVERAGE_PCT_EXACT_MATCH)}
     - {name: PROJECT_GRADE_RECOMMENDED_PATH, value: $(tasks.live-diff.results.PROJECT_GRADE_RECOMMENDED_PATH)}
+    - {name: TRANSITIVE_CHANGES_COUNT, value: $(tasks.grade-transitive.results.TRANSITIVE_CHANGES_COUNT)}

@@ -20,6 +20,13 @@ spec:
     unmodified whether this runs in the upgrade-delta demo repo or a target
     application's own repo via the live pipeline.
   params:
+    - name: source-label
+      type: string
+      default: "upgrade-delta"
+      description: >-
+        Shown at the top of the comment so it's obvious which pipeline
+        produced it -- this Task is reused by both the fixture demo and the
+        live pipeline, and both can comment on the same PR.
     - name: repo-owner
       type: string
       default: ""
@@ -56,11 +63,13 @@ spec:
 
         BADGE = {"A": "\U0001f7e2", "B": "\U0001f7e1", "C": "\U0001f7e1", "D": "\U0001f534", "F": "\U0001f534"}
         DEFAULT_BADGE = "\u26aa"
+        SOURCE_LABEL = "$(params.source-label)"
 
         r = json.load(open("out/scorecard.json"))
         p = r["project"]
         g = p["headline_grade"] or "\u2014"
-        lines = [f"## {BADGE.get(g, DEFAULT_BADGE)} upgrade-delta: project grade **{g}**",
+        lines = [f"### {SOURCE_LABEL}",
+                 f"## {BADGE.get(g, DEFAULT_BADGE)} upgrade-delta: project grade **{g}**",
                  f"*{p['headline_note']}* \u2014 {p['rated_libraries']} rated dependencies, "
                  f"{p['unrated_package_roots']} unrated package roots"]
         if p.get("worst_without_best_path") and p["worst_without_best_path"] != g:

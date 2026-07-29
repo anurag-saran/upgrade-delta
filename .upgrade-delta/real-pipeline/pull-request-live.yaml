@@ -25,6 +25,7 @@ metadata:
     pipelinesascode.tekton.dev/task-6: ".upgrade-delta/real-pipeline/task-upgrade-delta-select-tests.yaml"
     pipelinesascode.tekton.dev/task-7: ".upgrade-delta/real-pipeline/task-upgrade-delta-summary.yaml"
     pipelinesascode.tekton.dev/task-8: ".upgrade-delta/real-pipeline/task-upgrade-delta-pr-comment.yaml"
+    pipelinesascode.tekton.dev/task-9: ".upgrade-delta/real-pipeline/task-resolve-and-grade-transitive.yaml"
   name: upgrade-delta-live-pr
 spec:
   pipelineRef:
@@ -44,8 +45,10 @@ spec:
       value: '.'                       # change if pom.xml is in a subdirectory/module
     - name: fail-on
       value: 'D'
+    - name: accept-transitive-scope
+      value: 'false'                   # set 'true' only as a deliberate sign-off decision
     - name: coverage-map
-      value: 'target/jacoco-per-test-coverage.json'   # optional; falls open to full suite if missing
+      value: 'sample-app/coverage-map.json'   # optional; falls open to full suite if missing
     - name: tests-dir
       value: 'src/test/java'
     - name: repo-owner
@@ -59,7 +62,12 @@ spec:
   workspaces:
     - name: source
       persistentVolumeClaim:
-        claimName: upgrade-delta-reports   # reuse the same reports PVC from the demo setup
+        # SEPARATE from the fixture demo's PVC on purpose -- both pipelines
+        # trigger on every PR and run concurrently. Sharing one PVC caused a
+        # real collision (one pipeline's git-clone wiping files mid-checkout
+        # while the other was still reading them). Create this PVC once:
+        #   oc apply -f deploy/11-live-reports-pvc.yaml
+        claimName: upgrade-delta-live-reports
     - name: maven-settings
       secret:
         secretName: lightwell-maven-settings   # same secret the demo's sample-app already uses

@@ -29,6 +29,9 @@ spec:
   workspaces:
     - name: source
     - name: maven-settings
+    - name: basic-auth
+      description: PaC-provided git auth secret, for pushing the coverage map back
+      optional: true
   tasks:
     - name: clone
       displayName: "1. Clone the repo"
@@ -44,7 +47,9 @@ spec:
       workspaces:
         - {name: source, workspace: source}
         - {name: maven-settings, workspace: maven-settings}
+        - {name: basic-auth, workspace: basic-auth}
       params:
         - {name: app-module-dir, value: $(params.app-module-dir)}
         - {name: head-sha, value: $(params.git-revision)}
         - {name: only-prefix, value: $(params.only-prefix)}
+        - {name: git-branch, value: $(params.git-revision)}

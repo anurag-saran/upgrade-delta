@@ -34,11 +34,21 @@ spec:
         the map to the application's own classes instead of every library class.
     - name: out-file
       type: string
-      default: "target/jacoco-per-test-coverage.json"
-      description: Path (relative to app-module-dir) to write the coverage map to
+      default: "coverage-map.json"
+      description: >-
+        Path (relative to app-module-dir) to write the coverage map to. Must
+        NOT be under target/ -- that directory is gitignored and wiped by
+        every fresh clone + build, so a map written there would never survive
+        to the next PR's run. This file needs to be committed to git.
+    - name: git-branch
+      type: string
+      description: The branch to commit and push the coverage map to
   workspaces:
     - name: source
     - name: maven-settings
+    - name: basic-auth
+      description: PaC-provided git auth secret (key git-provider-token), used to push the map back
+      optional: true
   steps:
     - name: collect
       displayName: "Run the full suite once, per-test, to build the coverage map"
@@ -95,3 +105,35 @@ spec:
         for name, entry in list(d['tests'].items())[:5]:
             print(f\"    {name}: covers {len(entry['covers'])} app class(es)\")
         "
+    - name: commit-and-push
+      displayName: "Commit the coverage map to git so it survives future runs"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        OUT="$(params.app-module-dir)/$(params.out-file)"
+        BRANCH="$(params.git-branch)"
+        TOKEN_FILE="$(workspaces.basic-auth.path)/git-provider-token"
+
+        if [ ! -f "$TOKEN_FILE" ]; then
+          echo "No git auth token available -- printing the map instead of committing it."
+          echo "Copy $OUT into your repo manually and commit it, or wire up basic-auth."
+          exit 0
+        fi
+
+        git config --global --add safe.directory "$(workspaces.source.path)"
+        git config user.email "upgrade-delta-bot@localhost"
+        git config user.name "upgrade-delta coverage-map bot"
+
+        REMOTE_URL=$(git remote get-url origin | sed -E 's#https://#https://x-access-token:'"$(cat "$TOKEN_FILE")"'@#')
+        git remote set-url origin "$REMOTE_URL"
+
+        git add "$OUT"
+        if git diff --cached --quiet; then
+          echo "coverage map unchanged -- nothing to commit"
+          exit 0
+        fi
+        git commit -m "chore: refresh per-test coverage map ($(date +%Y-%m-%d))"
+        git push origin "HEAD:$BRANCH"
+        echo "pushed updated coverage map to $BRANCH"

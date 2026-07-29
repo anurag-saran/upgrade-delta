@@ -1,0 +1,27 @@
+# Dedicated "reports" volume for the LIVE pipeline (upgrade-delta-live-pr).
+#
+# SEPARATE from deploy/10-reports-pvc.yaml (the fixture demo's PVC) ON PURPOSE.
+# Both the demo pipeline and the live pipeline trigger on every PR and run
+# concurrently. Sharing one PVC caused a real, confirmed bug: one pipeline's
+# git-clone step wiping the workspace directory mid-checkout while the other
+# pipeline was still reading files out of it -- `git init` then failed with
+# "could not write config file: No such file or directory" because the
+# directory it was writing into had just been deleted out from under it.
+#
+# Giving each pipeline its own PVC/workspace removes the collision entirely.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: upgrade-delta-live-reports
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+spec:
+  accessModes:
+    - ReadWriteMany            # matches the demo PVC's access mode; RWO also works
+                                # if you never mount this from more than one pod at once
+  resources:
+    requests:
+      storage: 2Gi              # a bit more headroom than the demo's 1Gi -- this one
+                                 # also holds downloaded jars and a real Maven build
+  # storageClassName: nfs-csi  # <-- uncomment and set to your RWX StorageClass
