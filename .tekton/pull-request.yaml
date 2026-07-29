@@ -22,18 +22,21 @@ spec:
       value: '{{ repo_url }}'
     - name: git-revision
       value: '{{ revision }}'
+    # PaC fills these from the PR event so the CAB comment can be posted back:
     - name: repo-owner
       value: '{{ repo_owner }}'
     - name: repo-name
       value: '{{ repo_name }}'
     - name: pull-request-number
       value: '{{ pull_request_number }}'
+    # Optional: your scorecard viewer Route host, for clickable links in the summary log.
     - name: scorecard-route-host
-      value: 'scorecard-upgrade-delta-demo.apps.asaran.na-launch.com'
+      value: ''
   workspaces:
     - name: source
       persistentVolumeClaim:
         claimName: upgrade-delta-reports
+    # PaC injects the git provider token here; the pr-comment task reads it to post.
     - name: basic-auth
       secret:
         secretName: "{{ git_auth_secret }}"

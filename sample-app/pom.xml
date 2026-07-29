@@ -23,7 +23,7 @@
     <!-- jackson-databind deliberately left on the plain community version
          here: this is the dependency the demo PR adopts Lightwell for.
          Do not "fix" this one to an rhlw- version in this baseline file. -->
-    <jackson.version>2.13.4.rhlw-00001</jackson.version>
+    <jackson.version>2.13.4</jackson.version>
     <commons-io.version>2.11.0.rhlw-00001</commons-io.version>
     <httpclient.version>4.5.12.rhlw-00001</httpclient.version>
     <json-smart.version>2.5.0.rhlw-00001</json-smart.version>
@@ -130,6 +130,7 @@
         <!-- upgrade-delta's router writes target/upgrade-delta/surefire-includes.txt;
              point Surefire at it to run exactly the selected tests. -->
         <configuration>
+          <includesFile>${project.basedir}/target/upgrade-delta/surefire-includes.txt</includesFile>
           <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
         </configuration>
       </plugin>
