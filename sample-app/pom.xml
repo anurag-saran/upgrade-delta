@@ -130,6 +130,7 @@
         <!-- upgrade-delta's router writes target/upgrade-delta/surefire-includes.txt;
              point Surefire at it to run exactly the selected tests. -->
         <configuration>
+          <includesFile>${project.basedir}/target/upgrade-delta/surefire-includes.txt</includesFile>
           <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
         </configuration>
       </plugin>

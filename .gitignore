@@ -1,3 +1,30 @@
+# --- secrets: never commit ---
 .env.local
+.env
+*.pem
+# public keys are fine
+!examples/**/*.pem.pub
+# Lightwell Maven creds -- use settings.xml.template instead
+settings.xml
+sample-app/settings.xml
+
+# --- generated at runtime / reproduced by the pipeline & demo.sh ---
+out/
+site/
+real-jars/
+samples/jars/
+# re-fetched by lightwell-report.sh / lightwell-app-report.sh
+lightwell-jars/*.jar
+# real Lightwell + Central jars, re-fetched by fetch-lightwell-app-jars.sh
+sample-app/lib/
+target/
+
+# --- OS / editor / python cruft ---
+.DS_Store
+__MACOSX/
 __pycache__/
+*.pyc
+*.class
+opc.tar.gz
+# scratch output of fetch-lightwell-catalog-metadata.sh
 lightwell-catalog-metadata/
