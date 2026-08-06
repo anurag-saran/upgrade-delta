@@ -1,23 +1,17 @@
 {
   "schema": "upgrade-delta/deploy-gate/v1",
   "app": "payments-service-1.0.0.jar",
-  "date": "2026-07-18",
-  "project_grade": "B",
+  "date": "2026-08-06",
+  "project_grade": "F",
   "build_stage": {
-    "mode": "TARGETED SELECTION",
-    "tests_final": 7,
-    "suite": 11,
+    "mode": "FULL SUITE (fail-closed)",
+    "tests_final": 6,
+    "suite": 6,
     "mandatory_verified": [
       "BootSmokeIT"
     ]
   },
-  "signoffs": [
-    {
-      "library": "acme-codec",
-      "signed_off": true,
-      "evidence": "two-hop"
-    }
-  ],
+  "signoffs": [],
   "obligations_downstream": [
     {
       "id": "canary",

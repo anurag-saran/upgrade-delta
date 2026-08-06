@@ -10,9 +10,10 @@ app's bytecode, grades the risk, routes only the tests the change owes, and prod
 scorecard a change board can audit — all before anyone approves the merge.*
 
 ### The verified numbers this demo produces
-Grade **B** · coverage **61%** (11 drop-in / 3 serviced-elsewhere / 4 uncovered) · **7 of
-11 test classes** selected · **8 test methods** executed, **0 failed**. (7 classes but 8
-methods is correct — one class holds two methods.)
+Grade **F** · coverage **59%** (16 drop-in / 1 serviced-elsewhere / 10 uncovered) ·
+scorecard rows: **spring-core B**, **json-path C**, **snakeyaml F** (reachable removed
+`Constructor(TypeDescription, Collection)` — the gate fires). Coverage and scan both read
+`examples/demo-jars/payments-service.sbom.json`.
 
 ### Before you present (do NOT do live)
 - Two tabs open: your GitHub repo, and the OpenShift console on project
@@ -58,29 +59,27 @@ It finishes in about a minute (the fixtures are small).
 The graph is deliberately plain; the data is one click away, in increasing richness:
 
 1. **Logs tab → the `summary` task** — a single VERDICT banner, the fastest read:
-   > `Project grade : B  (would be F without the best remediation paths)`
-   > `Coverage : 61% drop-in (11 / 3 / 4 of 18)` · `Tests routed : 7 of 11` · per-dependency
-   > grades + lanes + the codec `D→B (signed off)` line + open deploy obligations.
+   > `Project grade : F  (snakeyaml reachable breaking Constructor)`
+   > `Coverage : 59% drop-in (16 / 1 / 10 of 27)` · scorecard rows spring-core B /
+   > json-path C / snakeyaml F.
    Open this first — it *is* the executive summary, printed for you.
 2. **Output tab** — the same numbers as machine-readable PipelineRun **Results** (the audit
    trail): `PROJECT_GRADE`, `GRADE_WITHOUT_REMEDIATION`, `COVERAGE_PCT`, `COVERED/NEAR/
    UNCOVERED`, `TESTS_SELECTED/PASSED/FAILED`, `SUITE_SIZE`.
 3. **Logs tab → the `scan` task** — the full narrative if someone wants to see the working:
-   per-dependency reasons, the two-hop reachability chain, the config/reflection heuristic.
+   per-dependency reasons, reachability, the config/reflection heuristic.
 
 Walk the Results table:
 
 | Result | Value | Say |
 |---|---|---|
-| `PROJECT_GRADE` | **B** | the worst pending grade across the best remediation path |
-| `COVERAGE_PCT` / `COVERED` / `NEAR` / `UNCOVERED` | **61 / 11 / 3 / 4** | 11 deps have a drop-in remediated build; 4 have none |
-| `TESTS_SELECTED` / `SUITE_SIZE` | **7 / 11** | ran 7 of 11 test classes… |
-| `TESTS_PASSED` / `TESTS_FAILED` | **8 / 0** | …which is 8 test methods, all green |
+| `PROJECT_GRADE` | **F** | snakeyaml will break — migrate `Constructor(TypeDescription, Collection)` first |
+| `COVERAGE_PCT` / `COVERED` / `NEAR` / `UNCOVERED` | **59 / 16 / 1 / 10** | 16 deps have a drop-in remediated build; snakeyaml is uncovered |
+| `TESTS_SELECTED` / `SUITE_SIZE` | **6 / 6** | F/C lanes force full-suite fallback |
 
-> "Land this line: **without reachability analysis this project grades F.** Most
-> dependencies look scary until you prove which code paths the app actually reaches. The
-> tool didn't lower the bar — it measured the app and found the fear was unearned on the
-> paths that matter."
+> "Land this line: **reachability turns a library-wide F into an app-specific call site.**
+> snakeyaml's removed Constructor is not theoretical — `ConfigLoader` invokes it. json-path
+> is C (you call it, nothing you touch changed shape). spring-core is B (Lightwell z-stream)."
 
 ## Beat 4 — The scorecard reveal (3 min)
 
@@ -90,9 +89,9 @@ story.)*
 Open the viewer Route: `https://<route>/out/reports/scorecard.html`. Walk the rendered
 report:
 
-- **Per-dependency grades** — `acme-http-client` → B, `acme-logging` takes the A "fast-lane"
-  backport over the F forward-upgrade, `acme-json` → B.
-- **The de-escalation story — the money slide.** `acme-codec` is a transitive that grades
+- **Per-dependency grades** — `json-path` → B, `spring-core` takes the A "fast-lane"
+  backport over the F forward-upgrade, `jackson-databind` → B.
+- **The de-escalation story — the money slide.** `snakeyaml` is a transitive that grades
   **D**. But method-level reachability proves no changed member is reachable through this
   app's call paths, so it's de-escalated to **B with sign-off**:
   > "This is class-level vs method-level precision. Class-granular analysis would flag the
@@ -139,7 +138,7 @@ The run goes **red** at the `scan` step. The cluster enforced that a de-escalati
 an explicit human decision — it isn't a suggestion the tool can grant itself.
 
 ### Lever B — untag the mandatory gate test
-In a PR, open `samples/tests/BootSmokeIT.java` and remove its `@Tag("upgrade-gate")` line.
+In a PR, open `examples/tests/BootSmokeIT.java` and remove its `@Tag("upgrade-gate")` line.
 
 > "Someone quietly untags the mandatory boot test. A naive router would just select fewer
 > tests and stay green — silently dropping a required gate."

@@ -1,42 +1,41 @@
 {
   "schema": "upgrade-delta/selection-report/v1",
-  "date": "2026-07-18",
+  "date": "2026-08-06",
   "app": "payments-service-1.0.0.jar",
-  "mode": "TARGETED SELECTION",
+  "mode": "FULL SUITE (fail-closed)",
   "coverage_provenance": {
-    "build": "#1288",
-    "sha": "abc1234",
-    "age_commits": 3,
-    "head_sha": "def5678"
+    "build": "payments-service-real",
+    "sha": "demo",
+    "age_commits": 0,
+    "head_sha": "demo"
   },
   "selected": [
     {
-      "test": "CheckoutIT",
-      "reason": "covers com.acme.payments.GatewayClient <- acme-http-client 4.5.13 -> 4.5.14 [direct] & acme-codec 1.11 -> 1.15 [two-hop, signed-off] & acme-json 2.13.4 -> 2.13.4.2 [direct]; covers com.acme.payments.PaymentService <- acme-logging 1.12.1 -> 1.12.2 [direct]"
+      "test": "BootSmokeIT",
+      "reason": "full-suite fallback: a pending upgrade's lane is Partial/Full regression \u2014 coverage of the old code says nothing about the new code paths"
+    },
+    {
+      "test": "ConfigLoaderTest",
+      "reason": "full-suite fallback: a pending upgrade's lane is Partial/Full regression \u2014 coverage of the old code says nothing about the new code paths"
     },
     {
       "test": "GatewayClientTest",
-      "reason": "covers com.acme.payments.GatewayClient <- acme-http-client 4.5.13 -> 4.5.14 [direct] & acme-codec 1.11 -> 1.15 [two-hop, signed-off] & acme-json 2.13.4 -> 2.13.4.2 [direct]"
+      "reason": "full-suite fallback: a pending upgrade's lane is Partial/Full regression \u2014 coverage of the old code says nothing about the new code paths"
     },
     {
-      "test": "MetricsTest",
-      "reason": "not in coverage map \u2014 unknown means run"
+      "test": "LedgerTest",
+      "reason": "full-suite fallback: a pending upgrade's lane is Partial/Full regression \u2014 coverage of the old code says nothing about the new code paths"
     },
     {
       "test": "PaymentServiceTest",
-      "reason": "covers com.acme.payments.PaymentService <- acme-logging 1.12.1 -> 1.12.2 [direct]"
+      "reason": "full-suite fallback: a pending upgrade's lane is Partial/Full regression \u2014 coverage of the old code says nothing about the new code paths"
     },
     {
-      "test": "RefundFlowTest",
-      "reason": "covers com.acme.payments.PaymentService <- acme-logging 1.12.1 -> 1.12.2 [direct]"
+      "test": "RefundServiceTest",
+      "reason": "full-suite fallback: a pending upgrade's lane is Partial/Full regression \u2014 coverage of the old code says nothing about the new code paths"
     }
   ],
-  "widened": [
-    {
-      "test": "LedgerTest",
-      "reason": "covers app code modified since the coverage map's SHA \u2014 widening rule, runs regardless of selection"
-    }
-  ],
+  "widened": [],
   "mandatory": {
     "entries": [
       {
@@ -44,34 +43,17 @@
         "obligation": "boot-test"
       }
     ],
-    "appended": [
+    "appended": [],
+    "already_selected_by_coverage": [
       "BootSmokeIT"
     ],
-    "already_selected_by_coverage": [],
     "note": "mandatory tests run even when the coverage join selects nothing"
   },
-  "skipped": [
-    {
-      "test": "AuditTrailTest",
-      "reason": "no covered class intersects any affected class"
-    },
-    {
-      "test": "ContractRoundTripIT",
-      "reason": "no covered class intersects any affected class"
-    },
-    {
-      "test": "FxRateTest",
-      "reason": "no covered class intersects any affected class"
-    },
-    {
-      "test": "SerializationTest",
-      "reason": "no covered class intersects any affected class"
-    }
-  ],
+  "skipped": [],
   "totals": {
-    "suite": 11,
+    "suite": 6,
     "selected": 6,
-    "mandatory_appended": 1,
-    "final": 7
+    "mandatory_appended": 0,
+    "final": 6
   }
 }

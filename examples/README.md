@@ -1,13 +1,10 @@
 # Committed examples
 
-Generated from the sample corpus so the repo is browsable without running anything:
+Real-library demo corpus:
 
-- `example-delta-report.html` — the published report card for the A-grade backport
-- `scorecard-signed.json` (+ `.sig`, and the public key) — a sealed project scorecard;
-  verify it yourself: `python3 ../upgrade_delta.py verify scorecard-signed.json --pub evidence-signing.pem.pub`
-- `routing.json` — the affected-code payload the scanner hands to the test router
-- `selection-report.json` / `deploy-gate.json` — the router's outputs for that payload
-- `pr-comment.md` — the same scorecard rendered as a Renovate-PR comment
+- `demo-jars/payments-service-1.0.0.jar` + `payments-service.sbom.json` — rebuilt sample-app
+- `demo-jars/payments-tests-1.0.0.jar` — MiniRunner + `com.example.payments` tests
+- `evidence/{json-path,snakeyaml,spring-core}.json` — analyze output for the three graded rows
+- `tests/` — test sources + coverage map the router uses
 
-
-Everything else under `out/` is reproducible: run `./demo.sh`.
+Browsable reports are produced by `./demo.sh` into `out/reports/` (coverage.html, scorecard.html).

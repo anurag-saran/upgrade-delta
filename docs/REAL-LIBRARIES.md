@@ -1,9 +1,9 @@
 # Using real libraries — three tiers of "real"
 
-The fixture demo uses mock `acme-*` jars so the app-intersection story has an app whose
-versions we control. To make it real with actual Lightwell artifacts, pick the tier that
-matches how much realness you need. Each tier is strictly more real (and more setup) than
-the last.
+The committed demo corpus is real libraries now: `examples/evidence/{json-path,snakeyaml,spring-core}.json`
+against `examples/demo-jars/payments-service-1.0.0.jar` (and its CycloneDX SBOM). The old
+tier that matches how much realness you need. Each tier is strictly more real (and more
+setup) than the last.
 
 ---
 

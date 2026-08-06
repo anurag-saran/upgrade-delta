@@ -114,7 +114,7 @@ scan a CI gate.
 python3 test_router.py routing.json \
     --coverage coverage.json --tests-dir src/test/java \
     --head-sha $(git rev-parse HEAD) \
-    [--changed-since-map com.acme.Foo,com.acme.Bar] \
+    [--changed-since-map com.example.payments.Ledger,com.example.payments.Bar] \
     --out-dir target/upgrade-delta
 ```
 

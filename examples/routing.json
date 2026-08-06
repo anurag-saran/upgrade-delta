@@ -4,21 +4,21 @@
     "name": "upgrade-delta",
     "version": "0.1.0"
   },
-  "date": "2026-07-18",
+  "date": "2026-08-06",
   "app": "payments-service-1.0.0.jar",
-  "project_grade": "B",
-  "shrink_allowed": true,
+  "project_grade": "F",
+  "shrink_allowed": false,
   "upgrades": [
     {
-      "library": "acme-http-client",
-      "path": "4.5.13 -> 4.5.14",
-      "lane": "Targeted tests",
-      "grade": "B",
+      "library": "json-path",
+      "path": "2.6.0 -> 2.8.0.rhlw-00001",
+      "lane": "Test each module that uses it",
+      "grade": "C",
       "effective_grade": null,
       "transitive": false,
       "parent": null,
       "affected_app_classes": [
-        "com.acme.payments.GatewayClient"
+        "com.example.payments.PaymentService"
       ],
       "affected_app_classes_changed": [],
       "confidence": {
@@ -27,49 +27,34 @@
       }
     },
     {
-      "library": "acme-codec",
-      "path": "1.11 -> 1.15",
-      "lane": "Targeted tests",
-      "grade": "D",
-      "effective_grade": "B",
-      "transitive": true,
-      "parent": "acme-http-client",
-      "affected_app_classes": [
-        "com.acme.payments.GatewayClient"
-      ],
-      "affected_app_classes_changed": [],
-      "confidence": {
-        "evidence": "two-hop",
-        "signed_off": true
-      }
-    },
-    {
-      "library": "acme-json",
-      "path": "2.13.4 -> 2.13.4.2",
-      "lane": "Targeted tests",
-      "grade": "B",
+      "library": "snakeyaml",
+      "path": "1.30 -> 1.33",
+      "lane": "Fix your code first",
+      "grade": "F",
       "effective_grade": null,
       "transitive": false,
       "parent": null,
       "affected_app_classes": [
-        "com.acme.payments.GatewayClient"
+        "com.example.payments.ConfigLoader"
       ],
-      "affected_app_classes_changed": [],
+      "affected_app_classes_changed": [
+        "com.example.payments.ConfigLoader"
+      ],
       "confidence": {
         "evidence": "direct",
         "signed_off": false
       }
     },
     {
-      "library": "acme-logging",
-      "path": "1.12.1 -> 1.12.2",
-      "lane": "Fast lane",
-      "grade": "A",
+      "library": "spring-core",
+      "path": "5.3.18 -> 5.3.18.rhlw-00003",
+      "lane": "Test the parts you use",
+      "grade": "B",
       "effective_grade": null,
       "transitive": false,
       "parent": null,
       "affected_app_classes": [
-        "com.acme.payments.PaymentService"
+        "com.example.payments.PaymentService"
       ],
       "affected_app_classes_changed": [],
       "confidence": {

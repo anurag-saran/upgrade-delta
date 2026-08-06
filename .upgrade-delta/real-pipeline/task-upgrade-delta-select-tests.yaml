@@ -14,10 +14,10 @@ spec:
   params:
     - name: coverage-map
       type: string
-      default: samples/tests/coverage.json
+      default: examples/tests/coverage.json
     - name: tests-dir
       type: string
-      default: samples/tests
+      default: examples/tests
     - name: head-sha
       type: string
       default: "demo"

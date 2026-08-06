@@ -15,8 +15,9 @@ Three manifests:
 
 ## Demo runbook (self-contained — one Python image, no JDK, no fetches)
 
-The demo pipeline uses only committed fixtures (`examples/evidence/`,
-`examples/demo-jars/`, `samples/tests/`, `catalogs/`), so a fresh clone is enough.
+The demo pipeline uses only committed fixtures (`examples/evidence/` —
+json-path, snakeyaml, spring-core — plus `examples/demo-jars/payments-service*`,
+`examples/tests/`, `catalogs/`), so a fresh clone is enough.
 Push this repo to your git, then:
 
 ```bash
@@ -28,13 +29,18 @@ tkn pipelinerun logs --last -f
 tkn pipelinerun describe --last     # <- the summary: grade, coverage %, tests
 ```
 
-Expected results on the run (verified by fresh-clone simulation):
-`PROJECT_GRADE=B · COVERAGE_PCT=61 · COVERED=11 NEAR=3 UNCOVERED=4 · TESTS_SELECTED=7/11 · TESTS_PASSED=8 executed / 0 failed`
+Expected results on the run (real-library corpus):
+`PROJECT_GRADE=F · COVERAGE_PCT=59 · COVERED=16 NEAR=1 UNCOVERED=10` —
+snakeyaml grades F (reachable removed `Constructor(TypeDescription, Collection)`),
+so the scan task exits 2 and the PipelineRun goes red at the grade gate (`fail-on: D`).
+That red run is the demo: coverage.html and scorecard.html both use
+`examples/demo-jars/payments-service.sbom.json`.
 
-Two live demo levers: set `accept-transitive-scope` to `"false"` in
-`pipeline-demo.yaml`'s score task and the run goes **red** (grade D breaches
-`fail-on: D` — the sign-off gate enforced by the cluster); untag `BootSmokeIT`
-in `samples/tests/` and the route task fails with exit 3 (the mandatory-test
+Scorecard rows (when you inspect `out/scorecard.json` / the HTML card):
+spring-core → B (1 call site), json-path → C (1 call site), snakeyaml → F (4 call sites, incompatible-reachable).
+
+Two live demo levers: the grade gate above; untag `BootSmokeIT`
+in `examples/tests/` and the route task fails with exit 3 (the mandatory-test
 contract). A red PipelineRun is part of the demo, not a bug.
 
 If the `git-clone` cluster resolver isn't available on your Pipelines version,

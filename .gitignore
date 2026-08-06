@@ -28,3 +28,10 @@ __pycache__/
 opc.tar.gz
 # scratch output of fetch-lightwell-catalog-metadata.sh
 lightwell-catalog-metadata/
+out/
+sample-app/target/
+samples/jars/
+samples/work/
+real-jars/
+site/
+.DS_Store

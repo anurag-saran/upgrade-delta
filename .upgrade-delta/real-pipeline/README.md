@@ -40,7 +40,7 @@ now done in the shipped `pull-request-live.yaml`.
 
 ## What's deliberately out of scope for this version
 
-- **Transitive (two-hop) grading.** The demo's `acme-codec via acme-http-client` story
+- **Transitive (two-hop) grading.** Two-hop reachability (app → direct dependency → transitive)
   needs a *published catalog* of transitive delta reports. A live single-PR diff only knows
   what changed in *this* `pom.xml`. Direct dependencies (including the internal-call-chain
   check) are fully live; transitives are not, in this version.

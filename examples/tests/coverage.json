@@ -1,0 +1,41 @@
+{
+  "collected_at_sha": "demo",
+  "build": "payments-service-real",
+  "age_commits": 0,
+  "tests": {
+    "PaymentServiceTest": {
+      "covers": [
+        "com.example.payments.PaymentService",
+        "com.example.payments.Ledger"
+      ]
+    },
+    "LedgerTest": {
+      "covers": [
+        "com.example.payments.Ledger"
+      ]
+    },
+    "GatewayClientTest": {
+      "covers": [
+        "com.example.payments.GatewayClient"
+      ]
+    },
+    "RefundServiceTest": {
+      "covers": [
+        "com.example.payments.PaymentService",
+        "com.example.payments.RefundService",
+        "com.example.payments.Ledger"
+      ]
+    },
+    "BootSmokeIT": {
+      "covers": [
+        "com.example.payments.Boot"
+      ]
+    },
+    "ConfigLoaderTest": {
+      "covers": [
+        "com.example.payments.ConfigLoader"
+      ]
+    }
+  },
+  "_note": "Synthetic map for the real-library demo \u2014 regenerate via integration/jacoco/jacoco2coverage.py"
+}

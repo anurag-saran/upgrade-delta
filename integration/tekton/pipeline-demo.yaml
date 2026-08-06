@@ -50,7 +50,8 @@ spec:
       taskRef: {name: upgrade-delta-coverage}
       workspaces: [{name: source, workspace: source}]
       params:
-        - {name: app-sbom, value: samples/realworld-springboot-sbom.json}
+        # Same SBOM as scan — coverage.html / scorecard.html / PR comment describe one app
+        - {name: app-sbom, value: examples/demo-jars/payments-service.sbom.json}
     - name: scan
       displayName: "3. Grade the upgrade risk (reachability + sign-off)"
       runAfter: [coverage]
@@ -59,9 +60,11 @@ spec:
       params:
         - {name: app-jar, value: examples/demo-jars/payments-service-1.0.0.jar}
         - {name: sbom, value: examples/demo-jars/payments-service.sbom.json}
+        # Real-library evidence only (json-path, snakeyaml, spring-core)
         - {name: evidence-dir, value: examples/evidence}
         - {name: lib-jars, value: examples/demo-jars}
         - {name: accept-transitive-scope, value: "true"}
+        # snakeyaml grades F (reachable breaking Constructor) — gate fires on purpose
         - {name: fail-on, value: "D"}
     - name: select-tests
       displayName: "4. Pick which tests this upgrade owes"

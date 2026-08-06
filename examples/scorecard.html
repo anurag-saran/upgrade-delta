@@ -1,0 +1,138 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>payments-service-1.0.0.jar — project delta scorecard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Red+Hat+Mono:wght@400;600&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Display:wght@600;700;800&display=swap" rel="stylesheet"><style>
+:root{
+  --rh-red:#EE0000; --rh-red-dark:#A30000;
+  --paper:#F0F0F0; --card:#FFFFFF; --ink:#151515; --ink-soft:#6A6E73;
+  --rule:#D2D2D2; --steel:#0066CC;
+  --pass:#3E8635; --watch:#F0AB00; --stop:#C9190B;
+  --mono:'Red Hat Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'Red Hat Text',system-ui,-apple-system,Segoe UI,sans-serif;
+  --disp:'Red Hat Display',var(--sans); --head:var(--disp);
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.6;padding:40px 16px}
+.sheet{max-width:880px;margin:0 auto;background:var(--card);
+  border-radius:8px;border-top:4px solid var(--rh-red);
+  box-shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(21,21,21,.08);
+  padding:36px 40px 44px;position:relative}
+.eyebrow{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--rh-red)}
+h1{font-family:var(--disp);font-weight:700;font-size:32px;line-height:1.15;
+  letter-spacing:-.01em;margin:8px 0 2px;color:var(--ink)}
+.vers{font-family:var(--mono);font-size:14px;color:var(--steel);margin-bottom:22px}
+.stamp{position:absolute;top:32px;right:36px;text-align:center;
+  background:var(--stamp-c);color:#fff;border-radius:8px;
+  padding:10px 20px 12px;box-shadow:0 2px 6px rgba(21,21,21,.18)}
+.stamp .g{font-family:var(--disp);font-size:36px;font-weight:800;line-height:.95;display:block}
+.stamp .l{font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;display:block;margin-top:4px;opacity:.92}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;
+  margin:18px 0 24px}
+.metric{background:var(--card);padding:14px 16px}
+.metric b{font-family:var(--disp);font-weight:700;font-size:24px;display:block;color:var(--ink)}
+.metric span{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+h2{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:0;
+  color:var(--ink);border-left:4px solid var(--rh-red);padding-left:10px;
+  margin:28px 0 12px}
+ul{padding-left:20px}
+li{margin:4px 0}
+.recipe li{font-family:var(--mono);font-size:13.5px}
+.reason{color:var(--ink-soft)}
+.note{border-left:4px solid var(--watch);background:rgba(240,171,0,.08);
+  border-radius:0 4px 4px 0;padding:10px 14px;margin:12px 0;font-size:14px}
+.blind{border-left:4px solid var(--steel);background:rgba(0,102,204,.06);
+  border-radius:0 4px 4px 0;padding:10px 14px;margin:12px 0;font-size:13.5px;color:var(--ink-soft)}
+details{margin:8px 0}
+summary{cursor:pointer;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--steel)}
+code,.m{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.list{columns:1;padding:8px 0 0 4px;list-style:none}
+.footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+table{width:100%;border-collapse:collapse;background:var(--card)}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--rule);font-size:14px}
+th{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);border-bottom:2px solid var(--rule)}
+tr:hover td{background:rgba(0,0,0,.02)}
+td a{color:var(--steel);text-decoration:none}
+td a:hover{text-decoration:underline}
+.chip{display:inline-block;font-family:var(--sans);font-weight:700;font-size:13px;
+  background:var(--c);color:#fff;border-radius:4px;padding:2px 10px;line-height:1.5}
+.lane{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.sub{margin:7px 0 0 0;padding-left:11px;border-left:2px solid var(--rule);
+  font-size:12.5px;color:var(--ink-soft);line-height:1.55}
+.sub b{color:var(--ink);font-weight:600}
+.eg{margin-top:5px;padding:5px 9px;background:#FAFAFA;border-radius:4px;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink);word-break:break-all}
+.scale{background:#FAFAFA;border:1px solid var(--rule);border-radius:8px;
+  padding:16px 18px;margin:0 0 26px}
+.scale-h{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-soft);margin:0 0 13px}
+.sc-row{display:flex;align-items:baseline;gap:12px;padding:5px 0}
+.sc-lane{font-weight:600;font-size:13px;color:var(--ink);min-width:150px}
+.sc-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.4}
+.chip.sm{min-width:24px;height:24px;font-size:13px;flex:none}
+@media(max-width:640px){.metrics{grid-template-columns:repeat(2,1fr)}
+ .stamp{position:static;display:inline-block;margin-bottom:14px}
+ .sheet{padding:24px 18px}}
+
+.bar-row{display:grid;grid-template-columns:210px 1fr 90px;gap:12px;align-items:center;margin:7px 0}
+.bar-label{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink)}
+.bar{background:color-mix(in srgb,var(--rule) 55%,transparent);height:16px;
+  display:flex;border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--steel)}
+.bar i.t{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}
+.bar-key{display:flex;flex-direction:column;gap:5px;margin-top:9px;
+  font-size:12.5px;color:var(--ink-soft);line-height:1.5}
+.bar-key span{display:flex;align-items:flex-start;gap:8px}
+.bar-key i{flex:none;width:13px;height:13px;border-radius:3px;margin-top:2px}
+.bar-key i.k-solid{background:var(--steel)}
+.bar-key i.k-hatch{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}
+tr.sub td{background:color-mix(in srgb,var(--rule) 22%,var(--card))}
+tr.sub td:first-child{padding-left:28px}
+.bar-n{font-family:var(--mono);font-size:12.5px;text-align:left;color:var(--ink-soft)}
+</style></head><body>
+<div class="sheet" style="--stamp-c:var(--stop)">
+  <div class="stamp"><span class="g">F</span><span class="l">project</span></div>
+  <div class="eyebrow">Lightwell delta scan · project scorecard</div>
+  <h1>payments-service-1.0.0.jar</h1>
+  <div class="vers">3 dependencies checked · 3 not covered by any report</div>
+  <p style="max-width:62ch;color:var(--ink-soft)">The project grade reflects
+  <b>the highest-risk dependency in this upgrade, not an average</b>. A single dependency
+  requiring migration sets the grade for the whole project, regardless of how clean the
+  others are. Each dependency is assessed on its <b>lowest-risk available upgrade path</b>.</p>
+  
+  <h2>How much testing this upgrade needs</h2><div class="bar-row"><span class="bar-label">Test the parts you use</span><span class="bar"><i style="width:33%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label">Test each module that uses it</span><span class="bar"><i style="width:33%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label">Fix your code first</span><span class="bar"><i style="width:33%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label"></span><div class="bar-key" style="grid-column:2/4"><span><i class="k-solid"></i>solid — your app uses it directly</span><span><i class="k-hatch"></i>striped — it comes in through another dependency (counted the same, because the risk is the same)</span></div></div>
+  <h2>Dependencies</h2><div class="scale"><div class="scale-h">What each grade means for you</div><div class="sc-row"><span class="chip sm" style="--c:var(--pass)">A</span><span class="sc-lane">Just smoke-test it</span><span class="sc-desc">A clean patch. Nothing in the public API changed and almost no code moved.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--watch)">B</span><span class="sc-lane">Test the parts you use</span><span class="sc-desc">A patch, but it added new methods, rewrote a lot internally, or changed a default setting.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--watch)">C</span><span class="sc-lane">Test each module that uses it</span><span class="sc-desc">A minor release. New functionality, but nothing that should break existing code.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--stop)">D</span><span class="sc-lane">Run your full test suite</span><span class="sc-desc">Something was removed or changed shape, or this is a major release.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--stop)">F</span><span class="sc-lane">Fix your code first</span><span class="sc-desc">Something your app actually calls was removed or changed. It will break as-is.</span></div></div>
+  <table><thead><tr><th>Dependency · how your app uses it</th><th>Upgrade options (best first)</th></tr></thead>
+  <tbody><tr><td><b>json-path</b><br>
+<span class="lane">Your app calls it in <b>1</b> place(s). Of what changed in this upgrade, your code touches <b>0</b> changed and <b>0</b> breaking item(s).</span></td>
+<td><div><span class="chip" style="--c:var(--watch)">C</span> <span class="m">2.6.0 → 2.8.0.rhlw-00001</span><span class="lane"> · Test each module that uses it</span></div><div class="note" style="margin:8px 0 0">You could test this more lightly: nothing your app calls actually changed shape. With sign-off, run the lighter test set instead — but still roll out to one instance first.</div></td></tr><tr><td><b>snakeyaml</b><br>
+<span class="lane">Your app calls it in <b>4</b> place(s). Of what changed in this upgrade, your code touches <b>1</b> changed and <b>1</b> breaking item(s).</span></td>
+<td><div><span class="chip" style="--c:var(--stop)">F</span> <span class="m">1.30 → 1.33</span><span class="lane"> · Fix your code first</span></div></td></tr><tr><td><b>spring-core</b><br>
+<span class="lane">Your app calls it in <b>1</b> place(s). Of what changed in this upgrade, your code touches <b>0</b> changed and <b>0</b> breaking item(s).</span></td>
+<td><div><span class="chip" style="--c:var(--watch)">B</span> <span class="m">5.3.18 → 5.3.18.rhlw-00003</span><span class="lane"> · Test the parts you use</span></div></td></tr></tbody></table>
+  <h2>Hazards — artifact vs declared graph</h2>
+<p style="color:var(--ink-soft)">The SBOM is the map; the shipped artifact is the territory.
+Where they disagree, you would otherwise be rating a dependency tree that isn't the one running.</p>
+<ul><li><span class="m">[shipped-not-declared]</span> payments-service 1.0.0 is inside the artifact but absent from the SBOM</li><li><span class="m">[declared-not-shipped]</span> accessors-smart 2.5.0 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> asm 9.3 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> commons-codec 1.11 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> commons-io 2.11.0 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> commons-logging 1.2 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> httpclient 4.5.12 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> httpcore 4.4.13 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> jackson-annotations 2.13.4 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> jackson-core 2.13.4 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> jackson-databind 2.13.4 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> json-path 2.6.0 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> json-smart 2.5.0 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> slf4j-api 1.7.30 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> snakeyaml 1.30 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-aop 5.3.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-beans 5.3.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-boot 2.7.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-boot-autoconfigure 2.7.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-context 5.3.31 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-core 5.3.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-expression 5.3.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-jcl 5.3.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-security-core 5.7.11 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-security-crypto 5.7.11 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-security-web 5.7.11 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-web 5.3.18 is in the SBOM but not fingerprinted in the artifact</li><li><span class="m">[declared-not-shipped]</span> spring-webmvc 5.3.18 is in the SBOM but not fingerprinted in the artifact</li></ul>
+  
+  <h2>Not rated — visible whitespace</h2>
+<p style="color:var(--ink-soft)">The application calls into these third-party packages, and no
+delta report covers them. Every entry here is an upgrade you would be testing blind today.</p>
+<ul class="list"><li class="m">com.fasterxml.jackson.databind</li><li class="m">org.apache.http.client.methods</li><li class="m">org.springframework.boot</li></ul>
+  <h2>What this scan cannot see</h2>
+  <div class="blind"><ul>
+    <li>Reflection and config-driven use of a library will not appear as call sites — and this
+    blindness compounds across hops, so transitive reachability evidence carries lower confidence
+    than direct analysis. De-escalating a transitive always requires explicit sign-off.</li>
+    <li>Ratings come from published, app-agnostic delta reports; only the intersection ran here — your code never left this machine.</li>
+    <li>A behavior change with no structural fingerprint is invisible; canary and rollback stay in every lane.</li>
+  </ul></div>
+  <div class="footer"><span>gate suggestion: fail CI when project grade ≥ D</span>
+  <span>upgrade-delta v0.1.0 · 2026-08-06</span></div>
+</div></body></html>

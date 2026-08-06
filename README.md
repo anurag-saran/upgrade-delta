@@ -36,10 +36,10 @@ network beyond the clone.**
    run-of-show with the exact numbers, the scorecard reveal, and two live "make it go red"
    gates.
 
-**What a run produces** (verified): grade **B** · coverage **61%** (11 drop-in / 3 serviced
-elsewhere / 4 uncovered) · **7 of 11 test classes** selected · **8 test methods** run, **0
-failed**. Those land on the PipelineRun's **Results** tab (the executive summary, no HTML
-needed); the rendered HTML scorecard is browsable via the viewer Route if you deploy it.
+**What a run produces** (verified): grade **F** · coverage **59%** (16 drop-in / 1 serviced
+elsewhere / 10 uncovered) · scorecard rows **spring-core B / json-path C / snakeyaml F**
+(reachable removed Constructor — the grade gate fires). Those land on the PipelineRun's
+**Results** tab; the rendered HTML scorecard is browsable via the viewer Route if you deploy it.
 
 How the pieces fit:
 
@@ -68,10 +68,8 @@ GitHub PR  ──(Pipelines-as-Code webhook)──►  OpenShift Pipelines
    byte-hashing lies on real jars: different `javac` versions and `-g` flags change every byte
    with zero behavior change. Churn here is a semantic fingerprint — debug attributes
    stripped, members sorted, bytecode walked instruction-by-instruction with every
-   constant-pool index resolved to its value. Verified by `samples/verify_churn.py`: identical
-   source, different toolchain = 100% raw diff, **0.0% semantic churn**; a real method edit
-   still reads as churn; unparseable classes fall back to the raw hash, so the fingerprint can
-   over-report but never under-report.
+   constant-pool index resolved to its value. Unparseable classes fall back to the raw hash,
+   so the fingerprint can over-report but never under-report.
 3. **Behavior surface** — bundled defaults/resources and `META-INF/services` SPI entries that
    changed. Catches the deserialization/config class of change: zero API movement, big
    behavior shift.
@@ -106,9 +104,8 @@ corpus on first run (any JDK 11+ on `PATH` or `JAVA_HOME`).
 
 ```bash
 ./demo.sh                                              # narrated end-to-end demo, offline
-python3 samples/verify_churn.py                        # churn-normalization proofs
 python3 upgrade_delta.py coverage \
-    --sbom samples/realworld-springboot-sbom.json \
+    --sbom examples/demo-jars/payments-service.sbom.json \
     --catalog catalogs/lightwell-remediated-java-sbom.json   # the coverage meter
 python3 upgrade_delta.py scan examples/demo-jars/payments-service-1.0.0.jar \
     --evidence examples/evidence --sbom examples/demo-jars/payments-service.sbom.json \
@@ -140,9 +137,9 @@ deploy/                 cluster resources for the console demo: reports PVC + sc
 .tekton/                Pipelines-as-Code PR trigger (fires the demo pipeline on every PR)
 integration/tekton/     the pipeline + tasks, PaC runbook, CAB approval, RHTAS signing
 integration/            jacoco converter · GitHub Action · Jenkins · Maven-plugin scaffold
-samples/                sample corpus generator + test sources + coverage maps
+samples/                realworld SBOM mirror + helper scripts
 catalogs/               the real Lightwell remediated-catalog SBOM (drives `coverage`)
-examples/               committed sample outputs + demo fixtures the pipeline uses
+examples/               real-library evidence, demo jars, tests, and browsable outputs
 docs/                   INSTALL-OPENSHIFT · DEMO-SCRIPT · USER-GUIDE · DESIGN-DECISIONS ·
                         COMPARISON · pivot doc · the deck (pptx)
 ```
@@ -175,7 +172,8 @@ Secrets never belong in git. The `.gitignore` blocks them, and this tree ships n
 ## Status & scope
 
 Verified prototype, JVM ecosystem. The console pipeline runs end-to-end on the committed
-fixtures (grade B / 61% / 7-of-11 / 8 passed), with both failure-mode gates demonstrated. The
+real-library corpus (grade F / 59% / spring-core B · json-path C · snakeyaml F), with the
+snakeyaml grade gate demonstrated. The
 live-cluster PaC + signing paths are YAML-valid and documented; budget one shakedown for the
 GitHub App webhook and any RWX StorageClass wiring. The Maven plugin is an honest scaffold
 (`test_router.py` is its executable behavior spec). Internal Red Hat material — do not

@@ -16,7 +16,7 @@ A class counts as covered by a test when ANY of its probes is true.
 
 Usage:
   jacoco2coverage.py DIR_OF_EXEC_FILES --sha <map-sha> --build <id> --age-commits N \
-      [--only-prefix com/acme/payments] -o coverage.json
+      [--only-prefix com/example/payments] -o coverage.json
   jacoco2coverage.py --selftest       # writer/reader round-trip on synthetic data
 """
 import argparse, io, json, os, struct, sys
@@ -156,24 +156,24 @@ def selftest():
     import tempfile
     d = tempfile.mkdtemp()
     write_exec(os.path.join(d, "AlphaTest.exec"), "AlphaTest", {
-        "com/acme/payments/PaymentService": [True, False, True],
-        "com/acme/payments/Ledger": [False] * 9,       # loaded, never executed
-        "com/acme/logging/Logger": [True] * 4,          # dependency class
+        "com/example/payments/PaymentService": [True, False, True],
+        "com/example/payments/Ledger": [False] * 9,       # loaded, never executed
+        "org/yaml/snakeyaml/Yaml": [True] * 4,          # dependency class
     })
     write_exec(os.path.join(d, "BetaTest.exec"), "BetaTest", {
-        "com/acme/payments/GatewayClient": [False] * 260 + [True],  # multi-byte varint+packing
+        "com/example/payments/GatewayClient": [False] * 260 + [True],  # multi-byte varint+packing
     })
     _s, a = read_exec(os.path.join(d, "AlphaTest.exec"))
     _s, b = read_exec(os.path.join(d, "BetaTest.exec"))
-    assert a["com/acme/payments/PaymentService"] is True
-    assert a["com/acme/payments/Ledger"] is False, "all-false probes must NOT count as covered"
-    assert b["com/acme/payments/GatewayClient"] is True, "probe 261 lost in bit packing"
+    assert a["com/example/payments/PaymentService"] is True
+    assert a["com/example/payments/Ledger"] is False, "all-false probes must NOT count as covered"
+    assert b["com/example/payments/GatewayClient"] is True, "probe 261 lost in bit packing"
     out = os.path.join(d, "coverage.json")
-    convert(d, out, "abc1234", "#1288", 3, only_prefix="com/acme/payments")
+    convert(d, out, "abc1234", "#1288", 3, only_prefix="com/example/payments")
     doc = json.load(open(out))
-    assert doc["tests"]["AlphaTest"]["covers"] == ["com.acme.payments.PaymentService"], \
+    assert doc["tests"]["AlphaTest"]["covers"] == ["com.example.payments.PaymentService"], \
         "prefix filter must drop dependency classes and unexecuted classes"
-    assert doc["tests"]["BetaTest"]["covers"] == ["com.acme.payments.GatewayClient"]
+    assert doc["tests"]["BetaTest"]["covers"] == ["com.example.payments.GatewayClient"]
     print("SELFTEST PASS: round-trip, bit packing, varint, probe semantics, prefix filter")
 
 
