@@ -1157,7 +1157,66 @@ def _grade_legend_html(title="What each grade means for you"):
         f'<span class="sc-lane">{lane}</span>'
         f'<span class="sc-desc">{desc}</span></div>'
         for grade, color, lane, desc in RATING_SCALE)
-    return f'<div class="scale"><div class="scale-h">{esc(title)}</div>{rows}</div>'
+    return f'<div class="scale"><div class="sc-title">{esc(title)}</div>{rows}</div>'
+
+
+def _app_use_blurb(call_sites, n_breaking, n_changed, *, transitive=False, parent=None):
+    """Plain-English reachability line for the scorecard dependency row.
+
+    Distinguishes three cases so "0 changed / 0 breaking" is never read as
+    "your app does not use this library":
+      - breaking hit  → will break; name the count
+      - changed hit   → you call something that moved; test those paths
+      - calls only    → you use it, but not the APIs that moved in this upgrade
+    """
+    places = "place" if call_sites == 1 else "places"
+    if transitive and parent:
+        lead = (f'You don\'t depend on this directly — <b>{esc(parent)}</b> pulls it in. '
+                f'Following calls from your app through {esc(parent)} reaches it.')
+    else:
+        lead = f'Your app calls this library in <b>{call_sites}</b> {places}.'
+
+    if n_breaking:
+        return (f'<span class="lane">{lead} '
+                f'<b>{n_breaking}</b> of them hit a <b>breaking</b> API change — '
+                f'fix {("that call" if n_breaking == 1 else "those calls")} before you upgrade.</span>')
+    if n_changed:
+        return (f'<span class="lane">{lead} '
+                f'<b>{n_changed}</b> of them hit an API that <b>changed</b> in this upgrade — '
+                f'test those paths.</span>')
+    if call_sites:
+        return (f'<span class="lane">{lead} '
+                f'None of those calls hit an API that changed or broke in this upgrade — '
+                f'you are not blocked on a compile break. The grade is about how much to '
+                f'test (new APIs, defaults, or internal churn), not about rewriting call sites.</span>')
+    return (f'<span class="lane">{lead} '
+            f'This scan found no direct call sites into it.</span>')
+
+
+def _hazards_html(hazards):
+    """Render artifact-vs-SBOM hazards. Thin jars flood declared-not-shipped;
+    collapse that bucket so the scorecard stays readable."""
+    if not hazards:
+        return ""
+    by = {}
+    for kind, msg in hazards:
+        by.setdefault(kind, []).append(msg)
+    items = []
+    # Keep signal kinds individual; summarize the thin-jar noise bucket.
+    for kind, msgs in by.items():
+        if kind == "declared-not-shipped" and len(msgs) > 3:
+            items.append(
+                f'<li><span class="m">[{esc(kind)}]</span> '
+                f'{len(msgs)} libraries are in the SBOM but not packaged inside this jar '
+                f'(normal for a thin application jar that loads dependencies from the '
+                f'classpath at runtime — not a packaging bug by itself).</li>')
+        else:
+            for msg in msgs:
+                items.append(f'<li><span class="m">[{esc(kind)}]</span> {esc(msg)}</li>')
+    return f"""<h2>Hazards — artifact vs declared graph</h2>
+<p style="color:var(--ink-soft)">The SBOM is the map; the shipped artifact is the territory.
+Where they disagree, you would otherwise be rating a dependency tree that isn't the one running.</p>
+<ul>{''.join(items)}</ul>"""
 
 
 def render_index(reports, links):
@@ -1924,12 +1983,12 @@ def render_scorecard(r):
                 if (rec["ix"].get("class_level_would_touch")
                     and not (rec["ix"]["touched_changed"] or rec["ix"]["touched_incompatible"]))
                 else "")
+            use = _app_use_blurb(l["call_sites"], touched[0], touched[1],
+                                 transitive=True, parent=l["parent"])
             rows += f"""<tr class="sub"><td><span class="lane">↳ indirect</span> <b>{esc(l['library'])}</b><br>
-<span class="lane">You don't depend on this directly — <b>{esc(l['parent'])}</b> pulls it in.
-To change it, upgrade {esc(l['parent'])} or pin an override.</span>
-<div class="sub">Following the calls from your app through {esc(l['parent'])} reaches
-{rec['ix'].get('reachable_parent_methods', '?')} method(s) in it. Of what changed in this
-upgrade, those paths touch <b>{touched[1]}</b> changed and <b>{touched[0]}</b> breaking item(s).
+{use}
+<div class="sub">To change it, upgrade {esc(l['parent'])} or pin an override.
+Reachable parent methods: {rec['ix'].get('reachable_parent_methods', '?')}.
 {via_html}</div>{precision_html}</td>
 <td>{opts_html}{note}</td></tr>"""
         else:
@@ -1957,23 +2016,22 @@ upgrade, those paths touch <b>{touched[1]}</b> changed and <b>{touched[0]}</b> b
                     chain_html = (
                         f'<div class="sub">Followed {chain["closure_methods_reached"]} method call(s) '
                         f'inward from your code — none of them reach anything that changed.</div>')
-            touched_html = (
-                f'<span class="lane">Your app calls it in <b>{l["call_sites"]}</b> place(s). '
-                f'Of what changed in this upgrade, your code touches '
-                f'<b>{touched[1]}</b> changed and <b>{touched[0]}</b> breaking item(s).</span>')
+            # Name the breaking member when there is exactly one — the "this breaks you" line.
+            break_detail = ""
+            incompat = rec["ix"].get("touched_incompatible") or []
+            if len(incompat) == 1:
+                break_detail = (f'<div class="eg">Breaking call: '
+                                f'<span class="m">{esc(incompat[0])}</span></div>')
+            elif len(incompat) > 1:
+                break_detail = (f'<div class="eg">Breaking calls include '
+                                f'<span class="m">{esc(incompat[0])}</span> '
+                                f'<span class="lane">(+{len(incompat)-1} more)</span></div>')
+            use = _app_use_blurb(l["call_sites"], touched[0], touched[1])
             rows += f"""<tr><td><b>{esc(l['library'])}</b><br>
-{touched_html}{chain_html}</td>
+{use}{break_detail}{chain_html}</td>
 <td>{opts_html}{note}</td></tr>"""
 
-    hazards_html = ""
-    if r.get("hazards"):
-        items = "".join(
-            f'<li><span class="m">[{esc(k)}]</span> {esc(msg)}</li>'
-            for k, msg in r["hazards"])
-        hazards_html = f"""<h2>Hazards — artifact vs declared graph</h2>
-<p style="color:var(--ink-soft)">The SBOM is the map; the shipped artifact is the territory.
-Where they disagree, you would otherwise be rating a dependency tree that isn't the one running.</p>
-<ul>{items}</ul>"""
+    hazards_html = _hazards_html(r.get("hazards") or [])
 
     heur_html = ""
     if r.get("heuristics"):
@@ -1996,9 +2054,10 @@ constants — the cheap slice of the reflection blind spot, made visible instead
     unrated_html = ""
     if r["unrated_packages"]:
         items = "".join(f'<li class="m">{esc(u.replace("/", "."))}</li>' for u in r["unrated_packages"])
-        unrated_html = f"""<h2>Not rated — visible whitespace</h2>
-<p style="color:var(--ink-soft)">The application calls into these third-party packages, and no
-delta report covers them. Every entry here is an upgrade you would be testing blind today.</p>
+        unrated_html = f"""<h2>Not rated yet</h2>
+<p style="color:var(--ink-soft)">Your app also calls these packages, but this scan has no
+delta report for them — so they do not affect the project grade. An upgrade there would be
+tested blind until evidence is published.</p>
 <ul class="list">{items}</ul>"""
 
     compare = ""
@@ -2034,15 +2093,16 @@ tr.sub td:first-child{{padding-left:28px}}
   <div class="stamp"><span class="g">{esc(p['headline_grade'] or '—')}</span><span class="l">project</span></div>
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
   <h1>{esc(r['app'])}</h1>
-  <div class="vers">{p['rated_libraries']} dependencies checked · {p['unrated_package_roots']} not covered by any report</div>
-  <p style="max-width:62ch;color:var(--ink-soft)">The project grade reflects
-  <b>the highest-risk dependency in this upgrade, not an average</b>. A single dependency
-  requiring migration sets the grade for the whole project, regardless of how clean the
-  others are. Each dependency is assessed on its <b>lowest-risk available upgrade path</b>.</p>
+  <div class="vers"><b>{p['rated_libraries']}</b> dependencies graded
+  · <b>{p['unrated_package_roots']}</b> other packages your app calls have no delta report yet</div>
+  <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
+  <b>worst dependency in this upgrade</b> (not an average). One library that needs a code fix
+  sets the grade for the whole project. Each row below is the <b>lowest-risk upgrade path</b>
+  available for that library.</p>
   {compare}
   <h2>How much testing this upgrade needs</h2>{bars}
   <h2>Dependencies</h2>{_grade_legend_html()}
-  <table><thead><tr><th>Dependency · how your app uses it</th><th>Upgrade options (best first)</th></tr></thead>
+  <table><thead><tr><th>Dependency · what your app actually hits</th><th>Upgrade path · what to do</th></tr></thead>
   <tbody>{rows}</tbody></table>
   {hazards_html}
   {heur_html}
