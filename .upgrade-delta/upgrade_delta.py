@@ -2685,40 +2685,41 @@ def _coverage_bridge_html(p, libs):
 
 
 def _subtitle_lines_html(p):
-    """Three self-explanatory accounting lines; link not-yet-graded to its section."""
+    """Three labeled accounting rows; link not-yet-graded to its section."""
     n = p.get("rated_libraries") or 0
     m = p.get("unrated_package_roots") or 0
     cov = p.get("catalog_coverage") or {}
-    lines = [
-        f'<div class="acct"><b>{n}</b> dependencies graded — have published delta evidence '
-        f'your app reaches</div>',
+    rows = [
+        ('Graded',
+         f'<b>{n}</b> dependencies — have published delta evidence your app reaches'),
     ]
     if cov:
         exact = cov.get("exact", 0)
         total = cov.get("dependencies", 0)
-        lines.append(
-            f'<div class="acct">Catalog: <b>{exact}</b> of <b>{total}</b> drop-in ready — '
-            f'dependencies with an exact Red Hat remediated build '
-            f'(see <a href="coverage.html">coverage report</a>)</div>')
+        rows.append(
+            ('Catalog',
+             f'<b>{exact}</b> of <b>{total}</b> drop-in ready — dependencies with an '
+             f'exact Red Hat remediated build '
+             f'(<a href="coverage.html">coverage report</a>)'))
     if m:
-        lines.append(
-            f'<div class="acct"><b>{m}</b> packages not yet graded — your app calls them, '
-            f'but no delta report exists yet '
-            f'(<a href="#no-delta-evidence">see which</a>)</div>')
-    return '<div class="vers-block">' + "".join(lines) + '</div>'
+        rows.append(
+            ('Not graded yet',
+             f'<b>{m}</b> packages — your app calls them, but no delta report exists yet '
+             f'(<a href="#no-delta-evidence">see which</a>)'))
+    items = "".join(
+        f'<div class="acct"><span class="acct-k">{esc(k)}</span>'
+        f'<span class="acct-v">{v}</span></div>'
+        for k, v in rows)
+    return f'<div class="vers-block">{items}</div>'
 
 
 def render_scorecard(r):
     p = r["project"]
-    color = GRADE_COLOR.get(p["headline_grade"], "var(--steel)")
     libs = r["libraries"]
     has_transitive = any(l.get("transitive") for l in libs)
     verdict = _verdict_html(p, libs)
     testing = _testing_summary_html(libs)
     bridge = _coverage_bridge_html(p, libs)
-    grade = p.get("headline_grade") or "—"
-    title_chip = (f' <span class="chip title-grade" style="--c:{color}">{esc(grade)}</span>'
-                  if grade and grade != "—" else "")
 
     compare = ""
     if p.get("worst_without_best_path") and p["worst_without_best_path"] != p["headline_grade"]:
@@ -2791,11 +2792,16 @@ not the same as catalog “uncovered”: a package can be Lightwell drop-in read
 .verdict{{margin:14px 0 18px;padding:12px 14px;border-left:4px solid var(--vc);
   background:color-mix(in srgb,var(--vc) 10%,var(--card));border-radius:0 6px 6px 0;
   font-size:14.5px;line-height:1.45;max-width:72ch}}
-.vers-block{{margin:0 0 16px;font-size:13.5px;line-height:1.55;color:var(--ink)}}
-.acct{{margin:0 0 4px;max-width:78ch}}
+.vers-block{{margin:0 0 18px;max-width:78ch;display:grid;gap:8px}}
+.acct{{display:grid;grid-template-columns:minmax(7.5rem,9.5rem) 1fr;gap:8px 14px;
+  align-items:baseline;font-size:13.5px;line-height:1.45;color:var(--ink)}}
+.acct-k{{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-soft)}}
+.acct-v{{color:var(--ink)}}
 .acct a{{color:var(--steel)}}
-.title-grade{{font-size:14px;vertical-align:middle;margin-left:8px}}
+@media(max-width:640px){{.acct{{grid-template-columns:1fr;gap:2px}}}}
 .bridge-details{{margin:18px 0 0;max-width:78ch}}
+
 .bridge-details summary{{cursor:pointer;font-weight:700;font-size:14px;color:var(--steel)}}
 .bridge{{margin:8px 0 0;padding:12px 14px;border-left:4px solid var(--steel);
   background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
@@ -2855,7 +2861,7 @@ details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
 </style></head><body>
 <div class="sheet">
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
-  <h1>{esc(r['app'])}{title_chip}</h1>
+  <h1>{esc(r['app'])}</h1>
   {vers}
   {verdict}
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the

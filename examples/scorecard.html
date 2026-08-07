@@ -83,11 +83,16 @@ td a:hover{text-decoration:underline}
 .verdict{margin:14px 0 18px;padding:12px 14px;border-left:4px solid var(--vc);
   background:color-mix(in srgb,var(--vc) 10%,var(--card));border-radius:0 6px 6px 0;
   font-size:14.5px;line-height:1.45;max-width:72ch}
-.vers-block{margin:0 0 16px;font-size:13.5px;line-height:1.55;color:var(--ink)}
-.acct{margin:0 0 4px;max-width:78ch}
+.vers-block{margin:0 0 18px;max-width:78ch;display:grid;gap:8px}
+.acct{display:grid;grid-template-columns:minmax(7.5rem,9.5rem) 1fr;gap:8px 14px;
+  align-items:baseline;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.acct-k{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-soft)}
+.acct-v{color:var(--ink)}
 .acct a{color:var(--steel)}
-.title-grade{font-size:14px;vertical-align:middle;margin-left:8px}
+@media(max-width:640px){.acct{grid-template-columns:1fr;gap:2px}}
 .bridge-details{margin:18px 0 0;max-width:78ch}
+
 .bridge-details summary{cursor:pointer;font-weight:700;font-size:14px;color:var(--steel)}
 .bridge{margin:8px 0 0;padding:12px 14px;border-left:4px solid var(--steel);
   background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
@@ -147,8 +152,8 @@ details.limits summary{cursor:pointer;font-weight:700;font-size:15px}
 </style></head><body>
 <div class="sheet">
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
-  <h1>payments-service-1.0.0.jar <span class="chip title-grade" style="--c:var(--stop)">F</span></h1>
-  <div class="vers-block"><div class="acct"><b>3</b> dependencies graded — have published delta evidence your app reaches</div><div class="acct">Catalog: <b>16</b> of <b>27</b> drop-in ready — dependencies with an exact Red Hat remediated build (see <a href="coverage.html">coverage report</a>)</div><div class="acct"><b>3</b> packages not yet graded — your app calls them, but no delta report exists yet (<a href="#no-delta-evidence">see which</a>)</div></div>
+  <h1>payments-service-1.0.0.jar</h1>
+  <div class="vers-block"><div class="acct"><span class="acct-k">Graded</span><span class="acct-v"><b>3</b> dependencies — have published delta evidence your app reaches</span></div><div class="acct"><span class="acct-k">Catalog</span><span class="acct-v"><b>16</b> of <b>27</b> drop-in ready — dependencies with an exact Red Hat remediated build (<a href="coverage.html">coverage report</a>)</span></div><div class="acct"><span class="acct-k">Not graded yet</span><span class="acct-v"><b>3</b> packages — your app calls them, but no delta report exists yet (<a href="#no-delta-evidence">see which</a>)</span></div></div>
   <div class="verdict" style="--vc:var(--stop)"><span class="chip" style="--c:var(--stop)">Project F</span> <b>org.yaml:snakeyaml</b> has a breaking change your code calls directly. The other 2 (<b><b>com.jayway.jsonpath:json-path</b></b> and <b>org.springframework:spring-core</b>) are safe with testing.</div>
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
   <b>worst dependency in this upgrade</b> (not an average). Each row is the
