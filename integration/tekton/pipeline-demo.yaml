@@ -77,13 +77,10 @@ spec:
     - name: run-tests
       displayName: "5. RUN the selected tests for real"
       runAfter: [select-tests]
-      # MiniRunner may fail some methods (missing transitive jars on the demo
-      # classpath); continue so grade-gate + summary still run.
-      onError: continue
       taskRef: {name: upgrade-delta-run-tests}
       workspaces: [{name: source, workspace: source}]
     - name: grade-gate
-      displayName: "5b. Enforce project grade gate"
+      displayName: "5b. Enforce project grade gate (after tests)"
       runAfter: [run-tests]
       taskSpec:
         params:

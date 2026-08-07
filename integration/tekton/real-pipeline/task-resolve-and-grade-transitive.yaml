@@ -158,11 +158,15 @@ spec:
         done
 
         # Gate: if any transitive's grade (after any sign-off) reaches --fail-on
-        # or worse, fail this task -- a transitive can block the build the same
-        # way the direct dependency's grade already can in live-diff.
+        # or worse, fail this task. Empty fail-on skips (pipeline grade-gate
+        # after tests owns the policy).
         python3 -c "
         import json, sys
         order = ['A','B','C','D','F']
+        fail_on = '$(params.fail-on)'
+        if not fail_on:
+            print('fail-on empty — skipping transitive grade gate')
+            sys.exit(0)
         d = json.load(open('out/scorecard.json'))
         grades = [(l['recommended']['rating'].get('effective_grade')
                    or l['recommended']['rating']['grade'])
@@ -171,7 +175,6 @@ spec:
             print('no transitive dependencies were successfully graded -- nothing to gate on')
             sys.exit(0)
         worst = max(grades, key=order.index)
-        fail_on = '$(params.fail-on)'
         if order.index(worst) >= order.index(fail_on):
             print(f'GATE: a transitive dependency grades {worst}, breaching --fail-on {fail_on}')
             sys.exit(2)

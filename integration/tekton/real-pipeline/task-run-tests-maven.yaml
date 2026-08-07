@@ -117,6 +117,13 @@ spec:
                "--summary", msg, "--status", "ran",
                "--selection", "out/routing-out/selection-report.json",
                "--scorecard", "out/scorecard.json"]
+        if os.path.isfile("out/routing.json"):
+            cmd += ["--routing", "out/routing.json"]
+        for cov in ("target/jacoco-per-test-coverage.json",
+                    "examples/tests/coverage.json"):
+            if os.path.isfile(cov):
+                cmd += ["--coverage", cov]
+                break
         for n in failed_names:
             cmd += ["--failed-name", n]
         subprocess.check_call(cmd)

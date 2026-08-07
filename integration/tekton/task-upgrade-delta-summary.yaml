@@ -32,11 +32,17 @@ spec:
         [ -f .upgrade-delta/upgrade_delta.py ] && UD=.upgrade-delta/upgrade_delta.py
         if [ -f out/scorecard.json ]; then
           if [ ! -f out/test-results.json ]; then
+            ATTR=()
+            [ -f out/routing.json ] && ATTR+=(--routing out/routing.json)
+            for cov in examples/tests/coverage.json target/jacoco-per-test-coverage.json; do
+              [ -f "$cov" ] && ATTR+=(--coverage "$cov") && break
+            done
             python3 "$UD" record-test-results \
               --out out/test-results.json --status not_run \
               --summary "tests not run" \
               --selection out/routing-out/selection-report.json \
-              --scorecard out/scorecard.json || true
+              --scorecard out/scorecard.json \
+              "${ATTR[@]+"${ATTR[@]}"}" || true
           fi
           mkdir -p out/reports
           python3 "$UD" render-scorecard out/scorecard.json \

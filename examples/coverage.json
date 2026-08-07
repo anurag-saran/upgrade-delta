@@ -3,7 +3,7 @@
     "name": "upgrade-delta",
     "version": "0.1.0"
   },
-  "date": "2026-08-06",
+  "date": "2026-08-07",
   "app": "payments-service",
   "catalog": "lightwell-remediated-java-sbom.json",
   "totals": {

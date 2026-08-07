@@ -48,7 +48,7 @@ echo
 echo "== 4. Run selected tests (MiniRunner) =="
 export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home 2>/dev/null || true)}"
 if command -v java >/dev/null 2>&1; then
-  CP=$(ls examples/demo-jars/*.jar | tr '\n' ':')
+  CP=$(ls examples/demo-jars/*.jar examples/demo-jars/lib/*.jar 2>/dev/null | tr '\n' ':')
   java -cp "$CP" testing.MiniRunner out/routing-out/surefire-includes.txt || true
 else
   echo "java not on PATH — skip MiniRunner (jar is still committed for the cluster demo)"

@@ -34,7 +34,12 @@ network beyond the clone.**
    and connect GitHub with a Pipelines-as-Code GitHub App. All in the console + github.com.
 2. **Run the demo:** [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md) — a two-tab, ~10-minute
    run-of-show with the exact numbers, the scorecard reveal, and two live "make it go red"
-   gates.
+   gates. Durable scorecard links + framing: [`docs/TREVOR-WALKTHROUGH.md`](docs/TREVOR-WALKTHROUGH.md).
+
+**Two jobs:** the **static grade** is an early signal (reachability ∩ delta). **Selected
+tests that pass or fail** are the real merge gate. Reflection/DI stays invisible to static
+analysis — transitive de-escalation needs explicit sign-off; we do not treat JaCoCo as a
+second grade.
 
 **What a run produces** (verified): grade **F** · coverage **59%** (16 drop-in / 1 serviced
 elsewhere / 10 uncovered) · scorecard rows **spring-core B / json-path C / snakeyaml F**
@@ -48,9 +53,10 @@ GitHub PR  ──(Pipelines-as-Code webhook)──►  OpenShift Pipelines
    │                                              │
    │   .tekton/pull-request.yaml                  ├─ clone    (git-clone)
    │   → pipeline: upgrade-delta-demo             ├─ coverage (upgrade_delta.py coverage)
-   │                                              ├─ scan     (upgrade_delta.py scan → grade)
+   │                                              ├─ scan     (upgrade_delta.py scan → grade; fail-on empty)
    │                                              ├─ select-tests (test_router.py — pick which tests are owed)
    │                                              ├─ run-tests    (execute them for real, JVM)
+   │                                              ├─ grade-gate   (fail when project grade ≥ D)
    │                                              ├─ summary  (finally: prints the VERDICT banner)
    │                                              └─ pr-comment (finally: posts the CAB summary on the PR)
    │                                              │

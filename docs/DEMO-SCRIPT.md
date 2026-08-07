@@ -44,12 +44,15 @@ Console → **Pipelines → PipelineRuns**: a run named `upgrade-delta-pr-…` i
 it and watch the graph fill in left to right:
 
 > "**clone** pulls the PR. **coverage** buckets every dependency against the Lightwell
-> catalog. **scan** runs the reachability analysis — it reads the app's bytecode and
-> measures which changed members it actually reaches, and grades the risk.
-> **select-tests** picks which tests this change owes, and **run-tests** actually executes
-> them in a real JVM. Then **summary** prints the verdict."
+> catalog. **scan** runs the reachability analysis — it grades risk but does **not**
+> fail the run yet. **select-tests** picks which tests this change owes, and **run-tests**
+> executes them in a real JVM. **grade-gate** then fails the PipelineRun if the project
+> grade is ≥ D (so the scorecard still carries pass/fail). **summary** prints the verdict."
 
-> ⚠️ The **Details** graph is just topology — seven green pills. The *meaning* lives on three
+> Two jobs, one sentence: static grade = early signal; tests that pass or fail = the real
+> gate. Don't pitch coverage maps as fixing reflection for the grade.
+
+> ⚠️ The **Details** graph is just topology — green pills. The *meaning* lives on three
 > other tabs; that's Beat 3. Don't try to read the result off the graph.
 
 It finishes in about a minute (the fixtures are small).
@@ -86,7 +89,9 @@ Walk the Results table:
 *(Skip to Beat 5 if you didn't deploy the viewer — the Results tab already carried the
 story.)*
 
-Open the viewer Route: `https://<route>/out/reports/scorecard.html`. Walk the rendered
+Open the viewer Route: `https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html`
+(or your cluster’s `scorecard` Route). Offline snapshot: `examples/scorecard.html`.
+Durable callouts: [`TREVOR-WALKTHROUGH.md`](TREVOR-WALKTHROUGH.md). Walk the rendered
 report:
 
 - **Per-dependency grades** — `json-path` → B, `spring-core` takes the A "fast-lane"
@@ -134,8 +139,10 @@ In a PR, edit `integration/tekton/pipeline-demo.yaml`, in the `scan` task change
 > "I'm revoking the human sign-off on that codec de-escalation. Without it, the transitive
 > counts at its raw grade **D**, which breaches the pipeline's `fail-on: D`."
 
-The run goes **red** at the `scan` step. The cluster enforced that a de-escalation requires
-an explicit human decision — it isn't a suggestion the tool can grant itself.
+The run goes **red at `grade-gate`** (after tests), not at `scan` — scan uses an empty
+`fail-on` so the scorecard still gets test outcomes. The cluster enforced that a
+de-escalation requires an explicit human decision — it isn't a suggestion the tool can
+grant itself.
 
 ### Lever B — untag the mandatory gate test
 In a PR, open `examples/tests/BootSmokeIT.java` and remove its `@Tag("upgrade-gate")` line.
@@ -160,5 +167,6 @@ Reset either by closing the PR or reverting the line.
   the App isn't installed on this repo.
 - **Scorecard Route 403 / can't reach it** on the demo network → skip Beat 4 and stay on the
   Results tab (Beat 3), or use your screenshot. The numbers are the same either way.
-- **`TESTS_PASSED` (8) looks bigger than `TESTS_SELECTED` (7)** → expected: selected counts
-  test *classes*, passed counts test *methods*. Say it before anyone asks.
+- **`TESTS_PASSED` looks bigger than `TESTS_SELECTED`** → expected: selected counts
+  test *classes*, passed counts test *methods* (currently **9** methods / **6** classes).
+  Say it before anyone asks.

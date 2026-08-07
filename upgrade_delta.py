@@ -1505,7 +1505,20 @@ def _dep_row_html(l, *, expanded=True, test_results=None):
     why = (f'<div class="skel"><span class="skel-k">Why {esc(shown)}:</span> {why_body}</div>'
            if why_body else "")
     do = _do_with_tests_html(lane, l.get("library") or "", test_results)
-    detail = f'{reaches}{why}{do}{break_html}{parent_html}'
+    # Honest limit: static analysis cannot see reflection/DI; make it visible
+    # on the rows where it most often tempts overconfidence (F + transitive).
+    honest = ""
+    if shown == "F" or l.get("transitive"):
+        if l.get("transitive"):
+            honest = ('<div class="honest">Static analysis cannot see reflection, DI, or '
+                      'service-loader hops — and that blindness compounds across libraries. '
+                      'De-escalating a transitive always needs explicit sign-off; tests that '
+                      'pass are the real gate.</div>')
+        else:
+            honest = ('<div class="honest">Static analysis follows explicit calls and '
+                      'internal chains only — reflection/DI hops are invisible. Treat this '
+                      'grade as a lower bound until selected tests pass.</div>')
+    detail = f'{reaches}{why}{do}{break_html}{parent_html}{honest}'
 
     head = (f'<div class="row-head">'
             f'<span class="chip" style="--c:{c}">{esc(shown)}</span> {heading}'
@@ -2742,13 +2755,14 @@ def _test_class_of(name):
     return s
 
 
-def attribute_tests_by_library(selection_report, library_names):
-    """Map selected test class names → short library names via selection reasons.
+def attribute_tests_by_library(selection_report, library_names,
+                               routing=None, coverage=None):
+    """Map selected test class names → short library names.
 
-    Reasons look like: 'covers com.example.X <- json-path 2.6.0 -> … [direct]'.
-    Join key is the short evidence library name (same as scorecard.libraries[].library).
-    Full-suite / mandatory entries without a library marker are left unattributed;
-    the scorecard row then falls back to the aggregate suite outcome.
+    Prefer selection reasons ('covers X <- json-path …'). When the router fell
+    back to full-suite (no '<- lib' markers), join coverage map test→app-class
+    with routing.upgrades[].affected_app_classes so rows still get per-lib
+    selected/failed attribution.
     """
     by_lib = {n: [] for n in library_names}
     entries = []
@@ -2757,26 +2771,60 @@ def attribute_tests_by_library(selection_report, library_names):
         entries.extend(selection_report.get("widened") or [])
         for name in (selection_report.get("mandatory") or {}).get("appended") or []:
             entries.append({"test": name, "reason": "mandatory"})
+
+    reason_hit = False
     for e in entries:
         test = e.get("test") if isinstance(e, dict) else e
         reason = e.get("reason", "") if isinstance(e, dict) else ""
         if not test:
             continue
         matched = [n for n in library_names if f"<- {n} " in reason]
+        if matched:
+            reason_hit = True
         for n in matched:
             if test not in by_lib[n]:
                 by_lib[n].append(test)
+
+    if reason_hit or not (routing and coverage):
+        return by_lib
+
+    # Full-suite fallback: attribute via coverage ∩ affected_app_classes.
+    lib_classes = {}
+    for up in routing.get("upgrades") or []:
+        lib = up.get("library")
+        if lib not in by_lib:
+            continue
+        for cls in up.get("affected_app_classes") or []:
+            lib_classes.setdefault(lib, set()).add(cls)
+
+    cov_tests = (coverage or {}).get("tests") or {}
+    selected_names = set()
+    for e in entries:
+        test = e.get("test") if isinstance(e, dict) else e
+        if test:
+            selected_names.add(test)
+    if not selected_names:
+        selected_names = set(cov_tests)
+
+    for test in selected_names:
+        covers = set((cov_tests.get(test) or {}).get("covers") or [])
+        if not covers:
+            continue
+        for lib, classes in lib_classes.items():
+            if covers & classes and test not in by_lib[lib]:
+                by_lib[lib].append(test)
     return by_lib
 
 
 def compose_test_results(*, methods_passed=0, methods_failed=0, summary="",
                          status="ran", failed_names=None, selection_report=None,
-                         library_names=None):
+                         library_names=None, routing=None, coverage=None):
     """Build upgrade-delta/test-results/v1 for scorecard regeneration."""
     failed_names = list(failed_names or [])
     library_names = list(library_names or [])
     methods_run = int(methods_passed) + int(methods_failed)
-    by_sel = attribute_tests_by_library(selection_report, library_names)
+    by_sel = attribute_tests_by_library(
+        selection_report, library_names, routing=routing, coverage=coverage)
 
     by_library = {}
     for lib, tests in by_sel.items():
@@ -3072,6 +3120,9 @@ table.deps th{{font-family:var(--sans);font-weight:700;font-size:11px;letter-spa
 .break details.tech summary{{cursor:pointer;color:var(--ink-soft)}}
 .break details.tech code{{display:block;margin-top:4px;word-break:break-all;
   font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}}
+.honest{{margin:8px 0 0;font-size:12.5px;line-height:1.45;color:var(--ink-soft);
+  max-width:56ch}}
+.jobs{{margin:10px 0 0;font-size:13.5px;line-height:1.5;color:var(--ink-soft);max-width:62ch}}
 .alts{{margin-top:8px}}
 .alt{{margin-top:4px}}
 .cves{{margin:8px 0 0;font-size:13px;line-height:1.55;max-width:48ch}}
@@ -3085,10 +3136,14 @@ details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
 #no-delta-evidence:target{{outline:2px solid var(--steel);outline-offset:4px}}
 </style></head><body>
 <div class="sheet">
-  <div class="eyebrow">Lightwell delta scan · project scorecard</div>
+  <div class="eyebrow">Lightwell delta scan · static grade early · tests decide the gate</div>
   <h1>{esc(r['app'])}</h1>
   {vers}
   {verdict}
+  <p class="jobs">Two jobs on this page: the <b>static grade</b> is an early signal before a
+  full suite runs; <b>selected tests that pass or fail</b> are the real merge gate.
+  Reflection and DI remain invisible to static analysis — transitive de-escalation needs
+  explicit sign-off, and a canary stays in every lane.</p>
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
   <b>worst dependency in this upgrade</b> (not an average). Each row is the
   <b>lowest-risk upgrade path</b> available — and calls out when Lightwell is what makes that path safe.</p>
@@ -3426,6 +3481,14 @@ def record_test_results_cmd(args):
     if args.selection and os.path.isfile(args.selection):
         with open(args.selection) as f:
             sel = json.load(f)
+    routing = None
+    if getattr(args, "routing", None) and os.path.isfile(args.routing):
+        with open(args.routing) as f:
+            routing = json.load(f)
+    coverage = None
+    if getattr(args, "coverage", None) and os.path.isfile(args.coverage):
+        with open(args.coverage) as f:
+            coverage = json.load(f)
     lib_names = []
     if args.scorecard and os.path.isfile(args.scorecard):
         with open(args.scorecard) as f:
@@ -3435,7 +3498,7 @@ def record_test_results_cmd(args):
         methods_passed=args.passed, methods_failed=args.failed,
         summary=args.summary, status=args.status,
         failed_names=args.failed_name, selection_report=sel,
-        library_names=lib_names)
+        library_names=lib_names, routing=routing, coverage=coverage)
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     with open(args.out, "w") as f:
         json.dump(result, f, indent=2)
@@ -3573,6 +3636,8 @@ def main():
                     help="Class or Class.method that failed (repeatable)")
     rt.add_argument("--selection", help="selection-report.json path")
     rt.add_argument("--scorecard", help="scorecard.json for library name list")
+    rt.add_argument("--routing", help="routing.json for full-suite test attribution")
+    rt.add_argument("--coverage", help="coverage.json for full-suite test attribution")
     rt.set_defaults(fn=record_test_results_cmd)
 
     args = ap.parse_args()

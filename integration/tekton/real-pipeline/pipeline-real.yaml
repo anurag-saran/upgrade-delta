@@ -32,6 +32,10 @@ spec:
     - name: fail-on
       type: string
       default: "D"
+      description: >-
+        Fail the PipelineRun when the project grade is this bad or worse.
+        Applied AFTER tests run (grade-gate task) so scorecard.html still gets
+        pass/fail outcomes. Early scan/transitive tasks use an empty fail-on.
     - name: accept-transitive-scope
       type: string
       default: "false"
@@ -104,7 +108,9 @@ spec:
         - {name: maven-settings, workspace: maven-settings}
       params:
         - {name: app-module-dir, value: $(params.app-module-dir)}
-        - {name: fail-on, value: $(params.fail-on)}
+        # Empty: do not fail here — grade-gate after tests keeps the run red
+        # while still letting select/run populate scorecard test outcomes.
+        - {name: fail-on, value: ""}
 
     - name: grade-transitive
       displayName: "5. Find + grade transitives the bump silently pulled in"
@@ -124,7 +130,7 @@ spec:
         - {name: new-version, value: $(tasks.detect-pom-changes.results.CHANGED_NEW_VERSION)}
         - {name: app-jar, value: $(tasks.generate-evidence.results.APP_JAR)}
         - {name: accept-transitive-scope, value: $(params.accept-transitive-scope)}
-        - {name: fail-on, value: $(params.fail-on)}
+        - {name: fail-on, value: ""}
 
     - name: select-tests
       displayName: "6. Pick which tests this upgrade owes"
@@ -153,6 +159,45 @@ spec:
         - {name: maven-settings, workspace: maven-settings}
       params:
         - {name: app-module-dir, value: $(params.app-module-dir)}
+
+    - name: grade-gate
+      displayName: "7b. Enforce project grade gate (after tests)"
+      runAfter: [run-tests]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+      taskSpec:
+        params:
+          - {name: fail-on, type: string}
+        steps:
+          - name: gate
+            image: registry.access.redhat.com/ubi9/python-311:latest
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              FAIL_ON="$(params.fail-on)"
+              [ -n "$FAIL_ON" ] || { echo "fail-on empty — skipping grade gate"; exit 0; }
+              python3 - <<PY
+              import json, sys
+              order = ["A", "B", "C", "D", "F"]
+              sc = json.load(open("out/scorecard.json"))
+              grade = sc["project"].get("headline_grade") or "-"
+              fail_on = "$FAIL_ON"
+              if grade == "-" or grade not in order or fail_on not in order:
+                  print(f"grade={grade} fail-on={fail_on} — nothing to gate")
+                  sys.exit(0)
+              if order.index(grade) >= order.index(fail_on):
+                  print(f"GATE: project grade {grade} breaches --fail-on {fail_on}")
+                  sys.exit(2)
+              print(f"grade={grade} within fail-on={fail_on}")
+              PY
+        workspaces:
+          - {name: source}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: fail-on, value: $(params.fail-on)}
 
   finally:
     - name: summary

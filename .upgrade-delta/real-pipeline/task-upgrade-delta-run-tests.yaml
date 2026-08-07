@@ -26,10 +26,10 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -uo pipefail
-        CP=$(ls examples/demo-jars/*.jar | tr '\n' ':')
+        # App + tests jars, plus runtime deps under lib/ (jackson, snakeyaml, …).
+        CP=$(ls examples/demo-jars/*.jar examples/demo-jars/lib/*.jar 2>/dev/null | tr '\n' ':')
         java -cp "$CP" testing.MiniRunner out/routing-out/surefire-includes.txt | tee /tmp/exec.log
-        # MiniRunner may crash mid-suite (missing transitive jars on the demo
-        # classpath) before printing its summary line — count PASS/FAIL lines.
+        # Prefer MiniRunner's summary line; fall back to counting PASS/FAIL lines.
         PASSED=$(grep -cE '^[[:space:]]*PASS[[:space:]]' /tmp/exec.log || true)
         FAILED=$(grep -cE '^[[:space:]]*FAIL[[:space:]]' /tmp/exec.log || true)
         PASSED=${PASSED:-0}; FAILED=${FAILED:-0}
@@ -55,12 +55,17 @@ spec:
 
         UD=upgrade_delta.py
         [ -f .upgrade-delta/upgrade_delta.py ] && UD=.upgrade-delta/upgrade_delta.py
+        ATTR=()
+        [ -f out/routing.json ] && ATTR+=(--routing out/routing.json)
+        COV=examples/tests/coverage.json
+        [ -f "$COV" ] && ATTR+=(--coverage "$COV")
         python3 "$UD" record-test-results \
           --out out/test-results.json \
           --passed "$PASSED" --failed "$FAILED" \
           --summary "$SUMMARY" --status ran \
           --selection out/routing-out/selection-report.json \
           --scorecard out/scorecard.json \
+          "${ATTR[@]+"${ATTR[@]}"}" \
           "${FAIL_ARGS[@]+"${FAIL_ARGS[@]}"}"
 
         [ "$FAILED" -eq 0 ] || { echo "GATE: $FAILED test method(s) failed"; exit 1; }

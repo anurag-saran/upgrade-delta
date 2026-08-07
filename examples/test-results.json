@@ -1,0 +1,39 @@
+{
+  "schema": "upgrade-delta/test-results/v1",
+  "status": "ran",
+  "methods_passed": 9,
+  "methods_failed": 0,
+  "methods_run": 9,
+  "summary": "Ran 9 test method(s) for real in this JVM -- all passed, 0 failed.",
+  "failed_names": [],
+  "by_library": {
+    "json-path": {
+      "selected_tests": [
+        "RefundServiceTest",
+        "PaymentServiceTest"
+      ],
+      "selected_count": 2,
+      "status": "passed",
+      "failed_names": []
+    },
+    "snakeyaml": {
+      "selected_tests": [
+        "ConfigLoaderTest"
+      ],
+      "selected_count": 1,
+      "status": "passed",
+      "failed_names": []
+    },
+    "spring-core": {
+      "selected_tests": [
+        "RefundServiceTest",
+        "PaymentServiceTest"
+      ],
+      "selected_count": 2,
+      "status": "passed",
+      "failed_names": []
+    }
+  },
+  "selection_final": 6,
+  "selection_suite": 6
+}

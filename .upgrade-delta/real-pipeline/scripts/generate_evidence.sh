@@ -125,6 +125,8 @@ EVIDENCE_N=$(find out/evidence -name '*.json' | wc -l | tr -d ' ')
 
 echo
 echo "=== scan against $EVIDENCE_N live evidence file(s) ==="
+FAIL_ARGS=()
+[ -n "$FAIL_ON" ] && FAIL_ARGS=(--fail-on "$FAIL_ON")
 set +e
 python3 "$UD_PY" scan "$APP_JAR" \
   --evidence out/evidence \
@@ -132,9 +134,9 @@ python3 "$UD_PY" scan "$APP_JAR" \
   --json out/scorecard.json \
   --html out/reports/scorecard.html \
   --routing-payload out/routing.json \
-  --fail-on "$FAIL_ON"
+  "${FAIL_ARGS[@]+"${FAIL_ARGS[@]}"}"
 SCAN_RC=$?
 set -e
 echo "scan exit=$SCAN_RC"
-# Propagate grade-gate failure (exit 2) and hard errors; allow 0.
+# Propagate grade-gate failure (exit 2) when --fail-on is set; allow 0.
 exit "$SCAN_RC"
