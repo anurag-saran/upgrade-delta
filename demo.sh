@@ -19,6 +19,7 @@ echo "== 2. Project scan — spring-core B / json-path C / snakeyaml F =="
 set +e
 python3 upgrade_delta.py scan "$APP" \
   --evidence "$EV" --sbom "$SBOM" \
+  --osv-dir examples/osv --no-osv-fetch \
   --lib-jars examples/demo-jars \
   --routing-payload out/routing.json \
   --json out/scorecard.json --html out/reports/scorecard.html \

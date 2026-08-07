@@ -40,6 +40,19 @@ spec:
       type: string
       default: "D"
       description: Fail the task when the project grade is this bad or worse
+    - name: osv-dir
+      type: string
+      default: "examples/osv"
+      description: >-
+        Local mirror of Lightwell OSV advisories (CVE join for remediated paths).
+        Empty string skips the offline dir; live fetch still attempted unless
+        no-osv-fetch is true.
+    - name: no-osv-fetch
+      type: string
+      default: "true"
+      description: >-
+        When true, do not fetch OSV over the network (use osv-dir only).
+        Keeps cluster runs offline-capable.
   workspaces:
     - name: source
       description: Repo checkout containing upgrade_delta.py, catalogs/, evidence
@@ -78,6 +91,8 @@ spec:
           EXTRA=""
           [ -n "$(params.lib-jars)" ] && EXTRA="$EXTRA --lib-jars $(params.lib-jars)"
           [ "$(params.accept-transitive-scope)" = "true" ] && EXTRA="$EXTRA --accept-transitive-scope"
+          [ -n "$(params.osv-dir)" ] && EXTRA="$EXTRA --osv-dir $(params.osv-dir)"
+          [ "$(params.no-osv-fetch)" = "true" ] && EXTRA="$EXTRA --no-osv-fetch"
           # shellcheck disable=SC2086
           python3 upgrade_delta.py scan "$(params.app-jar)" \
             --evidence "$(params.evidence-dir)" --sbom "$SCAN_SBOM" $EXTRA \

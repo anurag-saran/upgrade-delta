@@ -21,9 +21,18 @@ import json
 import os
 import struct
 import sys
+import urllib.error
+import urllib.request
 import zipfile
 from collections import defaultdict
 from datetime import date
+
+# Lightwell publishes OSV advisories (not CSAF/VEX siblings) for remediated builds.
+# Public demo index — anonymous fetch works. Auth `/lightwell/osv/` is 401.
+DEFAULT_OSV_URL = (
+    "https://packages.redhat.com/api/pulp-content/"
+    "public-lightwell-demo/osv/java/remediated"
+)
 
 TOOL_VERSION = "0.1.0"
 
@@ -1658,11 +1667,25 @@ def _third_party_roots(app):
 
 
 def load_sbom(path):
-    """CycloneDX JSON -> {'versions': {name: version}, 'parents': {child: parent},
-    'root_deps': set(direct dep names)}. dependency:tree text is a planned alternate input."""
+    """CycloneDX JSON -> {'versions': {name: version}, 'gav': {name: 'group:artifact'},
+    'parents': {child: parent}, 'root_deps': set(direct dep names)}.
+    dependency:tree text is a planned alternate input."""
     with open(path) as f:
         bom = json.load(f)
-    versions = {c["name"]: c.get("version", "?") for c in bom.get("components", [])}
+    versions, gav = {}, {}
+    for c in bom.get("components", []):
+        name = c.get("name")
+        if not name:
+            continue
+        versions[name] = c.get("version", "?")
+        group = c.get("group") or ""
+        if group:
+            gav[name] = f"{group}:{name}"
+        else:
+            purl = c.get("purl") or ""
+            m = re.match(r"pkg:maven/([^/@]+)/([^/@]+)", purl)
+            if m:
+                gav[name] = f"{m.group(1)}:{m.group(2)}"
     root = bom.get("metadata", {}).get("component", {}).get("name")
     parents, root_deps = {}, set()
     for d in bom.get("dependencies", []):
@@ -1673,7 +1696,7 @@ def load_sbom(path):
                 root_deps.add(child_name)
             else:
                 parents[child_name] = ref_name
-    return {"versions": versions, "parents": parents, "root_deps": root_deps}
+    return {"versions": versions, "gav": gav, "parents": parents, "root_deps": root_deps}
 
 
 
@@ -1886,6 +1909,217 @@ def artifact_inventory(app, sbom, evidence_pkg_map):
     return shipped, dedup
 
 
+# ---------------------------------------------------------------- Lightwell OSV (CVE join)
+
+def _osv_cache_dir():
+    override = os.environ.get("UPGRADE_DELTA_OSV_CACHE")
+    if override:
+        return override
+    xdg = os.environ.get("XDG_CACHE_HOME")
+    if xdg:
+        return os.path.join(xdg, "upgrade-delta", "osv")
+    return os.path.join(os.path.expanduser("~"), ".cache", "upgrade-delta", "osv")
+
+
+def _http_get(url, timeout=20):
+    req = urllib.request.Request(url, headers={"User-Agent": f"upgrade-delta/{TOOL_VERSION}"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _load_osv_records_from_dir(directory):
+    """Load every *.json OSV document from a local directory (offline / CI mirror)."""
+    records = []
+    if not directory or not os.path.isdir(directory):
+        return records
+    for name in sorted(os.listdir(directory)):
+        if not name.endswith(".json") or name.startswith("."):
+            continue
+        path = os.path.join(directory, name)
+        try:
+            with open(path) as f:
+                doc = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"  ! OSV skip {path}: {e}")
+            continue
+        if isinstance(doc, dict) and doc.get("affected") is not None:
+            records.append(doc)
+    return records
+
+
+def _fetch_osv_records(base_url, cache_dir):
+    """Fetch OSV advisories from a Lightwell osv/.../remediated index.
+
+    Failure-tolerant: network/HTTP errors return [] after a warning. Successful
+    bodies are cached under cache_dir so repeated scans do not re-download.
+    """
+    if not base_url:
+        return []
+    base = base_url.rstrip("/")
+    os.makedirs(cache_dir, exist_ok=True)
+    records = []
+    try:
+        manifest_url = f"{base}/PULP_MANIFEST"
+        try:
+            raw = _http_get(manifest_url)
+            names = []
+            for line in raw.decode("utf-8", errors="replace").splitlines():
+                # filename,sha256,size
+                fname = line.split(",", 1)[0].strip()
+                if fname.endswith(".json"):
+                    names.append(fname)
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError):
+            # Fall back to directory listing HTML
+            html = _http_get(base + "/").decode("utf-8", errors="replace")
+            names = sorted(set(re.findall(r'href="(\./)?(x_RHLW-[^"]+\.json)"', html)))
+            names = [n[1] if isinstance(n, tuple) else n for n in names]
+            names = [n[2:] if n.startswith("./") else n for n in names]
+        for fname in names:
+            if not fname.endswith(".json"):
+                continue
+            cached = os.path.join(cache_dir, os.path.basename(fname))
+            doc = None
+            if os.path.isfile(cached):
+                try:
+                    with open(cached) as f:
+                        doc = json.load(f)
+                except (OSError, json.JSONDecodeError):
+                    doc = None
+            if doc is None:
+                try:
+                    body = _http_get(f"{base}/{fname}")
+                    with open(cached, "wb") as f:
+                        f.write(body)
+                    doc = json.loads(body.decode("utf-8"))
+                except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError,
+                        OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
+                    print(f"  ! OSV fetch {fname}: {e}")
+                    continue
+            if isinstance(doc, dict) and doc.get("affected") is not None:
+                records.append(doc)
+    except Exception as e:  # noqa: BLE001 — advisory join must never fail the scan
+        print(f"  ! OSV index unavailable ({e}) — continuing without CVE data")
+        return []
+    return records
+
+
+def load_osv_index(osv_dir=None, osv_url=None, fetch=True):
+    """Return a list of OSV documents. Local --osv-dir wins; optional live fetch fills gaps."""
+    records = _load_osv_records_from_dir(osv_dir)
+    seen = {r.get("id") for r in records if r.get("id")}
+    if fetch and osv_url is not False:
+        url = osv_url or DEFAULT_OSV_URL
+        for r in _fetch_osv_records(url, _osv_cache_dir()):
+            rid = r.get("id")
+            if rid and rid in seen:
+                continue
+            records.append(r)
+            if rid:
+                seen.add(rid)
+    return records
+
+
+def _osv_cves(doc):
+    return sorted({a for a in (doc.get("aliases") or []) if isinstance(a, str) and a.startswith("CVE-")})
+
+
+def _osv_fixed_events(doc):
+    """Yield (maven_name, fixed_version) from an OSV document."""
+    for aff in doc.get("affected") or []:
+        pkg = (aff.get("package") or {}).get("name") or ""
+        for rng in aff.get("ranges") or []:
+            for ev in rng.get("events") or []:
+                fixed = ev.get("fixed")
+                if pkg and fixed:
+                    yield pkg, fixed
+
+
+def _version_satisfies_fixed(target, fixed):
+    """True when target includes the fix named by OSV `fixed` (target >= fixed)."""
+    if not target or not fixed:
+        return False
+    if target == fixed:
+        return True
+    return _version_key(target) >= _version_key(fixed)
+
+
+def _package_matches_gav(osv_pkg, gav, artifact):
+    if gav and osv_pkg == gav:
+        return True
+    if artifact and (osv_pkg == artifact or osv_pkg.endswith(":" + artifact)):
+        return True
+    return False
+
+
+def cves_fixed_by_build(osv_records, *, gav, artifact, version):
+    """CVEs a remediated build addresses, per Lightwell OSV `fixed` events.
+
+    Only returns IDs present in advisory aliases — never invented. Empty when
+    no advisory claims this GAV+version as fixed (or newer than fixed).
+    """
+    if not _is_remediated_version(version) or not osv_records:
+        return []
+    found = {}  # cve -> meta
+    for doc in osv_records:
+        cves = _osv_cves(doc)
+        if not cves:
+            continue
+        for pkg, fixed in _osv_fixed_events(doc):
+            if not _package_matches_gav(pkg, gav, artifact):
+                continue
+            if not _version_satisfies_fixed(version, fixed):
+                continue
+            for cve in cves:
+                # Prefer the advisory whose fixed event equals the target build
+                prev = found.get(cve)
+                if prev is None or fixed == version or (
+                        _version_key(fixed) > _version_key(prev.get("fixed_in") or "")):
+                    found[cve] = {
+                        "id": cve,
+                        "osv_id": doc.get("id"),
+                        "fixed_in": fixed,
+                        "summary": (doc.get("summary") or doc.get("details") or "")[:240],
+                    }
+    return [found[k] for k in sorted(found)]
+
+
+def attach_cves_fixed(libs, sbom, osv_records):
+    """Mutate scorecard library options with cves_fixed (+ details) from OSV."""
+    gav_map = (sbom or {}).get("gav") or {}
+    for lib in libs:
+        artifact = lib["library"]
+        gav = gav_map.get(artifact)
+        for opt in lib["options"]:
+            if not opt.get("remediated"):
+                opt["cves_fixed"] = []
+                opt["cve_details"] = []
+                continue
+            details = cves_fixed_by_build(
+                osv_records, gav=gav, artifact=artifact, version=opt.get("new"))
+            opt["cve_details"] = details
+            opt["cves_fixed"] = [d["id"] for d in details]
+        # keep recommended/worst aliases in sync when they share option dicts
+        lib["recommended"] = lib["options"][0]
+        lib["worst"] = lib["options"][-1]
+
+
+def _cves_fixed_html(rec):
+    """Render CVE list for a remediated path; omit entirely when empty."""
+    cves = rec.get("cves_fixed") or []
+    if not cves:
+        return ""
+    details = {d["id"]: d for d in (rec.get("cve_details") or [])}
+    chips = []
+    for cve in cves:
+        tip = (details.get(cve) or {}).get("summary") or ""
+        title = f' title="{esc(tip)}"' if tip else ""
+        chips.append(f'<span class="cve"{title}>{esc(cve)}</span>')
+    n = len(cves)
+    label = "CVE" if n == 1 else "CVEs"
+    return (f'<div class="cves">This remediated build fixes {n} {label}: '
+            f'{"".join(chips)}</div>')
+
+
 def scan(args):
     app = merge_models([load_jar(j) for j in args.app_jars])
     evidence = []
@@ -2016,6 +2250,21 @@ def scan(args):
     # transitives render nested under their parent
     libs.sort(key=lambda l: ((l["parent"] or l["library"]), l["transitive"]))
 
+    # Join Lightwell OSV advisories → cves_fixed on remediated paths (optional).
+    osv_dir = getattr(args, "osv_dir", None)
+    osv_url = getattr(args, "osv_url", None)
+    no_fetch = bool(getattr(args, "no_osv_fetch", False))
+    osv_records = load_osv_index(
+        osv_dir=osv_dir,
+        osv_url=False if no_fetch else (osv_url or DEFAULT_OSV_URL),
+        fetch=not no_fetch,
+    )
+    if osv_records:
+        print(f"   OSV advisories loaded: {len(osv_records)}"
+              + (f" (dir {osv_dir})" if osv_dir else "")
+              + (" [fetch disabled]" if no_fetch else ""))
+    attach_cves_fixed(libs, sbom, osv_records)
+
     # config/reflection heuristics: one row per (library, FQCN), judged against
     # the RECOMMENDED remediation path's delta
     evidence_pkg_map = {}
@@ -2079,6 +2328,8 @@ def scan(args):
         shown = (f"{g['grade']}->{g['effective_grade']} (signed off)"
                  if g["effective_grade"] else g["grade"])
         print(f"     -> recommended: {rec['old']}->{rec['new']}  grade {shown}  lane: {g['lane']}")
+        if rec.get("cves_fixed"):
+            print(f"        fixes: {', '.join(rec['cves_fixed'])}")
         if l["transitive"]:
             ix = rec["ix"]
             print(f"        fix lever: bump {l['parent']} (or pin an override) — "
@@ -2198,6 +2449,7 @@ def render_scorecard(r):
         value = _value_contrast_html(rec)
         why = _why_grade_html(rec)
         break_html = _breaking_call_html(rec["ix"].get("touched_incompatible") or [])
+        cves_html = _cves_fixed_html(rec)
         note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
                 if g.get("scope_note") else "")
 
@@ -2229,12 +2481,12 @@ def render_scorecard(r):
 {use}{break_html}{why}
 <div class="sub">Pulled in by <b>{esc(l['parent'])}</b> — upgrade the parent or pin an override.
 {via_html}</div></td>
-<td>{value}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
+<td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
         else:
             use = _app_use_blurb(l["call_sites"], touched[0], touched[1])
             rows += f"""<tr><td><b>{esc(l['library'])}</b><br>
 {use}{break_html}{why}</td>
-<td>{value}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
+<td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
 
     transitive_key = ""
     if has_transitive:
@@ -2295,6 +2547,11 @@ exists, an upgrade there would be tested blind.</p>
   font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}}
 .alts{{margin-top:8px}}
 .alt{{margin-top:4px}}
+.cves{{margin:8px 0 0;font-size:13px;line-height:1.55;max-width:48ch}}
+.cve{{display:inline-block;margin:2px 6px 2px 0;padding:1px 7px;border-radius:4px;
+  background:color-mix(in srgb,var(--pass) 14%,var(--card));
+  border:1px solid color-mix(in srgb,var(--pass) 40%,transparent);
+  font-family:var(--mono);font-size:12px;color:var(--ink)}}
 tr.sub td{{background:color-mix(in srgb,var(--rule) 22%,var(--card))}}
 tr.sub td:first-child{{padding-left:28px}}
 details.limits{{margin:18px 0 0}}
@@ -2682,6 +2939,14 @@ def main():
                    "are unreachable through your call paths")
     s.add_argument("--fail-on", choices=GRADE_ORDER,
                    help="exit non-zero if project grade is this bad or worse")
+    s.add_argument("--osv-dir", help="local directory of Lightwell OSV JSON advisories "
+                   "(offline/CI mirror of …/osv/java/remediated/). When set, these "
+                   "are preferred; live fetch still fills gaps unless --no-osv-fetch")
+    s.add_argument("--osv-url", default=None,
+                   help="Lightwell OSV index URL (default: public-lightwell-demo "
+                   "osv/java/remediated). Ignored with --no-osv-fetch")
+    s.add_argument("--no-osv-fetch", action="store_true",
+                   help="do not contact the network for OSV advisories; use --osv-dir only")
     s.set_defaults(fn=scan)
 
     cv = sub.add_parser("coverage", help="match an app SBOM against the Lightwell "

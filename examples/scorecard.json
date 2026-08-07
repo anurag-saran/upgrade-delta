@@ -52,7 +52,18 @@
           "api_modified": 0,
           "behavior_resources": 0,
           "remediated": true,
-          "in_place": true
+          "in_place": true,
+          "cve_details": [
+            {
+              "id": "CVE-2023-51074",
+              "osv_id": "x_RHLW-CVE-2023-51074-2.8.0",
+              "fixed_in": "2.8.0.rhlw-00001",
+              "summary": "json-path v2.8.0 was discovered to contain a stack overflow via the Criteria.parse() method."
+            }
+          ],
+          "cves_fixed": [
+            "CVE-2023-51074"
+          ]
         }
       ],
       "recommended": {
@@ -98,7 +109,18 @@
         "api_modified": 0,
         "behavior_resources": 0,
         "remediated": true,
-        "in_place": true
+        "in_place": true,
+        "cve_details": [
+          {
+            "id": "CVE-2023-51074",
+            "osv_id": "x_RHLW-CVE-2023-51074-2.8.0",
+            "fixed_in": "2.8.0.rhlw-00001",
+            "summary": "json-path v2.8.0 was discovered to contain a stack overflow via the Criteria.parse() method."
+          }
+        ],
+        "cves_fixed": [
+          "CVE-2023-51074"
+        ]
       },
       "worst": {
         "old": "2.6.0",
@@ -143,7 +165,18 @@
         "api_modified": 0,
         "behavior_resources": 0,
         "remediated": true,
-        "in_place": true
+        "in_place": true,
+        "cve_details": [
+          {
+            "id": "CVE-2023-51074",
+            "osv_id": "x_RHLW-CVE-2023-51074-2.8.0",
+            "fixed_in": "2.8.0.rhlw-00001",
+            "summary": "json-path v2.8.0 was discovered to contain a stack overflow via the Criteria.parse() method."
+          }
+        ],
+        "cves_fixed": [
+          "CVE-2023-51074"
+        ]
       },
       "call_sites": 1,
       "transitive": false,
@@ -206,7 +239,9 @@
           "api_modified": 6,
           "behavior_resources": 2,
           "remediated": false,
-          "in_place": true
+          "in_place": true,
+          "cves_fixed": [],
+          "cve_details": []
         }
       ],
       "recommended": {
@@ -262,7 +297,9 @@
         "api_modified": 6,
         "behavior_resources": 2,
         "remediated": false,
-        "in_place": true
+        "in_place": true,
+        "cves_fixed": [],
+        "cve_details": []
       },
       "worst": {
         "old": "1.30",
@@ -317,7 +354,9 @@
         "api_modified": 6,
         "behavior_resources": 2,
         "remediated": false,
-        "in_place": true
+        "in_place": true,
+        "cves_fixed": [],
+        "cve_details": []
       },
       "call_sites": 4,
       "transitive": false,
@@ -368,7 +407,9 @@
           "api_modified": 0,
           "behavior_resources": 2,
           "remediated": true,
-          "in_place": true
+          "in_place": true,
+          "cve_details": [],
+          "cves_fixed": []
         }
       ],
       "recommended": {
@@ -412,7 +453,9 @@
         "api_modified": 0,
         "behavior_resources": 2,
         "remediated": true,
-        "in_place": true
+        "in_place": true,
+        "cve_details": [],
+        "cves_fixed": []
       },
       "worst": {
         "old": "5.3.18",
@@ -455,7 +498,9 @@
         "api_modified": 0,
         "behavior_resources": 2,
         "remediated": true,
-        "in_place": true
+        "in_place": true,
+        "cve_details": [],
+        "cves_fixed": []
       },
       "call_sites": 1,
       "transitive": false,
