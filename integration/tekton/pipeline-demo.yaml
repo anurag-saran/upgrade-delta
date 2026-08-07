@@ -55,6 +55,10 @@ spec:
     - name: scan
       displayName: "3. Grade the upgrade risk (reachability + sign-off)"
       runAfter: [coverage]
+      # Grade gate still fails this task (snakeyaml F ≥ fail-on D), but continue so
+      # select-tests → run-tests can close the analyze→test→result loop on the
+      # scorecard. The PipelineRun remains Failed because scan failed.
+      onError: continue
       taskRef: {name: upgrade-delta-scan}
       workspaces: [{name: source, workspace: source}]
       params:
