@@ -1,0 +1,175 @@
+{
+  "tool": {
+    "name": "upgrade-delta",
+    "version": "0.1.0"
+  },
+  "date": "2026-08-06",
+  "app": "payments-service",
+  "catalog": "lightwell-remediated-java-sbom.json",
+  "totals": {
+    "dependencies": 27,
+    "exact": 16,
+    "serviced_other_version": 1,
+    "uncovered": 10
+  },
+  "exact": [
+    {
+      "group": "com.fasterxml.jackson.core",
+      "artifact": "jackson-databind",
+      "version": "2.13.4",
+      "remediated": "2.13.4.rhlw-00001"
+    },
+    {
+      "group": "commons-io",
+      "artifact": "commons-io",
+      "version": "2.11.0",
+      "remediated": "2.11.0.rhlw-00001"
+    },
+    {
+      "group": "net.minidev",
+      "artifact": "json-smart",
+      "version": "2.5.0",
+      "remediated": "2.5.0.rhlw-00001"
+    },
+    {
+      "group": "org.apache.httpcomponents",
+      "artifact": "httpclient",
+      "version": "4.5.12",
+      "remediated": "4.5.12.rhlw-00001"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-aop",
+      "version": "5.3.18",
+      "remediated": "5.3.18.rhlw-00003"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-beans",
+      "version": "5.3.18",
+      "remediated": "5.3.18.rhlw-00003"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-core",
+      "version": "5.3.18",
+      "remediated": "5.3.18.rhlw-00003"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-expression",
+      "version": "5.3.18",
+      "remediated": "5.3.18.rhlw-00003"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-jcl",
+      "version": "5.3.18",
+      "remediated": "5.3.18.rhlw-00003"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-web",
+      "version": "5.3.18",
+      "remediated": "5.3.18.rhlw-00003"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-webmvc",
+      "version": "5.3.18",
+      "remediated": "5.3.18.rhlw-00003"
+    },
+    {
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot",
+      "version": "2.7.18",
+      "remediated": "2.7.18.rhlw-00004"
+    },
+    {
+      "group": "org.springframework.boot",
+      "artifact": "spring-boot-autoconfigure",
+      "version": "2.7.18",
+      "remediated": "2.7.18.rhlw-00004"
+    },
+    {
+      "group": "org.springframework.security",
+      "artifact": "spring-security-core",
+      "version": "5.7.11",
+      "remediated": "5.7.11.rhlw-00006"
+    },
+    {
+      "group": "org.springframework.security",
+      "artifact": "spring-security-crypto",
+      "version": "5.7.11",
+      "remediated": "5.7.11.rhlw-00006"
+    },
+    {
+      "group": "org.springframework.security",
+      "artifact": "spring-security-web",
+      "version": "5.7.11",
+      "remediated": "5.7.11.rhlw-00006"
+    }
+  ],
+  "serviced_other_version": [
+    {
+      "group": "com.jayway.jsonpath",
+      "artifact": "json-path",
+      "version": "2.6.0",
+      "serviced_versions": [
+        "2.8.0.rhlw-00001"
+      ]
+    }
+  ],
+  "uncovered": [
+    {
+      "group": "com.fasterxml.jackson.core",
+      "artifact": "jackson-annotations",
+      "version": "2.13.4"
+    },
+    {
+      "group": "com.fasterxml.jackson.core",
+      "artifact": "jackson-core",
+      "version": "2.13.4"
+    },
+    {
+      "group": "commons-codec",
+      "artifact": "commons-codec",
+      "version": "1.11"
+    },
+    {
+      "group": "commons-logging",
+      "artifact": "commons-logging",
+      "version": "1.2"
+    },
+    {
+      "group": "net.minidev",
+      "artifact": "accessors-smart",
+      "version": "2.5.0"
+    },
+    {
+      "group": "org.apache.httpcomponents",
+      "artifact": "httpcore",
+      "version": "4.4.13"
+    },
+    {
+      "group": "org.ow2.asm",
+      "artifact": "asm",
+      "version": "9.3"
+    },
+    {
+      "group": "org.slf4j",
+      "artifact": "slf4j-api",
+      "version": "1.7.30"
+    },
+    {
+      "group": "org.springframework",
+      "artifact": "spring-context",
+      "version": "5.3.31"
+    },
+    {
+      "group": "org.yaml",
+      "artifact": "snakeyaml",
+      "version": "1.30"
+    }
+  ]
+}

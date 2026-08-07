@@ -13,6 +13,8 @@ python3 upgrade_delta.py coverage \
   --sbom "$SBOM" \
   --catalog catalogs/lightwell-remediated-java-sbom.json \
   --json out/coverage.json --html out/reports/coverage.html
+cp -f out/coverage.json examples/coverage.json
+cp -f out/reports/coverage.html examples/coverage.html
 
 echo
 echo "== 2. Project scan — spring-core B / json-path C / snakeyaml F =="
@@ -26,7 +28,13 @@ python3 upgrade_delta.py scan "$APP" \
   --fail-on D
 RC=$?
 set -e
+cp -f out/scorecard.json examples/scorecard.json
+cp -f out/reports/scorecard.html examples/scorecard.html
 echo "(scan exit $RC — F on snakeyaml breaches --fail-on D; that is the demo gate)"
+
+# Keep the PR comment in sync with scorecard.html (GAV + named calls + CVEs)
+python3 integration/github-action/pr_comment.py out/scorecard.json out/pr-comment.md
+cp -f out/pr-comment.md examples/pr-comment.md 2>/dev/null || true
 
 echo
 echo "== 3. Route tests this upgrade owes =="

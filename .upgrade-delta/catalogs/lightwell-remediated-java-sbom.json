@@ -660,115 +660,115 @@
       "type": "library",
       "group": "org.springframework",
       "name": "spring-aop",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-aspects",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-beans",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-context-indexer",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-context-support",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-context",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-core",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-expression",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-instrument",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-jcl",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-jdbc",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-jms",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-messaging",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-orm",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-oxm",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-r2dbc",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-test",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-tx",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-web",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
@@ -780,19 +780,19 @@
       "type": "library",
       "group": "org.springframework",
       "name": "spring-webflux",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-webmvc",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     },
     {
       "type": "library",
       "group": "org.springframework",
       "name": "spring-websocket",
-      "version": "5.3.18.rhlw-00010"
+      "version": "5.3.18.rhlw-00003"
     }
   ]
 }

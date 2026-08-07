@@ -36,6 +36,9 @@
               "com.jayway.jsonpath.JsonPath",
               "com.jayway.jsonpath.Predicate"
             ],
+            "lib_members_used": [
+              "com.jayway.jsonpath.JsonPath#read(Ljava/lang/String;Ljava/lang/String;[Lcom/jayway/jsonpath/Predicate;)Ljava/lang/Object;"
+            ],
             "touched_changed": [],
             "touched_incompatible": [],
             "touched_impl_changed": [
@@ -93,6 +96,9 @@
             "com.jayway.jsonpath.JsonPath",
             "com.jayway.jsonpath.Predicate"
           ],
+          "lib_members_used": [
+            "com.jayway.jsonpath.JsonPath#read(Ljava/lang/String;Ljava/lang/String;[Lcom/jayway/jsonpath/Predicate;)Ljava/lang/Object;"
+          ],
           "touched_changed": [],
           "touched_incompatible": [],
           "touched_impl_changed": [
@@ -148,6 +154,9 @@
           "lib_classes_used": [
             "com.jayway.jsonpath.JsonPath",
             "com.jayway.jsonpath.Predicate"
+          ],
+          "lib_members_used": [
+            "com.jayway.jsonpath.JsonPath#read(Ljava/lang/String;Ljava/lang/String;[Lcom/jayway/jsonpath/Predicate;)Ljava/lang/Object;"
           ],
           "touched_changed": [],
           "touched_incompatible": [],
@@ -216,6 +225,12 @@
               "org.yaml.snakeyaml.Yaml",
               "org.yaml.snakeyaml.constructor.Constructor"
             ],
+            "lib_members_used": [
+              "org.yaml.snakeyaml.TypeDescription#<init>(Ljava/lang/Class;)V",
+              "org.yaml.snakeyaml.Yaml#<init>(Lorg/yaml/snakeyaml/constructor/BaseConstructor;)V",
+              "org.yaml.snakeyaml.Yaml#load(Ljava/io/InputStream;)Ljava/lang/Object;",
+              "org.yaml.snakeyaml.constructor.Constructor#<init>(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V"
+            ],
             "touched_changed": [
               "org.yaml.snakeyaml.constructor.Constructor#<init>(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V"
             ],
@@ -274,6 +289,12 @@
             "org.yaml.snakeyaml.Yaml",
             "org.yaml.snakeyaml.constructor.Constructor"
           ],
+          "lib_members_used": [
+            "org.yaml.snakeyaml.TypeDescription#<init>(Ljava/lang/Class;)V",
+            "org.yaml.snakeyaml.Yaml#<init>(Lorg/yaml/snakeyaml/constructor/BaseConstructor;)V",
+            "org.yaml.snakeyaml.Yaml#load(Ljava/io/InputStream;)Ljava/lang/Object;",
+            "org.yaml.snakeyaml.constructor.Constructor#<init>(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V"
+          ],
           "touched_changed": [
             "org.yaml.snakeyaml.constructor.Constructor#<init>(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V"
           ],
@@ -330,6 +351,12 @@
             "org.yaml.snakeyaml.TypeDescription",
             "org.yaml.snakeyaml.Yaml",
             "org.yaml.snakeyaml.constructor.Constructor"
+          ],
+          "lib_members_used": [
+            "org.yaml.snakeyaml.TypeDescription#<init>(Ljava/lang/Class;)V",
+            "org.yaml.snakeyaml.Yaml#<init>(Lorg/yaml/snakeyaml/constructor/BaseConstructor;)V",
+            "org.yaml.snakeyaml.Yaml#load(Ljava/io/InputStream;)Ljava/lang/Object;",
+            "org.yaml.snakeyaml.constructor.Constructor#<init>(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V"
           ],
           "touched_changed": [
             "org.yaml.snakeyaml.constructor.Constructor#<init>(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V"
@@ -395,6 +422,9 @@
             "lib_classes_used": [
               "org.springframework.core.SpringVersion"
             ],
+            "lib_members_used": [
+              "org.springframework.core.SpringVersion#getVersion()Ljava/lang/String;"
+            ],
             "touched_changed": [],
             "touched_incompatible": [],
             "touched_impl_changed": [],
@@ -441,6 +471,9 @@
           "lib_classes_used": [
             "org.springframework.core.SpringVersion"
           ],
+          "lib_members_used": [
+            "org.springframework.core.SpringVersion#getVersion()Ljava/lang/String;"
+          ],
           "touched_changed": [],
           "touched_incompatible": [],
           "touched_impl_changed": [],
@@ -485,6 +518,9 @@
           "lib_call_sites": 1,
           "lib_classes_used": [
             "org.springframework.core.SpringVersion"
+          ],
+          "lib_members_used": [
+            "org.springframework.core.SpringVersion#getVersion()Ljava/lang/String;"
           ],
           "touched_changed": [],
           "touched_incompatible": [],

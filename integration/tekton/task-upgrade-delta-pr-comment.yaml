@@ -58,12 +58,46 @@ spec:
         fi
 
         # 1) render the CAB comment -- fully self-contained, no external script path
+        # Kept in sync with scorecard.html / integration/github-action/pr_comment.py:
+        # Maven GAV, named call sites, CVEs fixed.
         python3 - <<'PY'
-        import json, os
+        import json, os, re
 
         BADGE = {"A": "\U0001f7e2", "B": "\U0001f7e1", "C": "\U0001f7e1", "D": "\U0001f534", "F": "\U0001f534"}
         DEFAULT_BADGE = "\u26aa"
         SOURCE_LABEL = "$(params.source-label)"
+
+        def humanize(desc):
+            if not desc:
+                return ""
+            cls, _, rest = desc.partition("#")
+            simple = cls.rsplit(".", 1)[-1] if cls else desc
+            if rest.startswith("<init>(") or rest.startswith("<init>"):
+                args = re.findall(r"L([\w/$]+);", rest)
+                return f"{simple}({', '.join(a.rsplit('/', 1)[-1] for a in args)})"
+            if "(" in rest:
+                name, _, sig = rest.partition("(")
+                args = re.findall(r"L([\w/$]+);", "(" + sig)
+                return f"{simple}.{name}({', '.join(a.rsplit('/', 1)[-1] for a in args)})"
+            return f"{simple}.{rest}" if rest else simple
+
+        def display(lib):
+            return lib.get("gav") or lib.get("library") or "?"
+
+        def coord(gav, version):
+            return f"{gav}:{version}" if gav and version else (version or "?")
+
+        def calls_line(rec):
+            ix = rec.get("ix") or {}
+            members = ix.get("lib_members_used") or []
+            apps = ix.get("affected_app_classes") or []
+            if not members:
+                n = ix.get("lib_call_sites") or 0
+                return f"{n} call site(s)" if n else "no direct call sites"
+            shown = ", ".join(f"`{humanize(m)}`" for m in members[:4])
+            more = f" (+{len(members)-4} more)" if len(members) > 4 else ""
+            frm = f" from `{apps[0]}`" if apps else ""
+            return f"{shown}{more}{frm}"
 
         r = json.load(open("out/scorecard.json"))
         p = r["project"]
@@ -79,43 +113,56 @@ spec:
 
         libs = r.get("libraries", [])
         if libs:
-            lines += ["", "| Dependency | Path | Grade | Lane |", "|---|---|---|---|"]
+            lines += ["",
+                      "| Dependency | Path | Calls | Grade | Lane | CVEs fixed |",
+                      "|---|---|---|---|---|---|"]
             for l in libs:
                 rec = l["recommended"]; rt = rec["rating"]
-                shown = f"{rt['grade']} \u2192 {rt['effective_grade']} \u270d\ufe0f" if rt.get("effective_grade") else rt["grade"]
-                name = f"\u21b3 {l['library']} *(via {l['parent']})*" if l.get("transitive") else f"**{l['library']}**"
-                lines.append(f"| {name} | `{rec['old']} \u2192 {rec['new']}` | "
-                             f"{BADGE.get(rt.get('effective_grade') or rt['grade'], DEFAULT_BADGE)} {shown} | {rt['lane']} |")
+                shown = (f"{rt['grade']} \u2192 {rt['effective_grade']} \u270d\ufe0f"
+                         if rt.get("effective_grade") else rt["grade"])
+                label = display(l)
+                name = (f"\u21b3 `{label}` *(via {l['parent']})*" if l.get("transitive")
+                        else f"**`{label}`**")
+                path = f"`{coord(l.get('gav'), rec['old'])} \u2192 {coord(l.get('gav'), rec['new'])}`"
+                cves = ", ".join(f"`{c}`" for c in (rec.get("cves_fixed") or [])) or "\u2014"
+                lines.append(
+                    f"| {name} | {path} | {calls_line(rec)} | "
+                    f"{BADGE.get(rt.get('effective_grade') or rt['grade'], DEFAULT_BADGE)} {shown} | "
+                    f"{rt['lane']} | {cves} |")
         else:
             lines += ["", "_No Lightwell adoption detected in this change \u2014 nothing to grade._"]
 
         if r.get("hazards"):
-            lines += ["", "**\u26a0\ufe0f Hazards**"] + [f"- `{k}` \u2014 {m}" for k, m in r["hazards"]]
+            lines += ["", "**SBOM vs. shipped artifact (informational)**"] + [
+                f"- `{k}` \u2014 {m}" for k, m in r["hazards"]]
 
         chain_hits = []
         for l in libs:
             chain = (l["recommended"].get("ix") or {}).get("internal_chain")
             if not chain or not chain.get("closure_methods_reached"):
                 continue
-            hits = (chain.get("internal_touched_incompatible", []) + chain.get("internal_touched_changed", [])
+            hits = (chain.get("internal_touched_incompatible", [])
+                    + chain.get("internal_touched_changed", [])
                     + chain.get("internal_touched_impl_changed", []))
             if hits:
-                chain_hits.append((l["library"], chain, hits))
+                chain_hits.append((display(l), chain, hits))
         if chain_hits:
-            lines += ["", "**\U0001f517 Internal call-chain reachability** "
+            lines += ["", "**Internal call-chain reachability** "
                           "*(reaches changed code this app never calls by name)*"]
             for name, chain, hits in chain_hits:
                 more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
-                lines.append(f"- **{name}** \u2014 traced {chain['closure_methods_reached']} method(s) from "
-                             f"{chain['closure_seed_count']} entry point(s) \u2192 reaches `{hits[0]}`{more}")
+                hit0 = humanize(hits[0]) if isinstance(hits[0], str) and "#" in hits[0] else hits[0]
+                lines.append(f"- **`{name}`** \u2014 traced {chain['closure_methods_reached']} method(s) from "
+                             f"{chain['closure_seed_count']} entry point(s) \u2192 reaches `{hit0}`{more}")
 
         hits2 = [h for h in r.get("heuristics", []) if h["intersects_change"]]
         if hits2:
-            lines += ["", "**\U0001f50d Config/reflection reachability**"] + \
-                     [f"- `{h['fqcn']}` found in {h['found_in'][0]} \u2014 treat as reachable" for h in hits2]
+            lines += ["", "**Config/reflection reachability**"] + [
+                f"- `{h['fqcn']}` found in {h['found_in'][0]} \u2014 treat as reachable" for h in hits2]
         if r.get("unrated_packages"):
-            lines += ["", f"**Unrated:** {', '.join(x.replace('/', '.') for x in r['unrated_packages'])} "
-                          f"\u2014 upgrades here are currently tested blind."]
+            lines += ["", f"**Coverage gap \u2014 not rated yet:** "
+                          f"{', '.join(x.replace('/', '.') for x in r['unrated_packages'])} "
+                          f"\u2014 no delta report published yet; upgrades here are tested blind."]
 
         sel_path = "out/routing-out/selection-report.json"
         if os.path.exists(sel_path):
@@ -133,8 +180,9 @@ spec:
                   "Approve by reviewing here and merging \u2014 branch protection requires this "
                   "check to pass.", "*Grade \u2265 D auto-fails the pipeline; any de-escalation is "
                   "signed off and recorded on the sealed evidence.*",
-                  "", "<sub>Ratings computed by upgrade-delta; evidence JSON is sealed \u2014 "
-                  "verify with `upgrade-delta verify`. \u270d\ufe0f = de-escalation signed off.</sub>"]
+                  "", "<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs). "
+                  "coverage.html answers catalog availability; this comment answers graded "
+                  "upgrade cost. \u270d\ufe0f = de-escalation signed off.</sub>"]
 
         open("out/pr-comment.md", "w").write("\n".join(lines) + "\n")
         print("wrote out/pr-comment.md")

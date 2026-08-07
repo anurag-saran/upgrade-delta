@@ -1,0 +1,157 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>payments-service — Lightwell coverage</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Red+Hat+Mono:wght@400;600&family=Red+Hat+Text:wght@400;500;700&family=Red+Hat+Display:wght@600;700;800&display=swap" rel="stylesheet"><style>
+:root{
+  --rh-red:#EE0000; --rh-red-dark:#A30000;
+  --paper:#F0F0F0; --card:#FFFFFF; --ink:#151515; --ink-soft:#6A6E73;
+  --rule:#D2D2D2; --steel:#0066CC;
+  --pass:#3E8635; --watch:#F0AB00; --stop:#C9190B;
+  --mono:'Red Hat Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'Red Hat Text',system-ui,-apple-system,Segoe UI,sans-serif;
+  --disp:'Red Hat Display',var(--sans); --head:var(--disp);
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15px;line-height:1.6;padding:40px 16px}
+.sheet{max-width:880px;margin:0 auto;background:var(--card);
+  border-radius:8px;border-top:4px solid var(--rh-red);
+  box-shadow:0 1px 2px rgba(0,0,0,.06),0 8px 24px rgba(21,21,21,.08);
+  padding:36px 40px 44px;position:relative}
+.eyebrow{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--rh-red)}
+h1{font-family:var(--disp);font-weight:700;font-size:32px;line-height:1.15;
+  letter-spacing:-.01em;margin:8px 0 2px;color:var(--ink)}
+.vers{font-family:var(--mono);font-size:14px;color:var(--steel);margin-bottom:22px}
+.stamp{position:absolute;top:32px;right:36px;text-align:center;
+  background:var(--stamp-c);color:#fff;border-radius:8px;
+  padding:10px 20px 12px;box-shadow:0 2px 6px rgba(21,21,21,.18)}
+.stamp .g{font-family:var(--disp);font-size:36px;font-weight:800;line-height:.95;display:block}
+.stamp .l{font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;display:block;margin-top:4px;opacity:.92}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--rule);border:1px solid var(--rule);border-radius:6px;overflow:hidden;
+  margin:18px 0 24px}
+.metric{background:var(--card);padding:14px 16px}
+.metric b{font-family:var(--disp);font-weight:700;font-size:24px;display:block;color:var(--ink)}
+.metric span{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+h2{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:0;
+  color:var(--ink);border-left:4px solid var(--rh-red);padding-left:10px;
+  margin:28px 0 12px}
+ul{padding-left:20px}
+li{margin:4px 0}
+.recipe li{font-family:var(--mono);font-size:13.5px}
+.reason{color:var(--ink-soft)}
+.note{border-left:4px solid var(--watch);background:rgba(240,171,0,.08);
+  border-radius:0 4px 4px 0;padding:10px 14px;margin:12px 0;font-size:14px}
+.blind{border-left:4px solid var(--steel);background:rgba(0,102,204,.06);
+  border-radius:0 4px 4px 0;padding:10px 14px;margin:12px 0;font-size:13.5px;color:var(--ink-soft)}
+details{margin:8px 0}
+summary{cursor:pointer;font-family:var(--sans);font-weight:600;font-size:13px;color:var(--steel)}
+code,.m{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.list{columns:1;padding:8px 0 0 4px;list-style:none}
+.footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+table{width:100%;border-collapse:collapse;background:var(--card)}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--rule);font-size:14px}
+th{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);border-bottom:2px solid var(--rule)}
+tr:hover td{background:rgba(0,0,0,.02)}
+td a{color:var(--steel);text-decoration:none}
+td a:hover{text-decoration:underline}
+.chip{display:inline-block;font-family:var(--sans);font-weight:700;font-size:13px;
+  background:var(--c);color:#fff;border-radius:4px;padding:2px 10px;line-height:1.5}
+.lane{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+.sub{margin:7px 0 0 0;padding-left:11px;border-left:2px solid var(--rule);
+  font-size:12.5px;color:var(--ink-soft);line-height:1.55}
+.sub b{color:var(--ink);font-weight:600}
+.eg{margin-top:5px;padding:5px 9px;background:#FAFAFA;border-radius:4px;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink);word-break:break-all}
+.scale{background:#FAFAFA;border:1px solid var(--rule);border-radius:8px;
+  padding:16px 18px;margin:0 0 26px}
+.scale-h{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink-soft);margin:0 0 13px}
+.sc-row{display:flex;align-items:baseline;gap:12px;padding:5px 0}
+.sc-lane{font-weight:600;font-size:13px;color:var(--ink);min-width:150px}
+.sc-desc{font-size:12.5px;color:var(--ink-soft);line-height:1.4}
+.chip.sm{min-width:24px;height:24px;font-size:13px;flex:none}
+@media(max-width:640px){.metrics{grid-template-columns:repeat(2,1fr)}
+ .stamp{position:static;display:inline-block;margin-bottom:14px}
+ .sheet{padding:24px 18px}}
+
+.cov-sub{color:var(--ink-soft);max-width:70ch;margin:2px 0 22px;font-size:14px;line-height:1.55}
+.legend{display:flex;gap:26px;margin:0 0 26px;flex-wrap:wrap}
+.legend .li{display:flex;align-items:baseline;gap:9px}
+.legend .n{font:700 22px/1 var(--head,inherit)}
+.legend .t{font-size:12.5px;color:var(--ink-soft)}
+.legend .dot{width:9px;height:9px;border-radius:50%;align-self:center}
+.stamp .g{font-size:clamp(28px,4vw,42px);letter-spacing:-0.02em}
+.grp{margin:0 0 26px}
+.grp-h{display:flex;align-items:center;gap:13px;padding:0 0 9px;border-bottom:2px solid var(--gc);margin-bottom:0}
+.grp .pill{background:var(--gc);color:#fff;font:700 14px/1 var(--head,inherit);
+  min-width:30px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;padding:0 8px}
+.grp-t{font:700 15px/1.2 var(--head,inherit);color:var(--ink)}
+.grp-s{font-size:12px;color:var(--ink-soft);margin-top:3px}
+table.grid{width:100%;border-collapse:collapse}
+table.grid th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--ink-soft);font-weight:600;padding:11px 12px 7px;border-bottom:1px solid var(--line,#e5e5e5)}
+table.grid td{padding:9px 12px;border-bottom:1px solid var(--line,#eee);font-size:13px;vertical-align:top}
+table.grid tr:last-child td{border-bottom:none}
+td.dep{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink);white-space:nowrap}
+td.ver{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink-soft);white-space:nowrap}
+td.ver.arrow{color:var(--pass);font-weight:600}
+td.ver.arrow::before{content:"92  ";color:var(--ink-soft);font-weight:400}
+td.ver.dash{color:var(--stop)}
+td.act{color:var(--ink);font-size:12.5px}
+</style></head><body>
+<div class="sheet" style="--stamp-c:var(--pass)">
+  <div class="stamp"><span class="g">16/27</span><span class="l">drop-in ready</span></div>
+  <div class="eyebrow">Lightwell coverage meter</div>
+  <h1>payments-service</h1>
+  <div class="vers">27 dependencies checked against lightwell-remediated-java-sbom.json</div>
+  <p class="cov-sub">How many of this application's dependencies Red Hat Lightwell can
+  remediate <b>without an upgrade</b> — today, for the exact versions in production.
+  This meter answers availability in the catalog. The <b>project scorecard</b> answers a
+  different question — what a graded upgrade path costs for <b>your</b> call sites — using
+  published evidence (Maven <span class="m">group:artifact:version</span>). When both list
+  the same dependency, the GAV coordinates should match; if the catalog tip is newer than
+  the graded evidence, prefer the scorecard path for change-board decisions.</p>
+  <div class="legend">
+    <div class="li"><span class="dot" style="background:var(--pass)"></span>
+      <span class="n" style="color:var(--pass)">16</span>
+      <span class="t">drop-in remediated<br>of 27 deps</span></div>
+    <div class="li"><span class="dot" style="background:var(--pass)"></span>
+      <span class="n" style="color:var(--pass)">1</span>
+      <span class="t">serviced, other version<br>of 27 deps</span></div>
+    <div class="li"><span class="dot" style="background:var(--stop)"></span>
+      <span class="n" style="color:var(--stop)">10</span>
+      <span class="t">not covered<br>of 27 deps</span></div>
+  </div>
+  <section class="grp">
+      <div class="grp-h" style="--gc:var(--pass)">
+        <span class="pill">16</span>
+        <div><div class="grp-t">Covered — drop-in remediated build</div><div class="grp-s">Red Hat rebuilt the exact version you run, with the fix. A configuration change, not an upgrade.</div></div>
+      </div>
+      <table class="grid"><thead><tr>
+        <th>Dependency</th><th>You run</th><th>Remediated build</th><th>What it means for you</th>
+      </tr></thead><tbody><tr><td class="dep">com.fasterxml.jackson.core:jackson-databind</td><td class="ver">2.13.4</td><td class="ver arrow">2.13.4.rhlw-00001</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">commons-io:commons-io</td><td class="ver">2.11.0</td><td class="ver arrow">2.11.0.rhlw-00001</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">net.minidev:json-smart</td><td class="ver">2.5.0</td><td class="ver arrow">2.5.0.rhlw-00001</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.apache.httpcomponents:httpclient</td><td class="ver">4.5.12</td><td class="ver arrow">4.5.12.rhlw-00001</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework:spring-aop</td><td class="ver">5.3.18</td><td class="ver arrow">5.3.18.rhlw-00003</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework:spring-beans</td><td class="ver">5.3.18</td><td class="ver arrow">5.3.18.rhlw-00003</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework:spring-core</td><td class="ver">5.3.18</td><td class="ver arrow">5.3.18.rhlw-00003</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework:spring-expression</td><td class="ver">5.3.18</td><td class="ver arrow">5.3.18.rhlw-00003</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework:spring-jcl</td><td class="ver">5.3.18</td><td class="ver arrow">5.3.18.rhlw-00003</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework:spring-web</td><td class="ver">5.3.18</td><td class="ver arrow">5.3.18.rhlw-00003</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework:spring-webmvc</td><td class="ver">5.3.18</td><td class="ver arrow">5.3.18.rhlw-00003</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework.boot:spring-boot</td><td class="ver">2.7.18</td><td class="ver arrow">2.7.18.rhlw-00004</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework.boot:spring-boot-autoconfigure</td><td class="ver">2.7.18</td><td class="ver arrow">2.7.18.rhlw-00004</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework.security:spring-security-core</td><td class="ver">5.7.11</td><td class="ver arrow">5.7.11.rhlw-00006</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework.security:spring-security-crypto</td><td class="ver">5.7.11</td><td class="ver arrow">5.7.11.rhlw-00006</td><td class="act">Swap the version suffix. No code change.</td></tr><tr><td class="dep">org.springframework.security:spring-security-web</td><td class="ver">5.7.11</td><td class="ver arrow">5.7.11.rhlw-00006</td><td class="act">Swap the version suffix. No code change.</td></tr></tbody></table>
+    </section><section class="grp">
+      <div class="grp-h" style="--gc:var(--pass)">
+        <span class="pill">1</span>
+        <div><div class="grp-t">Serviced — at a different version</div><div class="grp-s">Red Hat services this library at a newer or matching version. A real upgrade, or a request for your exact version.</div></div>
+      </div>
+      <table class="grid"><thead><tr>
+        <th>Dependency</th><th>You run</th><th>Serviced versions</th><th>What it means for you</th>
+      </tr></thead><tbody><tr><td class="dep">com.jayway.jsonpath:json-path</td><td class="ver">2.6.0</td><td class="ver">2.8.0.rhlw-00001</td><td class="act">Move to a serviced version, or request your version.</td></tr></tbody></table>
+    </section><section class="grp">
+      <div class="grp-h" style="--gc:var(--stop)">
+        <span class="pill">10</span>
+        <div><div class="grp-t">Not covered</div><div class="grp-s">No remediated build exists. Any upgrade here carries the full, unscoped test burden — the situation this tool exists to remove.</div></div>
+      </div>
+      <table class="grid"><thead><tr>
+        <th>Dependency</th><th>You run</th><th>Status</th><th>What it means for you</th>
+      </tr></thead><tbody><tr><td class="dep">com.fasterxml.jackson.core:jackson-annotations</td><td class="ver">2.13.4</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">com.fasterxml.jackson.core:jackson-core</td><td class="ver">2.13.4</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">commons-codec:commons-codec</td><td class="ver">1.11</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">commons-logging:commons-logging</td><td class="ver">1.2</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">net.minidev:accessors-smart</td><td class="ver">2.5.0</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">org.apache.httpcomponents:httpcore</td><td class="ver">4.4.13</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">org.ow2.asm:asm</td><td class="ver">9.3</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">org.slf4j:slf4j-api</td><td class="ver">1.7.30</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">org.springframework:spring-context</td><td class="ver">5.3.31</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr><tr><td class="dep">org.yaml:snakeyaml</td><td class="ver">1.30</td><td class="ver dash">not serviced</td><td class="act">No remediated build. Full regression on any upgrade.</td></tr></tbody></table>
+    </section>
+  <div class="footer"><span>Covered = same base version, rebuilt by Red Hat (….rhlw-NNNNN suffix)</span>
+  <span>upgrade-delta v0.1.0 · 2026-08-06</span></div>
+</div></body></html>

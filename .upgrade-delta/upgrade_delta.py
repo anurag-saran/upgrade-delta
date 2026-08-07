@@ -564,6 +564,7 @@ def intersect_app(app, lib_old, delta):
     return {
         "lib_call_sites": len(call_sites),
         "lib_classes_used": sorted(c.replace("/", ".") for c in class_uses),
+        "lib_members_used": [member_str(k) for k in sorted(call_sites, key=sk)],
         "touched_changed": touched_changed,
         "touched_incompatible": sorted(set(touched_incompat), key=sk),
         "touched_impl_changed": sorted(c.replace("/", ".") for c in touched_impl),
@@ -1169,21 +1170,49 @@ def _grade_legend_html(title="What each grade means for you"):
     return f'<div class="scale"><div class="sc-title">{esc(title)}</div>{rows}</div>'
 
 
-def _app_use_blurb(call_sites, n_breaking, n_changed, *, transitive=False, parent=None):
+def _format_member_list_html(members, limit=4):
+    """Humanized class.method chips for scorecard / PR sync."""
+    if not members:
+        return "", 0
+    bits = []
+    for m in members[:limit]:
+        human, _ = _humanize_member(m)
+        bits.append(f'<span class="m">{esc(human)}</span>')
+    more = len(members) - limit
+    extra = f' <span class="lane">(+{more} more)</span>' if more > 0 else ""
+    return ", ".join(bits) + extra, len(members)
+
+
+def _app_use_blurb(call_sites, n_breaking, n_changed, *, transitive=False, parent=None,
+                   members=None, app_classes=None):
     """Plain-English reachability line for the scorecard dependency row.
 
-    Distinguishes three cases so "0 changed / 0 breaking" is never read as
-    "your app does not use this library":
-      - breaking hit  → will break; name the count
-      - changed hit   → you call something that moved; test those paths
-      - calls only    → you use it, but not the APIs that moved in this upgrade
+    Names the actual class/methods the app calls so "1 place" is never opaque.
+    Distinguishes breaking / changed / calls-only so silence is not read as
+    "your app does not use this library".
     """
-    places = "place" if call_sites == 1 else "places"
+    members = members or []
+    app_classes = app_classes or []
+    named, n_named = _format_member_list_html(members)
+    from_bit = ""
+    if app_classes:
+        if len(app_classes) == 1:
+            from_bit = f' from <span class="m">{esc(app_classes[0])}</span>'
+        else:
+            from_bit = (f' from <span class="m">{esc(app_classes[0])}</span>'
+                        f' <span class="lane">(+{len(app_classes)-1} more)</span>')
+
     if transitive and parent:
         lead = (f'You don\'t depend on this directly — <b>{esc(parent)}</b> pulls it in. '
                 f'Following calls from your app through {esc(parent)} reaches it.')
+        if named:
+            lead += f' Reachable API: {named}.'
+    elif named:
+        places = "API" if n_named == 1 else "APIs"
+        lead = f'Your app calls {named}{from_bit}.'
     else:
-        lead = f'Your app calls this library in <b>{call_sites}</b> {places}.'
+        places = "place" if call_sites == 1 else "places"
+        lead = f'Your app calls this library in <b>{call_sites}</b> {places}{from_bit}.'
 
     if n_breaking:
         return (f'<span class="lane">{lead} '
@@ -1193,7 +1222,7 @@ def _app_use_blurb(call_sites, n_breaking, n_changed, *, transitive=False, paren
         return (f'<span class="lane">{lead} '
                 f'<b>{n_changed}</b> of them hit an API that <b>changed</b> in this upgrade — '
                 f'test those paths.</span>')
-    if call_sites:
+    if call_sites or named:
         return (f'<span class="lane">{lead} '
                 f'None of those calls hit an API that changed or broke in this upgrade.</span>')
     return (f'<span class="lane">{lead} '
@@ -1653,6 +1682,7 @@ def scan_intersect(app, machine):
     return {
         "lib_call_sites": len(call_sites),
         "lib_classes_used": sorted(c.replace("/", ".") for c in class_uses),
+        "lib_members_used": [member_str(k) for k in sorted(call_sites, key=sk)],
         "touched_changed": sorted((k for k in call_sites if k in changed), key=sk),
         "touched_incompatible": sorted(
             set([k for k in call_sites if k in incompat] +
@@ -1849,6 +1879,7 @@ def two_hop_intersect(app, parent_model, machine):
     result = {
         "lib_call_sites": len(call_sites),
         "lib_classes_used": sorted(c.replace("/", ".") for c in class_uses),
+        "lib_members_used": [member_str(k) for k in sorted(call_sites, key=sk)],
         "touched_changed": sorted((k for k in call_sites if k in changed), key=sk),
         "touched_incompatible": sorted(
             set([k for k in call_sites if k in incompat] +
@@ -2511,14 +2542,18 @@ def render_scorecard(r):
             via_html = (f'<div class="eg">for example: <span class="m">{esc(via_line[1])}</span>'
                         f' calls <span class="m">{esc(via_line[0])}</span></div>') if via_line else ""
             use = _app_use_blurb(l["call_sites"], touched[0], touched[1],
-                                 transitive=True, parent=l["parent"])
+                                 transitive=True, parent=l["parent"],
+                                 members=rec["ix"].get("lib_members_used") or [],
+                                 app_classes=rec["ix"].get("affected_app_classes") or [])
             rows += f"""<tr class="sub"><td><span class="lane">↳ indirect</span> {heading}<br>
 {use}{break_html}{why}
 <div class="sub">Pulled in by <b>{esc(l['parent'])}</b> — upgrade the parent or pin an override.
 {via_html}</div></td>
 <td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
         else:
-            use = _app_use_blurb(l["call_sites"], touched[0], touched[1])
+            use = _app_use_blurb(l["call_sites"], touched[0], touched[1],
+                                 members=rec["ix"].get("lib_members_used") or [],
+                                 app_classes=rec["ix"].get("affected_app_classes") or [])
             rows += f"""<tr><td>{heading}<br>
 {use}{break_html}{why}</td>
 <td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
@@ -2847,7 +2882,12 @@ td.act{{color:var(--ink);font-size:12.5px}}
   <h1>{esc(r['app'])}</h1>
   <div class="vers">{total} dependencies checked against {esc(r['catalog'])}</div>
   <p class="cov-sub">How many of this application's dependencies Red Hat Lightwell can
-  remediate <b>without an upgrade</b> — today, for the exact versions in production.</p>
+  remediate <b>without an upgrade</b> — today, for the exact versions in production.
+  This meter answers availability in the catalog. The <b>project scorecard</b> answers a
+  different question — what a graded upgrade path costs for <b>your</b> call sites — using
+  published evidence (Maven <span class="m">group:artifact:version</span>). When both list
+  the same dependency, the GAV coordinates should match; if the catalog tip is newer than
+  the graded evidence, prefer the scorecard path for change-board decisions.</p>
   <div class="legend">
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
       <span class="n" style="color:var(--pass)">{exact_n}</span>
