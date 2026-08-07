@@ -1504,7 +1504,8 @@ def _dep_row_html(l, *, expanded=True, test_results=None):
     reaches = f'<div class="skel"><span class="skel-k">Reaches:</span> {use}</div>'
     why = (f'<div class="skel"><span class="skel-k">Why {esc(shown)}:</span> {why_body}</div>'
            if why_body else "")
-    do = _do_with_tests_html(lane, l.get("library") or "", test_results)
+    do = _do_with_tests_html(lane, l.get("library") or "", test_results,
+                             grade=shown)
     # Honest limit: static analysis cannot see reflection/DI; make it visible
     # on the rows where it most often tempts overconfidence (F + transitive).
     honest = ""
@@ -1516,8 +1517,9 @@ def _dep_row_html(l, *, expanded=True, test_results=None):
                       'pass are the real gate.</div>')
         else:
             honest = ('<div class="honest">Static analysis follows explicit calls and '
-                      'internal chains only — reflection/DI hops are invisible. Treat this '
-                      'grade as a lower bound until selected tests pass.</div>')
+                      'internal chains only — reflection/DI hops are invisible. An F means '
+                      'fix the breaking call first; tests on today\'s jars do not clear it — '
+                      're-test after you migrate onto the new library.</div>')
     detail = f'{reaches}{why}{do}{break_html}{parent_html}{honest}'
 
     head = (f'<div class="row-head">'
@@ -2869,9 +2871,15 @@ def compose_test_results(*, methods_passed=0, methods_failed=0, summary="",
     }
 
 
-def _do_with_tests_html(lane, library, test_results):
+def _do_with_tests_html(lane, library, test_results, *, grade=None):
+    """Do: line — recommended scope + test outcome.
+
+    When the row grades F or D, passing tests were run on *current* jars and do
+    not clear the grade — qualify the copy so CAB is not misled.
+    """
     scope = _scope_label(lane)
     base = f'Recommended scope: {esc(scope)}'
+    blocking = grade in ("F", "D")
     if test_results is None:
         return f'<div class="skel"><span class="skel-k">Do:</span> {base}.</div>'
 
@@ -2892,6 +2900,15 @@ def _do_with_tests_html(lane, library, test_results):
     if st == "failed" and not fails:
         fails = test_results.get("failed_names") or []
     n_label = "test" if n == 1 else "tests"
+
+    def _pass_caveat(main):
+        if not blocking:
+            return f'<span class="test-pass">{main}</span>'
+        # F/D: green check alone implies "safe to upgrade" — it isn't.
+        return (f'<span class="test-pass">{main}</span>'
+                f'<span class="test-caveat"> on current jars — does not clear this '
+                f'{esc(grade)}; re-test after you migrate</span>')
+
     if st == "not_selected" and test_results.get("selection_final"):
         # Full-suite / unattributed: show aggregate suite outcome on every row.
         run = test_results.get("methods_run") or 0
@@ -2906,8 +2923,8 @@ def _do_with_tests_html(lane, library, test_results):
             outcome = (f'<span class="test-fail">Suite ran <b>{run}</b> methods — '
                        f'<b>{failed} FAILED</b> ✗{who}</span>')
         elif run:
-            outcome = (f'<span class="test-pass">Suite ran <b>{run}</b> methods — '
-                       f'all passed ✓</span>')
+            outcome = _pass_caveat(
+                f'Suite ran <b>{run}</b> methods — all passed ✓')
         else:
             outcome = '<span class="test-skip">Suite selected; no methods recorded.</span>'
     elif st == "not_selected" or (n == 0 and not test_results.get("selection_final")):
@@ -2931,20 +2948,22 @@ def _do_with_tests_html(lane, library, test_results):
                        f'<b>{fail_n} FAILED</b> ✗{who}</span>')
     elif st == "passed" or test_results.get("methods_failed") == 0:
         if n:
-            outcome = (f'<span class="test-pass">Ran <b>{n}</b> selected {n_label} — '
-                       f'all passed ✓</span>')
+            outcome = _pass_caveat(
+                f'Ran <b>{n}</b> selected {n_label} — all passed ✓')
         else:
             run = test_results.get("methods_run") or 0
-            outcome = (f'<span class="test-pass">Suite ran <b>{run}</b> methods — '
-                       f'all passed ✓</span>' if run else
-                       '<span class="test-pass">Selected tests ran — all passed ✓</span>')
+            if run:
+                outcome = _pass_caveat(
+                    f'Suite ran <b>{run}</b> methods — all passed ✓')
+            else:
+                outcome = _pass_caveat('Selected tests ran — all passed ✓')
     else:
         outcome = '<span class="test-skip">Test outcome unavailable.</span>'
 
     return f'<div class="skel"><span class="skel-k">Do:</span> {base}. {outcome}</div>'
 
 
-def _tests_outcome_banner_html(test_results):
+def _tests_outcome_banner_html(test_results, *, project_grade=None):
     # None = pre-test scan render (no banner). Explicit not_run / ran from
     # record-test-results always produces a banner after the pipeline acts.
     if test_results is None:
@@ -2968,9 +2987,13 @@ def _tests_outcome_banner_html(test_results):
         return (f'<p class="tests-banner test-fail-banner">{esc(sel_bit)}'
                 f'<b>{run}</b> methods run, <b>{passed}</b> passed, '
                 f'<b>{failed} FAILED</b> ✗{esc(who)}</p>')
+    caveat = ""
+    if project_grade in ("F", "D"):
+        caveat = (f' <span class="test-caveat">— on current jars; does not clear '
+                  f'project {esc(project_grade)} (re-test after migrate)</span>')
     return (f'<p class="tests-banner test-pass-banner">{esc(sel_bit)}'
             f'<b>{run}</b> methods run, <b>{passed}</b> passed, '
-            f'<b>0</b> failed ✓</p>')
+            f'<b>0</b> failed ✓{caveat}</p>')
 
 
 def render_scorecard(r, test_results=None):
@@ -2992,7 +3015,8 @@ def render_scorecard(r, test_results=None):
 
     blocks, safe, clean = _partition_action_buckets(libs)
     triage = _triage_summary_html(blocks, safe, clean)
-    tests_banner = _tests_outcome_banner_html(tr)
+    tests_banner = _tests_outcome_banner_html(
+        tr, project_grade=p.get("headline_grade"))
     deps_html = (
         _action_bucket_html(
             f"Blocks your upgrade ({len(blocks)})",
@@ -3078,6 +3102,7 @@ not the same as catalog “uncovered”: a package can be Lightwell drop-in read
 .test-skip-banner{{background:color-mix(in srgb,var(--rule) 55%,var(--card));
   border:1px solid var(--rule);color:var(--ink-soft)}}
 .test-pass{{color:var(--pass);font-weight:600}}
+.test-caveat{{color:var(--ink-soft);font-weight:500;font-size:12.5px}}
 .test-fail{{color:var(--stop);font-weight:700}}
 .test-skip{{color:var(--ink-soft)}}
 .test-sum{{margin:0 0 22px}}

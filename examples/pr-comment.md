@@ -51,9 +51,9 @@ Every RUN carries a printed reason; skips are recorded too.
 - ✅ **RefundServiceTest** — full-suite fallback: a pending upgrade's lane is Partial/Full regression — coverage of the old code says nothing about the new code paths
 
 ### Test results
-- ✅ **All passed** — 9 methods (9 run, 0 failed)
+- ✅ **All passed** — 9 methods (9 run, 0 failed) — on current jars; does **not** clear project **F** (re-test after you migrate)
 - ✅ **`json-path`** — 2 selected, status `passed`
-- ✅ **`snakeyaml`** — 1 selected, status `passed`
+- ✅ **`snakeyaml`** — 1 selected, status `passed` — on current jars; does not clear **F**
 - ✅ **`spring-core`** — 2 selected, status `passed`
 
 ---

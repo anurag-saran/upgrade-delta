@@ -143,6 +143,7 @@ def render(scorecard, *, selection=None, test_results=None):
 
     if test_results:
         lines += ["", "### Test results"]
+        grade = p.get("headline_grade") or ""
         if test_results.get("status") != "ran":
             lines.append("- Tests were **not run** in this pipeline.")
         elif test_results.get("methods_failed"):
@@ -153,17 +154,30 @@ def render(scorecard, *, selection=None, test_results=None):
                 f"{test_results.get('methods_passed', 0)} passed "
                 f"({test_results.get('methods_run', 0)} methods run){who}")
         else:
+            caveat = ""
+            if grade in ("F", "D"):
+                caveat = (f" — on current jars; does **not** clear project **{grade}** "
+                          f"(re-test after you migrate)")
             lines.append(
                 f"- ✅ **All passed** — {test_results.get('methods_passed', 0)} methods "
-                f"({test_results.get('methods_run', 0)} run, 0 failed)")
+                f"({test_results.get('methods_run', 0)} run, 0 failed){caveat}")
         for lib, o in sorted((test_results.get("by_library") or {}).items()):
             if not o.get("selected_count") and o.get("status") == "not_selected":
                 continue
+            # Per-lib grade from scorecard libraries list
+            lib_grade = None
+            for l in r.get("libraries") or []:
+                if l.get("library") == lib:
+                    rt = l["recommended"]["rating"]
+                    lib_grade = rt.get("effective_grade") or rt.get("grade")
+                    break
             mark = "✅" if o.get("status") == "passed" else (
                 "❌" if o.get("status") == "failed" else "⚪")
             extra = ""
             if o.get("failed_names"):
                 extra = " — `" + "`, `".join(o["failed_names"][:3]) + "`"
+            elif o.get("status") == "passed" and lib_grade in ("F", "D"):
+                extra = (f" — on current jars; does not clear **{lib_grade}**")
             lines.append(
                 f"- {mark} **`{lib}`** — {o.get('selected_count', 0)} selected, "
                 f"status `{o.get('status')}`{extra}")

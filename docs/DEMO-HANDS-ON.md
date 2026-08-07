@@ -39,8 +39,8 @@ cd upgrade-delta   # this repo
 3. `examples/pr-comment.md` — same story as a CAB comment (grades + test plan + results).
 
 > Say this out loud: *“Coverage answers ‘is there a remediated build?’ Scorecard answers
-> ‘what will this upgrade cost *this* app?’ Tests that passed are the real gate; F still
-> fails policy (≥ D).”*
+> ‘what will this upgrade cost *this* app?’ Tests that passed ran on **current** jars —
+> they do not clear an F; the grade-gate still fails. Re-test after you migrate.”*
 
 ---
 

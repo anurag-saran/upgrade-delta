@@ -194,6 +194,7 @@ spec:
         if os.path.exists(tr_path):
             tr = json.load(open(tr_path))
             lines += ["", "### Test results"]
+            grade = p.get("headline_grade") or ""
             if tr.get("status") != "ran":
                 lines.append("- Tests were **not run** in this pipeline.")
             elif tr.get("methods_failed"):
@@ -204,9 +205,18 @@ spec:
                     f"{tr.get('methods_passed', 0)} passed "
                     f"({tr.get('methods_run', 0)} methods run){who}")
             else:
+                caveat = ""
+                if grade in ("F", "D"):
+                    caveat = (f" \u2014 on current jars; does **not** clear project **{grade}** "
+                              f"(re-test after you migrate)")
                 lines.append(
                     f"- \u2705 **All passed** \u2014 {tr.get('methods_passed', 0)} methods "
-                    f"({tr.get('methods_run', 0)} run, 0 failed)")
+                    f"({tr.get('methods_run', 0)} run, 0 failed){caveat}")
+            lib_grades = {}
+            for l in libs:
+                rt = l["recommended"]["rating"]
+                lib_grades[l.get("library")] = (
+                    rt.get("effective_grade") or rt.get("grade"))
             for lib, o in sorted((tr.get("by_library") or {}).items()):
                 if not o.get("selected_count") and o.get("status") == "not_selected":
                     continue
@@ -215,6 +225,9 @@ spec:
                 extra = ""
                 if o.get("failed_names"):
                     extra = " \u2014 `" + "`, `".join(o["failed_names"][:3]) + "`"
+                elif o.get("status") == "passed" and lib_grades.get(lib) in ("F", "D"):
+                    extra = (f" \u2014 on current jars; does not clear "
+                             f"**{lib_grades[lib]}**")
                 lines.append(
                     f"- {mark} **`{lib}`** \u2014 {o.get('selected_count', 0)} selected, "
                     f"status `{o.get('status')}`{extra}")
