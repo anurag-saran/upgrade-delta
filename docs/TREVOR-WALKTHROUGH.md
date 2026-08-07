@@ -49,6 +49,9 @@ grade; the gate runs **after** tests so the scorecard still carries outcomes.
 
 ## Presenter path
 
+| Doc | Role |
+|---|---|
+| [`DEMO-101.md`](DEMO-101.md) | Beginner concepts |
 | [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md) | Follow-along checklist |
 | [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md) | Full console + GitHub run-of-show |
 | [`TEKTON-ENABLEMENT.md`](TEKTON-ENABLEMENT.md) | Tekton/OpenShift object catalog |
