@@ -1338,8 +1338,9 @@ def _lib_heading_html(lib_row):
     return f'<b>{esc(short)}</b>'
 
 
-def _why_grade_html(rec):
-    """Per-row reason — not the shared boilerplate reachability sentence."""
+def _why_grade_body(rec):
+    """Inner 'Why {grade}:' prose (HTML allowed). Wording must stay stable — layout only
+    reuses this; do not invent new reasons here."""
     st = _delta_stats(rec)
     stream = rec.get("stream") or ""
     grade = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
@@ -1360,28 +1361,173 @@ def _why_grade_html(rec):
     if st["incompatible"] and not n_break:
         bits.append(f'{st["incompatible"]} incompatible changes (not reached by your app)')
     if st["behavior_resources"] and st["churn"] < 1 and not st["api_added"] and not st["api_removed"]:
-        # the "even a perfect drop-in needs testing" story
-        return (f'<div class="why"><b>Why {esc(grade)}:</b> code is effectively unchanged '
+        return (f'code is effectively unchanged '
                 f'(~{st["churn"]}% churn), but <b>{st["behavior_resources"]} config / default '
                 f'resource(s) changed</b> — behavior can shift with zero API change. '
-                f'Smoke-test the parts you use.</div>')
+                f'Smoke-test the parts you use.')
     if st["behavior_resources"]:
         bits.append(f'{st["behavior_resources"]} default/resource change(s)')
     if n_break:
-        return (f'<div class="why"><b>Why {esc(grade)}:</b> '
-                f'your app calls a removed/incompatible API — it will not compile or run '
-                f'until that call is updated.</div>')
+        return ('your app calls a removed/incompatible API — it will not compile or run '
+                'until that call is updated.')
     if grade == "C":
         detail = ", ".join(bits) if bits else "new functionality expected"
-        return (f'<div class="why"><b>Why {esc(grade)}:</b> {esc(detail)} '
-                f'→ test each module that uses it.</div>')
+        return f'{esc(detail)} → test each module that uses it.'
     if grade == "B":
         detail = ", ".join(bits) if bits else "patch with non-trivial surface"
-        return (f'<div class="why"><b>Why {esc(grade)}:</b> {esc(detail)} '
-                f'→ test the parts you use.</div>')
+        return f'{esc(detail)} → test the parts you use.'
     if bits:
-        return f'<div class="why"><b>Why {esc(grade)}:</b> {esc(", ".join(bits))}.</div>'
+        return f'{esc(", ".join(bits))}.'
     return ""
+
+
+def _why_grade_html(rec):
+    """Per-row reason — not the shared boilerplate reachability sentence."""
+    body = _why_grade_body(rec)
+    if not body:
+        return ""
+    grade = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
+    return f'<div class="why"><b>Why {esc(grade)}:</b> {body}</div>'
+
+
+def _lib_shown_grade(lib_row):
+    r = lib_row["recommended"]["rating"]
+    return r.get("effective_grade") or r["grade"]
+
+
+def _libs_worst_first(libs):
+    """F → D → C → B → A. Never insertion/dict order."""
+    gi = {g: i for i, g in enumerate(GRADE_ORDER)}
+    return sorted(libs, key=lambda l: gi.get(_lib_shown_grade(l), -1), reverse=True)
+
+
+def _partition_action_buckets(libs):
+    """Partition into blocker / safe-with-testing / clean. Empty lists omitted by caller."""
+    ordered = _libs_worst_first(libs)
+    blocks, safe, clean = [], [], []
+    for l in ordered:
+        g = _lib_shown_grade(l)
+        if g == "F":
+            blocks.append(l)
+        elif g == "A":
+            clean.append(l)
+        else:  # B, C, D
+            safe.append(l)
+    return blocks, safe, clean
+
+
+def _triage_summary_html(blocks, safe, clean):
+    n = len(blocks) + len(safe) + len(clean)
+    if n == 0:
+        return ""
+    parts = []
+    if blocks:
+        verb = "blocks" if len(blocks) == 1 else "block"
+        parts.append(f'<b>{len(blocks)}</b> {verb} your upgrade')
+    if safe:
+        verb = "is" if len(safe) == 1 else "are"
+        parts.append(f'<b>{len(safe)}</b> {verb} safe with testing')
+    if clean:
+        verb = "is" if len(clean) == 1 else "are"
+        parts.append(f'<b>{len(clean)}</b> {verb} clean — smoke test only')
+    if not parts:
+        return ""
+    return (f'<p class="triage">Of <b>{n}</b> graded '
+            f'{"dependency" if n == 1 else "dependencies"}: '
+            + ", ".join(parts) + ".</p>")
+
+
+def _dep_row_html(l, *, expanded=True):
+    """Identical Reaches / Why / Do skeleton for every graded dependency row."""
+    rec = l["recommended"]
+    g = rec["rating"]
+    shown = g["effective_grade"] or g["grade"]
+    c = GRADE_COLOR[shown]
+    touched = (len(rec["ix"]["touched_incompatible"]), len(rec["ix"]["touched_changed"]))
+    lane = g["lane"]
+    heading = _lib_heading_html(l)
+    if l.get("transitive"):
+        heading = f'<span class="lane">↳ indirect</span> {heading}'
+    value = _value_contrast_html(rec, gav=l.get("gav"))
+    why_body = _why_grade_body(rec)
+    break_html = _breaking_call_html(rec["ix"].get("touched_incompatible") or [])
+    cves_html = _cves_fixed_html(rec)
+    note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
+            if g.get("scope_note") else "")
+
+    alt_html = ""
+    if len(l["options"]) > 1:
+        alts = []
+        for o in l["options"]:
+            if o is rec:
+                continue
+            og = o["rating"]
+            oc = GRADE_COLOR[og["effective_grade"] or og["grade"]]
+            old_c = _maven_coord(l.get("gav"), o.get("old"))
+            new_c = _maven_coord(l.get("gav"), o.get("new"))
+            alts.append(
+                f'<div class="alt"><span class="chip" style="--c:{oc}">'
+                f'{og["effective_grade"] or og["grade"]}</span> '
+                f'<span class="m">{esc(old_c)} → {esc(new_c)}</span>'
+                f'<span class="lane"> · {esc(og["lane"])}</span></div>')
+        if alts:
+            alt_html = '<div class="alts"><span class="lane">Other paths:</span>' + "".join(alts) + '</div>'
+
+    use = _app_use_blurb(
+        l["call_sites"], touched[0], touched[1],
+        transitive=bool(l.get("transitive")), parent=l.get("parent"),
+        members=rec["ix"].get("lib_members_used") or [],
+        app_classes=rec["ix"].get("affected_app_classes") or [])
+
+    via_html = ""
+    parent_html = ""
+    if l.get("transitive"):
+        via = rec["ix"].get("via", {})
+        via_line = next(iter(via.items()), None)
+        if via_line:
+            via_html = (f'<div class="eg">for example: <span class="m">{esc(via_line[1])}</span>'
+                        f' calls <span class="m">{esc(via_line[0])}</span></div>')
+        parent_html = (f'<div class="sub">Pulled in by <b>{esc(l["parent"])}</b> — '
+                       f'upgrade the parent or pin an override.{via_html}</div>')
+
+    reaches = f'<div class="skel"><span class="skel-k">Reaches:</span> {use}</div>'
+    why = (f'<div class="skel"><span class="skel-k">Why {esc(shown)}:</span> {why_body}</div>'
+           if why_body else "")
+    do = f'<div class="skel"><span class="skel-k">Do:</span> {esc(lane)}</div>'
+    detail = f'{reaches}{why}{do}{break_html}{parent_html}'
+
+    head = (f'<div class="row-head">'
+            f'<span class="chip" style="--c:{c}">{esc(shown)}</span> {heading}'
+            f'</div>')
+
+    if expanded:
+        left = f'{head}{detail}'
+    else:
+        left = (f'{head}'
+                f'<div class="skel"><span class="skel-k">Do:</span> {esc(lane)}</div>'
+                f'<details class="row-more"><summary>show detail</summary>'
+                f'{reaches}{why}{break_html}{parent_html}</details>')
+
+    right = f'{value}{cves_html}{alt_html}{note}'
+    row_class = "row-block" if expanded and shown == "F" else ("row-safe" if not expanded else "")
+    tr_class = "sub" if l.get("transitive") else ""
+    classes = " ".join(x for x in (tr_class, row_class) if x)
+    cls_attr = f' class="{classes}"' if classes else ""
+    return f'<tr{cls_attr}><td>{left}</td><td>{right}</td></tr>'
+
+
+def _action_bucket_html(title, rows_html, *, kind):
+    if not rows_html:
+        return ""
+    return (
+        f'<section class="bucket bucket-{kind}">'
+        f'<h2 class="bucket-h">{esc(title)}</h2>'
+        f'<table class="deps"><thead><tr>'
+        f'<th>Dependency · what your app hits</th>'
+        f'<th>Lightwell path · what to do</th>'
+        f'</tr></thead><tbody>{rows_html}</tbody></table>'
+        f'</section>'
+    )
 
 
 def _breaking_call_html(incompat_list):
@@ -2552,62 +2698,22 @@ def render_scorecard(r):
                    f'<span class="chip" style="--c:{c2}">{p["worst_without_best_path"]}</span>. '
                    f'That gap is the measured value of Lightwell.</div>')
 
-    rows = ""
-    for l in libs:
-        rec = l["recommended"]
-        g = rec["rating"]
-        shown = g["effective_grade"] or g["grade"]
-        c = GRADE_COLOR[shown]
-        touched = (len(rec["ix"]["touched_incompatible"]), len(rec["ix"]["touched_changed"]))
-        lane = esc(g["lane"])
-        heading = _lib_heading_html(l)
-        value = _value_contrast_html(rec, gav=l.get("gav"))
-        why = _why_grade_html(rec)
-        break_html = _breaking_call_html(rec["ix"].get("touched_incompatible") or [])
-        cves_html = _cves_fixed_html(rec)
-        note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
-                if g.get("scope_note") else "")
-
-        # Additional upgrade options (when more than the recommended path exists)
-        alt_html = ""
-        if len(l["options"]) > 1:
-            alts = []
-            for o in l["options"]:
-                if o is rec:
-                    continue
-                og = o["rating"]
-                oc = GRADE_COLOR[og["effective_grade"] or og["grade"]]
-                old_c = _maven_coord(l.get("gav"), o.get("old"))
-                new_c = _maven_coord(l.get("gav"), o.get("new"))
-                alts.append(
-                    f'<div class="alt"><span class="chip" style="--c:{oc}">'
-                    f'{og["effective_grade"] or og["grade"]}</span> '
-                    f'<span class="m">{esc(old_c)} → {esc(new_c)}</span>'
-                    f'<span class="lane"> · {esc(og["lane"])}</span></div>')
-            if alts:
-                alt_html = '<div class="alts"><span class="lane">Other paths:</span>' + "".join(alts) + '</div>'
-
-        if l["transitive"]:
-            via = rec["ix"].get("via", {})
-            via_line = next(iter(via.items()), None)
-            via_html = (f'<div class="eg">for example: <span class="m">{esc(via_line[1])}</span>'
-                        f' calls <span class="m">{esc(via_line[0])}</span></div>') if via_line else ""
-            use = _app_use_blurb(l["call_sites"], touched[0], touched[1],
-                                 transitive=True, parent=l["parent"],
-                                 members=rec["ix"].get("lib_members_used") or [],
-                                 app_classes=rec["ix"].get("affected_app_classes") or [])
-            rows += f"""<tr class="sub"><td><span class="lane">↳ indirect</span> {heading}<br>
-{use}{break_html}{why}
-<div class="sub">Pulled in by <b>{esc(l['parent'])}</b> — upgrade the parent or pin an override.
-{via_html}</div></td>
-<td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
-        else:
-            use = _app_use_blurb(l["call_sites"], touched[0], touched[1],
-                                 members=rec["ix"].get("lib_members_used") or [],
-                                 app_classes=rec["ix"].get("affected_app_classes") or [])
-            rows += f"""<tr><td>{heading}<br>
-{use}{break_html}{why}</td>
-<td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
+    blocks, safe, clean = _partition_action_buckets(libs)
+    triage = _triage_summary_html(blocks, safe, clean)
+    deps_html = (
+        _action_bucket_html(
+            f"Blocks your upgrade ({len(blocks)})",
+            "".join(_dep_row_html(l, expanded=True) for l in blocks),
+            kind="block")
+        + _action_bucket_html(
+            f"Safe, but test these ({len(safe)})",
+            "".join(_dep_row_html(l, expanded=False) for l in safe),
+            kind="safe")
+        + _action_bucket_html(
+            f"Clean — smoke test only ({len(clean)})",
+            "".join(_dep_row_html(l, expanded=False) for l in clean),
+            kind="clean")
+    )
 
     transitive_key = ""
     if has_transitive:
@@ -2665,6 +2771,7 @@ coverage.html and still lack a graded row here until evidence exists.</p>
 .bridge{{margin:0 0 18px;padding:12px 14px;border-left:4px solid var(--steel);
   background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
   font-size:13.5px;line-height:1.5;max-width:78ch;color:var(--ink)}}
+.triage{{margin:0 0 16px;font-size:15.5px;line-height:1.45;max-width:72ch;font-weight:500}}
 .test-sum{{margin:0 0 22px}}
 .test-sum p{{margin:0 0 10px;font-size:14.5px;line-height:1.45;max-width:72ch}}
 .risk-strip{{display:flex;height:10px;border-radius:5px;overflow:hidden;
@@ -2675,6 +2782,29 @@ coverage.html and still lack a graded row here until evidence exists.</p>
   border-radius:6px;border:1px solid color-mix(in srgb,var(--stop) 35%,transparent)}}
 .gav{{font-family:var(--mono);font-size:14px;font-weight:700;word-break:break-all}}
 .coords{{margin:4px 0 0;font-size:12.5px;line-height:1.4;word-break:break-all}}
+.skel{{margin:6px 0 0;font-size:13.5px;line-height:1.45}}
+.skel-k{{font-weight:700;color:var(--ink);margin-right:4px}}
+.row-head{{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 2px}}
+.row-more{{margin-top:6px;font-size:13px}}
+.row-more summary{{cursor:pointer;color:var(--steel);font-weight:600}}
+.bucket{{margin:0 0 22px}}
+.bucket-h{{font-family:var(--disp);font-weight:700;font-size:17px;margin:22px 0 10px;
+  padding-left:10px;border-left:4px solid var(--bucket-c,var(--rh-red))}}
+.bucket-block{{--bucket-c:var(--stop)}}
+.bucket-block table.deps{{border:1px solid color-mix(in srgb,var(--stop) 35%,var(--rule));
+  border-radius:6px;overflow:hidden;box-shadow:0 1px 0 color-mix(in srgb,var(--stop) 12%,transparent)}}
+.bucket-block tr.row-block td{{background:color-mix(in srgb,var(--stop) 6%,var(--card));
+  padding-top:14px;padding-bottom:14px}}
+.bucket-safe{{--bucket-c:var(--watch)}}
+.bucket-safe table.deps td{{font-size:13.5px;color:var(--ink);
+  background:color-mix(in srgb,var(--rule) 18%,var(--card))}}
+.bucket-clean{{--bucket-c:var(--pass)}}
+.bucket-clean table.deps td{{background:color-mix(in srgb,var(--pass) 5%,var(--card));
+  color:var(--ink-soft)}}
+table.deps{{width:100%;border-collapse:collapse;background:var(--card)}}
+table.deps th,table.deps td{{text-align:left;padding:11px 12px;border-bottom:1px solid var(--rule);font-size:14px;vertical-align:top}}
+table.deps th{{font-family:var(--sans);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-soft);border-bottom:2px solid var(--rule)}}
 .why{{margin:8px 0 0;font-size:13px;color:var(--ink);line-height:1.45}}
 .break{{margin:8px 0 0;font-size:13.5px;line-height:1.45}}
 .break details.tech{{margin-top:4px;font-size:12px}}
@@ -2688,7 +2818,6 @@ coverage.html and still lack a graded row here until evidence exists.</p>
   background:color-mix(in srgb,var(--pass) 14%,var(--card));
   border:1px solid color-mix(in srgb,var(--pass) 40%,transparent);
   font-family:var(--mono);font-size:12px;color:var(--ink)}}
-tr.sub td{{background:color-mix(in srgb,var(--rule) 22%,var(--card))}}
 tr.sub td:first-child{{padding-left:28px}}
 details.limits{{margin:18px 0 0}}
 details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
@@ -2707,9 +2836,9 @@ details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
   <h2>What this upgrade needs</h2>
   {testing}
   <h2>Dependencies</h2>{_grade_legend_html()}
+  {triage}
   {transitive_key}
-  <table><thead><tr><th>Dependency · what your app actually hits</th><th>Lightwell path · what to do</th></tr></thead>
-  <tbody>{rows}</tbody></table>
+  {deps_html}
   {hazards_html}
   {heur_html}
   {unrated_html}
