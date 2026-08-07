@@ -1,4 +1,7 @@
-# Demo script — OpenShift console + GitHub
+# Demo script — OpenShift console + GitHub (presenter)
+
+> **New here?** Start with [`DEMO-101.md`](DEMO-101.md), then the follow-along checklist
+> [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md). This page is the ~10-minute *presenter* run-of-show.
 
 **Runs in two browser tabs: GitHub and the OpenShift console.** No terminal.
 Total ~8–10 minutes. Setup must already be done — see

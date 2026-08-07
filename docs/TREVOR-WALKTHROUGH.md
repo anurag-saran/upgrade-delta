@@ -49,7 +49,9 @@ grade; the gate runs **after** tests so the scorecard still carries outcomes.
 
 ## Presenter path
 
-Full console + GitHub run-of-show: [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md).
+- Beginner 101: [`DEMO-101.md`](DEMO-101.md)
+- Hands-on checklist: [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md)
+- Full console + GitHub run-of-show: [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md)
 
 Committed snapshots (always offline): `examples/scorecard.html`, `examples/coverage.html`,
 `examples/pr-comment.md`, `examples/test-results.json` — regenerate with `./demo.sh`.

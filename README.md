@@ -18,6 +18,9 @@ files directly — no JVM, no pip installs.
 
 ## Demo it on OpenShift — console + GitHub only
 
+> **New to upgrade-delta?** Read [`docs/DEMO-101.md`](docs/DEMO-101.md) first, then
+> [`docs/DEMO-HANDS-ON.md`](docs/DEMO-HANDS-ON.md) (`./demo.sh` + optional cluster walk).
+
 > **Want it grading your team's real repo instead of this fixture?** See
 > [`integration/tekton/real-pipeline/README.md`](integration/tekton/real-pipeline/README.md) —
 > a separate pipeline that diffs a PR's real `pom.xml`, downloads the real old/new jars, and
@@ -32,9 +35,10 @@ network beyond the clone.**
 1. **Install** (once): [`docs/INSTALL-OPENSHIFT.md`](docs/INSTALL-OPENSHIFT.md) — install the
    OpenShift Pipelines Operator from OperatorHub, apply the resources in [`deploy/`](deploy/),
    and connect GitHub with a Pipelines-as-Code GitHub App. All in the console + github.com.
-2. **Run the demo:** [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md) — a two-tab, ~10-minute
-   run-of-show with the exact numbers, the scorecard reveal, and two live "make it go red"
-   gates. Durable scorecard links + framing: [`docs/TREVOR-WALKTHROUGH.md`](docs/TREVOR-WALKTHROUGH.md).
+2. **Learn + try:** [`docs/DEMO-101.md`](docs/DEMO-101.md) ·
+   [`docs/DEMO-HANDS-ON.md`](docs/DEMO-HANDS-ON.md) · presenter script
+   [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md). Scorecard callouts:
+   [`docs/TREVOR-WALKTHROUGH.md`](docs/TREVOR-WALKTHROUGH.md).
 
 **Two jobs:** the **static grade** is an early signal (reachability ∩ delta). **Selected
 tests that pass or fail** are the real merge gate. Reflection/DI stays invisible to static
