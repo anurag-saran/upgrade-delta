@@ -1,7 +1,7 @@
-# Walkthrough — static chain + test gate (stable links)
+# Consulting walkthrough — static chain + test gate (stable links)
 
-Short durable guide for reviewing what upgrade-delta already ships. Prefer these
-links over ad-hoc sandbox URLs that get recycled.
+Short durable guide for consulting reviews of what upgrade-delta already ships.
+Prefer these links over ad-hoc sandbox URLs that get recycled.
 
 ## Stable scorecard
 

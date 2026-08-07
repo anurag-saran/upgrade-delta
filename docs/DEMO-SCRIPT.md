@@ -95,7 +95,7 @@ story.)*
 
 Open the viewer Route: `https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html`
 (or your cluster’s `scorecard` Route). Offline snapshot: `examples/scorecard.html`.
-Durable callouts: [`TREVOR-WALKTHROUGH.md`](TREVOR-WALKTHROUGH.md). Walk the rendered
+Durable callouts: [`CONSULTING-WALKTHROUGH.md`](CONSULTING-WALKTHROUGH.md). Walk the rendered
 report:
 
 - **Two jobs on the page** — eyebrow says static grade early / tests decide the gate.

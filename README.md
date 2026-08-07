@@ -38,7 +38,7 @@ network beyond the clone.**
 2. **Learn + try:** [`docs/DEMO-101.md`](docs/DEMO-101.md) ·
    [`docs/DEMO-HANDS-ON.md`](docs/DEMO-HANDS-ON.md) · presenter script
    [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md). Scorecard callouts:
-   [`docs/TREVOR-WALKTHROUGH.md`](docs/TREVOR-WALKTHROUGH.md).
+   [`docs/CONSULTING-WALKTHROUGH.md`](docs/CONSULTING-WALKTHROUGH.md).
    **Tekton object catalog (enablement):**
    [`docs/TEKTON-ENABLEMENT.md`](docs/TEKTON-ENABLEMENT.md).
 
