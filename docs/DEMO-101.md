@@ -117,6 +117,7 @@ scorecard**.
 |---|---|
 | [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md) | Follow-along: local `./demo.sh`, then optional OpenShift |
 | [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md) | Full presenter run-of-show (~10 min, two browser tabs) |
+| [`TEKTON-ENABLEMENT.md`](TEKTON-ENABLEMENT.md) | Every Pipeline / Task / PVC / PaC object and how they connect |
 | [`TREVOR-WALKTHROUGH.md`](TREVOR-WALKTHROUGH.md) | What to point at on the scorecard |
 | [`INSTALL-OPENSHIFT.md`](INSTALL-OPENSHIFT.md) | Cluster setup once |
 | [`USER-GUIDE.md`](USER-GUIDE.md) | CLI / deeper tool usage |

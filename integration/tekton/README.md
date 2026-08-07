@@ -1,5 +1,8 @@
 # Tekton / OpenShift Pipelines integration
 
+Object-by-object enablement guide (Pipeline, Tasks, PVC, PaC, Results, live path):
+[`docs/TEKTON-ENABLEMENT.md`](../../docs/TEKTON-ENABLEMENT.md).
+
 Three manifests:
 - `task-upgrade-delta.yaml` — coverage meter + project scan; emits Tekton **results**
   (`PROJECT_GRADE`, `COVERAGE_PCT`, `COVERED/NEAR/UNCOVERED`) and fails the run when the

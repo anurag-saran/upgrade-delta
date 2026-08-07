@@ -39,6 +39,8 @@ network beyond the clone.**
    [`docs/DEMO-HANDS-ON.md`](docs/DEMO-HANDS-ON.md) · presenter script
    [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md). Scorecard callouts:
    [`docs/TREVOR-WALKTHROUGH.md`](docs/TREVOR-WALKTHROUGH.md).
+   **Tekton object catalog (enablement):**
+   [`docs/TEKTON-ENABLEMENT.md`](docs/TEKTON-ENABLEMENT.md).
 
 **Two jobs:** the **static grade** is an early signal (reachability ∩ delta). **Selected
 tests that pass or fail** are the real merge gate. Reflection/DI stays invisible to static
