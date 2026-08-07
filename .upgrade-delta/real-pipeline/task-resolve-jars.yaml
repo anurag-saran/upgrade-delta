@@ -5,16 +5,16 @@ metadata:
 spec:
   description: >-
     Resolves the OLD and NEW dependency jars via Maven's own dependency:copy
-    -- the OLD (community) version from Maven Central, the NEW (rhlw) version
-    from the Lightwell repository -- and builds the application's own jar
-    from source, so live-diff can diff them for real instead of reading a
-    pre-published evidence file.
+    (version-routed: plain versions from Maven Central, …rhlw-/…redhat- from
+    the Lightwell repository) and builds the application's own jar from
+    source. Prefer task-generate-evidence for multi-bump PRs; this task remains
+    for single-bump / manual runs.
 
     NOTE: dependency:copy runs against a standalone STUB pom, so it does NOT
     read the application's pom.xml and ignores any <repositories> declared
     there. The Lightwell repo is therefore passed explicitly via
-    -DremoteRepositories (see the lightwell-repo param). Credentials still
-    come from the settings.xml secret, and its <server><id> MUST be
+    -DremoteRepositories when the version string is remediated. Credentials
+    still come from the settings.xml secret; its <server><id> MUST be
     'lightwell-remediated' to match.
   params:
     - name: group
@@ -62,21 +62,27 @@ spec:
         OV="$(params.old-version)"; NV="$(params.new-version)"
         LIGHTWELL_REPO="$(params.lightwell-repo)"
 
-        echo "resolving OLD: $G:$A:$OV"
-        mvn -B -s "$SETTINGS" dependency:copy \
-          -Dartifact="$G:$A:$OV:jar" -DoutputDirectory=out/jars \
-          -Dmdep.stripVersion=false
-
-        echo "resolving NEW: $G:$A:$NV"
-        # dependency:copy runs against a standalone STUB pom -- it does NOT read
-        # the application's pom.xml, so the <repositories> block there is ignored
-        # and only Maven Central is searched by default. The Lightwell repo must
-        # be passed explicitly. The 'lightwell-remediated' id must match the
-        # <server><id> in the settings.xml secret for credentials to apply.
-        mvn -B -s "$SETTINGS" dependency:copy \
-          -Dartifact="$G:$A:$NV:jar" -DoutputDirectory=out/jars \
-          -Dmdep.stripVersion=false \
-          -DremoteRepositories="lightwell-remediated::::$LIGHTWELL_REPO"
+        # Route by version string: plain → Maven Central; rhlw/redhat → Lightwell.
+        # dependency:copy uses a stub pom (ignores app <repositories>), so the
+        # Lightwell URL must be passed via -DremoteRepositories when needed.
+        # Server id 'lightwell-remediated' must match settings.xml for auth.
+        is_remediated() { [[ "$1" =~ [.\-](redhat|rhlw)-[0-9]+$ ]]; }
+        fetch_one() {
+          local label="$1" ver="$2"
+          echo "resolving $label: $G:$A:$ver"
+          if is_remediated "$ver"; then
+            mvn -B -s "$SETTINGS" dependency:copy \
+              -Dartifact="$G:$A:$ver:jar" -DoutputDirectory=out/jars \
+              -Dmdep.stripVersion=false \
+              -DremoteRepositories="lightwell-remediated::::$LIGHTWELL_REPO"
+          else
+            mvn -B -s "$SETTINGS" dependency:copy \
+              -Dartifact="$G:$A:$ver:jar" -DoutputDirectory=out/jars \
+              -Dmdep.stripVersion=false
+          fi
+        }
+        fetch_one OLD "$OV"
+        fetch_one NEW "$NV"
 
         OLD_JAR="out/jars/${A}-${OV}.jar"
         NEW_JAR="out/jars/${A}-${NV}.jar"

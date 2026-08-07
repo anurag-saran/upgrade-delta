@@ -20,12 +20,13 @@ in your repo, **delete it** — everything in it that was worth keeping is folde
 
 | Piece | What it does | Source |
 |---|---|---|
-| `scripts/detect_pom_changes.py` | Diffs `pom.xml`, resolves Maven `${property}` indirection, finds every `rhlw-` adoption. | Kept from the first `real-pipeline/` draft — the only one of the two pom-diff implementations that actually handles property indirection, which your real `pom.xml` uses throughout. |
-| `task-detect-pom-changes.yaml` | Runs the script above, then extracts the first adoption into individual Tekton results for downstream tasks. | The script is the tested one; the single-result extraction glue is new in this consolidation, adapted from the simpler `real-app-integration` result contract. |
-| `scripts/pom_to_cyclonedx.py` + `task-live-coverage.yaml` | Whole-project coverage meter against the real, current `pom.xml`. | Kept from `real-pipeline/` — `real-app-integration/` didn't have an equivalent step at all. |
-| `task-resolve-jars.yaml` | Resolves the OLD and NEW dependency jars via **Maven's own `dependency:copy`**, then builds the app from source. | Taken from `real-app-integration/` — more robust than the first draft's hand-rolled Maven Central/Lightwell URL construction, because it works through whatever repos/mirrors your `pom.xml`/`settings.xml` actually define. Fixed to use the Red Hat registry image instead of the original's Docker Hub image. |
-| `task-live-diff.yaml` | Calls `upgrade_delta.py analyze --scorecard-compat` directly. | Taken from `real-app-integration/` — this discovered that `analyze` already has a real, complete `--scorecard-compat` flag that does exactly what the first `real-pipeline/` draft's custom `live_scan.py` reimplemented by hand. Using the flag directly means less custom code and one fewer place for the two implementations to drift apart. `live_scan.py` has been deleted. |
-| `task-run-tests-maven.yaml` | Runs the selected tests for real via **Maven Surefire**. | Taken from `real-app-integration/` — the first `real-pipeline/` draft explicitly left real test execution out of scope; this fills that gap. Fixed to use the Red Hat registry image. |
+| `scripts/detect_pom_changes.py` | Diffs `pom.xml`, resolves Maven `${property}` indirection, emits every version change (+ added/removed notes, Lightwell adoptions). | Extended for analyze-on-PR. |
+| `task-detect-pom-changes.yaml` | Runs the script, writes `out/changed-deps.json`, surfaces the primary bump as Tekton results. | Extended — `HAS_CHANGE` is any version change. |
+| `scripts/generate_evidence.sh` + `task-generate-evidence.yaml` | Fetches OLD/NEW jars (Central vs Lightwell by version string), `analyze` → `out/evidence/`, then `scan` → scorecard. | New — primary grading path for live PRs. |
+| `scripts/pom_to_cyclonedx.py` + `task-live-coverage.yaml` | Whole-project coverage meter against the real, current `pom.xml`. | Unchanged. |
+| `task-resolve-jars.yaml` / `task-live-diff.yaml` | Single-bump helpers (still vendored). | Version-routed fetch; optional — pipeline uses generate-evidence. |
+| `task-run-tests-maven.yaml` | Runs the selected tests for real via **Maven Surefire**. | Unchanged. |
+
 
 `upgrade-delta-select-tests`, `upgrade-delta-summary`, and `upgrade-delta-pr-comment` are
 reused **completely unmodified** from the fixture demo pipeline. **They must still be
@@ -40,13 +41,20 @@ now done in the shipped `pull-request-live.yaml`.
 
 ## What's deliberately out of scope for this version
 
-- **Transitive (two-hop) grading.** Two-hop reachability (app → direct dependency → transitive)
-  needs a *published catalog* of transitive delta reports. A live single-PR diff only knows
-  what changed in *this* `pom.xml`. Direct dependencies (including the internal-call-chain
-  check) are fully live; transitives are not, in this version.
-- **More than one dependency bump per PR.** `detect-pom-changes` finds every adoption, but
-  only the first is graded (with a printed warning if there's more than one). Keep upgrade
-  PRs to one dependency each.
+- **Parent-POM / BOM-imported versions.** `detect_pom_changes.py` resolves
+  `${property}` from the pom under diff only. Versions inherited from a parent
+  POM this script never saw stay as unresolved `${…}` and are skipped with a
+  warning.
+- **Profiles / pluginManagement.** Only `<dependencies>` and
+  `<dependencyManagement><dependencies>` are scanned.
+
+## Multi-dependency PRs
+
+`generate-evidence` grades **every** version change in the pom diff (not just
+the first Lightwell adoption). Added dependencies are noted as "new dependency,
+nothing to diff"; removals are skipped. Transitive follow-up still keys off the
+primary bump (preferring a Lightwell adoption when one exists).
+
 
 ## What I could verify, and what only your cluster can prove
 
@@ -81,16 +89,17 @@ those get exercised for the first time.
    oc apply -f .upgrade-delta/real-pipeline/pipeline-real.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-detect-pom-changes.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-live-coverage.yaml
-   oc apply -f .upgrade-delta/real-pipeline/task-resolve-jars.yaml
-   oc apply -f .upgrade-delta/real-pipeline/task-live-diff.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-generate-evidence.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-resolve-and-grade-transitive.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-run-tests-maven.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-upgrade-delta-select-tests.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-upgrade-delta-summary.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-upgrade-delta-pr-comment.yaml
    ```
-4. **Confirm all eight tasks exist** in the target namespace:
+4. **Confirm the live tasks exist** in the target namespace:
    ```bash
-   oc get task detect-pom-changes live-coverage resolve-jars live-diff run-tests-maven \
+   oc get task detect-pom-changes live-coverage generate-evidence \
+     resolve-and-grade-transitive run-tests-maven \
      upgrade-delta-select-tests upgrade-delta-summary upgrade-delta-pr-comment -n <namespace>
    ```
 5. **Reuse the existing `lightwell-maven-settings` secret** — the same one `sample-app`

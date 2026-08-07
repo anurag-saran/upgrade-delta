@@ -1,0 +1,75 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: generate-evidence
+spec:
+  description: >-
+    For every dependency version change in out/changed-deps.json: fetch the
+    OLD and NEW jars (Maven Central for plain versions, Lightwell for
+    …rhlw-NNNNN / …redhat-NNNNN), run `upgrade_delta.py analyze` into
+    out/evidence/, then run `scan` against that evidence so the scorecard
+    reflects THIS PR's real bumps — no pre-committed evidence required.
+    Also builds the application jar from the PR head for reachability.
+  params:
+    - name: app-module-dir
+      type: string
+      default: "."
+      description: Directory containing the pom.xml to build (root, or a module path)
+    - name: lightwell-repo
+      type: string
+      default: "https://packages.redhat.com/lightwell/java/remediated"
+    - name: fail-on
+      type: string
+      default: "D"
+  workspaces:
+    - name: source
+    - name: maven-settings
+      description: Secret volume containing settings.xml with Lightwell server credentials
+  results:
+    - name: APP_JAR
+      description: Path (in workspace) to the freshly-built application jar
+    - name: EVIDENCE_COUNT
+      description: How many live evidence JSON files were written
+    - name: PROJECT_GRADE_RECOMMENDED_PATH
+      description: Project headline grade from scan (A-F), or '-' if none
+  steps:
+    - name: generate-and-scan
+      displayName: "Fetch jars, analyze each bump, scan"
+      image: registry.access.redhat.com/ubi9/openjdk-21:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
+        SCRIPT=".upgrade-delta/real-pipeline/scripts/generate_evidence.sh"
+        chmod +x "$SCRIPT"
+
+        # Capture APP_JAR= line; propagate scan's exit code (incl. grade gate 2).
+        set +e
+        OUT=$("$SCRIPT" \
+          --changes out/changed-deps.json \
+          --app-module-dir "$(params.app-module-dir)" \
+          --settings "$SETTINGS" \
+          --ud-py .upgrade-delta/upgrade_delta.py \
+          --lightwell-repo "$(params.lightwell-repo)" \
+          --fail-on "$(params.fail-on)" 2>&1)
+        RC=$?
+        set -e
+        printf '%s\n' "$OUT"
+
+        APP_JAR=$(printf '%s\n' "$OUT" | sed -n 's/^APP_JAR=//p' | tail -1)
+        printf '%s' "${APP_JAR:-}" > "$(results.APP_JAR.path)"
+
+        EVIDENCE_N=0
+        if [ -d out/evidence ]; then
+          EVIDENCE_N=$(find out/evidence -name '*.json' | wc -l | tr -d ' ')
+        fi
+        printf '%s' "$EVIDENCE_N" > "$(results.EVIDENCE_COUNT.path)"
+
+        GRADE="-"
+        if [ -f out/scorecard.json ]; then
+          GRADE=$(python3 -c "import json;p=json.load(open('out/scorecard.json'))['project'];print(p.get('headline_grade') or '-')")
+        fi
+        printf '%s' "$GRADE" > "$(results.PROJECT_GRADE_RECOMMENDED_PATH.path)"
+        echo "grade=$GRADE evidence_count=$EVIDENCE_N app_jar=${APP_JAR:-} rc=$RC"
+        exit "$RC"

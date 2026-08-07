@@ -5,12 +5,10 @@ metadata:
 spec:
   description: >-
     Diffs pom.xml between the PR's target (base) branch and the PR head using
-    the tested detect_pom_changes.py (resolves Maven ${property} indirection,
-    finds every Lightwell rhlw adoption). Writes the full list to
-    out/changed-deps.json, AND surfaces the FIRST adoption as individual
-    Tekton results for the rest of this pipeline to consume directly --
-    keep upgrade PRs to one dependency bump each for this pipeline to grade
-    correctly; a warning is printed (not a failure) if more than one changed.
+    detect_pom_changes.py (resolves Maven ${property} indirection). Writes the
+    full change-set to out/changed-deps.json (version changes, Lightwell
+    adoptions, added, removed). Surfaces the FIRST version change as Tekton
+    results for transitive grading; generate-evidence grades EVERY change.
   params:
     - name: target-branch
       type: string
@@ -22,21 +20,23 @@ spec:
   workspaces:
     - name: source
   results:
+    - name: VERSION_CHANGES_COUNT
+      description: How many dependencies changed version in this PR
     - name: LIGHTWELL_ADOPTIONS_COUNT
-      description: How many dependencies in this PR adopted a Lightwell (rhlw) build
+      description: How many of those adopted a Lightwell (rhlw) build
     - name: HAS_CHANGE
-      description: "'true' if at least one Lightwell adoption was detected, else 'false'"
+      description: "'true' if at least one version change was detected, else 'false'"
     - name: CHANGED_GROUP
-      description: Maven groupId of the first detected adoption
+      description: Maven groupId of the first detected version change
     - name: CHANGED_ARTIFACT
-      description: Maven artifactId of the first detected adoption
+      description: Maven artifactId of the first detected version change
     - name: CHANGED_OLD_VERSION
       description: Version on the target branch (before this PR)
     - name: CHANGED_NEW_VERSION
-      description: Version on this PR's head (carries the real rhlw-NNNNN suffix)
+      description: Version on this PR's head
   steps:
     - name: detect
-      displayName: "Diff pom.xml for Lightwell adoptions"
+      displayName: "Diff pom.xml for dependency version changes"
       image: registry.access.redhat.com/ubi9/python-311:latest
       workingDir: $(workspaces.source.path)
       script: |
@@ -57,21 +57,26 @@ spec:
         python3 - <<'PY'
         import json
         d = json.load(open("out/changed-deps.json"))
-        adopted = d["lightwell_adopted"]
+        changed = d["changed"]
+        adopted = d.get("lightwell_adopted") or []
+        open("$(results.VERSION_CHANGES_COUNT.path)", "w").write(str(len(changed)))
         open("$(results.LIGHTWELL_ADOPTIONS_COUNT.path)", "w").write(str(len(adopted)))
-        if not adopted:
+        if not changed:
             open("$(results.HAS_CHANGE.path)", "w").write("false")
             for p in ["$(results.CHANGED_GROUP.path)", "$(results.CHANGED_ARTIFACT.path)",
                       "$(results.CHANGED_OLD_VERSION.path)", "$(results.CHANGED_NEW_VERSION.path)"]:
                 open(p, "w").write("")
         else:
-            if len(adopted) > 1:
-                print(f"WARNING: {len(adopted)} Lightwell adoptions in this PR; using the "
-                      f"first one below. Keep upgrade PRs to one dependency bump each for "
-                      f"this pipeline to grade correctly.")
-                for e in adopted:
-                    print(f"  - {e['group']}:{e['artifact']}  {e['old_version']} -> {e['new_version']}")
-            e = sorted(adopted, key=lambda x: (x["group"], x["artifact"]))[0]
+            # Prefer a Lightwell adoption as the "primary" bump for transitive
+            # grading; otherwise the first version change.
+            pool = adopted if adopted else changed
+            if len(changed) > 1:
+                print(f"NOTE: {len(changed)} dependency version change(s) in this PR; "
+                      f"generate-evidence will grade all of them. Primary (for "
+                      f"transitive follow-up): "
+                      f"{sorted(pool, key=lambda x: (x['group'], x['artifact']))[0]['group']}:"
+                      f"{sorted(pool, key=lambda x: (x['group'], x['artifact']))[0]['artifact']}")
+            e = sorted(pool, key=lambda x: (x["group"], x["artifact"]))[0]
             open("$(results.HAS_CHANGE.path)", "w").write("true")
             open("$(results.CHANGED_GROUP.path)", "w").write(e["group"])
             open("$(results.CHANGED_ARTIFACT.path)", "w").write(e["artifact"])

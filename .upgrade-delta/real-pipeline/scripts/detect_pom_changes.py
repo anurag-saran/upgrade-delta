@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """detect_pom_changes.py -- diff two pom.xml files and report every
-dependency whose <version> changed. Flags the ones whose NEW version carries
-a Red Hat Lightwell build suffix (…rhlw-NNNNN or the legacy …redhat-NNNNN) as
-"adopted" -- those are what the live pipeline grades. A version change to a
-non-rhlw version is still reported (for visibility) but not graded here.
+dependency whose <version> changed. Also notes newly added dependencies
+(nothing to diff yet) and removals (skipped).
+
+Flags entries whose NEW version carries a Red Hat Lightwell build suffix
+(…rhlw-NNNNN or the legacy …redhat-NNNNN) as "lightwell_adopted" for
+visibility — but EVERY version change is emitted in `changed` so the
+generate-evidence step can analyze them live.
 
 Pure standard library (xml.etree) -- no Maven, no network. Handles Maven
 <properties> version indirection: if a <dependency> declares
@@ -106,33 +109,72 @@ def main():
     base_by_ga = {(g, a): resolve(v, base_props) for g, a, v in base_deps}
     head_by_ga = {(g, a): resolve(v, head_props) for g, a, v in head_deps}
 
-    changed, adopted = [], []
-    for ga, new_v in head_by_ga.items():
+    changed, adopted, added, removed = [], [], [], []
+
+    for ga, new_v in sorted(head_by_ga.items()):
         old_v = base_by_ga.get(ga)
-        if old_v is None or old_v == new_v:
+        if old_v is None:
+            if new_v.startswith("${"):
+                continue
+            added.append({
+                "group": ga[0], "artifact": ga[1],
+                "new_version": new_v,
+                "note": "new dependency, nothing to diff",
+            })
             continue
-        if new_v.startswith("${"):
+        if old_v == new_v:
+            continue
+        if new_v.startswith("${") or old_v.startswith("${"):
             # unresolved property (likely inherited from a parent POM this
             # script never saw) -- report it as changed but don't guess.
+            print(f"  ! skip {ga[0]}:{ga[1]} — unresolved property "
+                  f"({old_v} -> {new_v})", file=sys.stderr)
             continue
-        entry = {"group": ga[0], "artifact": ga[1], "old_version": old_v, "new_version": new_v}
+        entry = {
+            "group": ga[0], "artifact": ga[1],
+            "old_version": old_v, "new_version": new_v,
+        }
         changed.append(entry)
         if is_rhlw(new_v):
             adopted.append(entry)
 
-    result = {"changed": changed, "lightwell_adopted": adopted}
+    for ga, old_v in sorted(base_by_ga.items()):
+        if ga in head_by_ga:
+            continue
+        if old_v.startswith("${"):
+            continue
+        removed.append({
+            "group": ga[0], "artifact": ga[1],
+            "old_version": old_v,
+            "note": "removed dependency, skipped",
+        })
+
+    result = {
+        "changed": changed,
+        "lightwell_adopted": adopted,
+        "added": added,
+        "removed": removed,
+    }
     with open(args.out, "w") as f:
         json.dump(result, f, indent=2)
 
-    print(f"pom diff: {len(changed)} dependency version change(s), "
-          f"{len(adopted)} adopting a Lightwell (rhlw) build")
+    print(f"pom diff: {len(changed)} version change(s), "
+          f"{len(adopted)} Lightwell (rhlw) adoption(s), "
+          f"{len(added)} added, {len(removed)} removed")
     for e in changed:
-        tag = "  <- Lightwell adoption, will be graded" if e in adopted else ""
-        print(f"  {e['group']}:{e['artifact']}  {e['old_version']} -> {e['new_version']}{tag}")
+        tag = "  <- Lightwell adoption" if e in adopted else ""
+        print(f"  change  {e['group']}:{e['artifact']}  "
+              f"{e['old_version']} -> {e['new_version']}{tag}")
+    for e in added:
+        print(f"  added   {e['group']}:{e['artifact']}:{e['new_version']}  "
+              f"({e['note']})")
+    for e in removed:
+        print(f"  removed {e['group']}:{e['artifact']}:{e['old_version']}  "
+              f"({e['note']})")
 
-    if not adopted:
-        print("\nNo Lightwell (rhlw) version adoption detected in this PR's pom.xml diff -- "
-              "the live grading step will have nothing to grade and will pass through cleanly.")
+    if not changed:
+        print("\nNo dependency version changes in this PR's pom.xml diff — "
+              "generate-evidence / live grading will pass through cleanly.")
     return 0
 
 
