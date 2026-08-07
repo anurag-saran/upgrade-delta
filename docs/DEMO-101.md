@@ -115,7 +115,8 @@ scorecard**.
 
 | Doc | When |
 |---|---|
-| [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md) | Follow-along: local `./demo.sh`, then optional OpenShift |
+| [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md) | Follow-along: local `./demo.sh`, then optional OpenShift (fixture) |
+| [`DEMO-LIVE-POM.md`](DEMO-LIVE-POM.md) | Live E2E: open a PR that bumps `pom.xml` (jackson Lightwell adoption) |
 | [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md) | Full presenter run-of-show (~10 min, two browser tabs) |
 | [`TEKTON-ENABLEMENT.md`](TEKTON-ENABLEMENT.md) | Every Pipeline / Task / PVC / PaC object and how they connect |
 | [`CONSULTING-WALKTHROUGH.md`](CONSULTING-WALKTHROUGH.md) | What to point at on the scorecard |

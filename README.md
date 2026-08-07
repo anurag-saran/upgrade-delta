@@ -36,7 +36,8 @@ network beyond the clone.**
    OpenShift Pipelines Operator from OperatorHub, apply the resources in [`deploy/`](deploy/),
    and connect GitHub with a Pipelines-as-Code GitHub App. All in the console + github.com.
 2. **Learn + try:** [`docs/DEMO-101.md`](docs/DEMO-101.md) ·
-   [`docs/DEMO-HANDS-ON.md`](docs/DEMO-HANDS-ON.md) · presenter script
+   [`docs/DEMO-HANDS-ON.md`](docs/DEMO-HANDS-ON.md) (fixture) ·
+   [`docs/DEMO-LIVE-POM.md`](docs/DEMO-LIVE-POM.md) (`pom.xml` PR) · presenter
    [`docs/DEMO-SCRIPT.md`](docs/DEMO-SCRIPT.md). Scorecard callouts:
    [`docs/CONSULTING-WALKTHROUGH.md`](docs/CONSULTING-WALKTHROUGH.md).
    **Tekton object catalog (enablement):**

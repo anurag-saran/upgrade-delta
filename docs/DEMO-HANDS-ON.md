@@ -44,10 +44,14 @@ cd upgrade-delta   # this repo
 
 ---
 
-## Part B — OpenShift + GitHub (~10 min)
+## Part B — OpenShift + GitHub (~10 min) — **fixture** demo
 
 Setup must already be done: [`INSTALL-OPENSHIFT.md`](INSTALL-OPENSHIFT.md).  
 Full presenter beats (what to say): [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md).
+
+> **Want a PR that bumps `pom.xml` instead?** That is the **live** pipeline —
+> follow [`DEMO-LIVE-POM.md`](DEMO-LIVE-POM.md) (jackson → `.rhlw-…` in `sample-app`).
+
 
 ### Before you start
 

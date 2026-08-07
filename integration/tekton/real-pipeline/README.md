@@ -114,3 +114,6 @@ those get exercised for the first time.
 
 Open a PR that bumps a dependency to its `rhlw-` version in `pom.xml`, and this triggers
 automatically — same as the demo, but grading your real code.
+
+**Step-by-step enablement walkthrough** (jackson hero in `sample-app`, PVC, PaC, what to
+watch): [`docs/DEMO-LIVE-POM.md`](../../docs/DEMO-LIVE-POM.md).

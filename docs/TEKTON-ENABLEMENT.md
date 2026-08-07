@@ -296,7 +296,8 @@ Console: **Pipelines → Pipelines / PipelineRuns**, **Networking → Routes →
 | Doc | Audience |
 |---|---|
 | [`DEMO-101.md`](DEMO-101.md) | Product / beginner concepts |
-| [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md) | Follow-along local + cluster |
+| [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md) | Follow-along local + cluster (fixture) |
+| [`DEMO-LIVE-POM.md`](DEMO-LIVE-POM.md) | Live `pom.xml` bump PR walkthrough |
 | [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md) | Presenter beats |
 | [`INSTALL-OPENSHIFT.md`](INSTALL-OPENSHIFT.md) | Console install |
 | [`../integration/tekton/README.md`](../integration/tekton/README.md) | Tekton folder overview |
