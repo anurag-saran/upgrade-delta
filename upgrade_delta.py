@@ -601,6 +601,16 @@ LANES = {
                                           "Watch a single instance for longer than usual"]),
 }
 
+# Scorecard "Do:" wording after the pipeline has already selected+run tests —
+# descriptive scope, not an imperative the reader still needs to perform.
+SCOPE_FROM_LANE = {
+    "Just smoke-test it": "smoke test",
+    "Test the parts you use": "parts of your code that call this library",
+    "Test each module that uses it": "modules using this",
+    "Run your full test suite": "full regression suite",
+    "Fix your code first": "fix your code first, then re-test",
+}
+
 
 def internal_chain_intersect(app, lib_old, delta):
     """Same-library, multi-hop reachability: BFS the library's OWN call graph
@@ -1438,7 +1448,7 @@ def _triage_summary_html(blocks, safe, clean):
             + ", ".join(parts) + ".</p>")
 
 
-def _dep_row_html(l, *, expanded=True):
+def _dep_row_html(l, *, expanded=True, test_results=None):
     """Identical Reaches / Why / Do skeleton for every graded dependency row."""
     rec = l["recommended"]
     g = rec["rating"]
@@ -1494,20 +1504,19 @@ def _dep_row_html(l, *, expanded=True):
     reaches = f'<div class="skel"><span class="skel-k">Reaches:</span> {use}</div>'
     why = (f'<div class="skel"><span class="skel-k">Why {esc(shown)}:</span> {why_body}</div>'
            if why_body else "")
-    do = f'<div class="skel"><span class="skel-k">Do:</span> {esc(lane)}</div>'
+    do = _do_with_tests_html(lane, l.get("library") or "", test_results)
     detail = f'{reaches}{why}{do}{break_html}{parent_html}'
 
     head = (f'<div class="row-head">'
             f'<span class="chip" style="--c:{c}">{esc(shown)}</span> {heading}'
             f'</div>')
 
+    scope = _scope_label(lane)
     if expanded:
         left = f'{head}{detail}'
     else:
-        # Collapsed preview: title only. Expanded detail uses the same
-        # Reaches → Why → Do order as blocking rows.
         left = (f'{head}'
-                f'<details class="row-more"><summary>show detail · {esc(lane)}</summary>'
+                f'<details class="row-more"><summary>show detail · {esc(scope)}</summary>'
                 f'{detail}</details>')
 
     right = f'{value}{cves_html}{alt_html}{note}'
@@ -2713,9 +2722,205 @@ def _subtitle_lines_html(p):
     return f'<div class="vers-block">{items}</div>'
 
 
-def render_scorecard(r):
+def _scope_label(lane):
+    return SCOPE_FROM_LANE.get(lane) or (lane[0].lower() + lane[1:] if lane else "testing")
+
+
+def _test_class_of(name):
+    """ConfigLoaderTest.foo or com.example.ConfigLoaderTest#foo → ConfigLoaderTest."""
+    s = (name or "").strip()
+    if not s:
+        return ""
+    s = s.replace("#", ".")
+    if "." in s:
+        # drop package / method — keep simple class token
+        parts = s.split(".")
+        for p in reversed(parts):
+            if p and p[0].isupper():
+                return p
+        return parts[-2] if len(parts) > 1 else parts[-1]
+    return s
+
+
+def attribute_tests_by_library(selection_report, library_names):
+    """Map selected test class names → short library names via selection reasons.
+
+    Reasons look like: 'covers com.example.X <- json-path 2.6.0 -> … [direct]'.
+    Join key is the short evidence library name (same as scorecard.libraries[].library).
+    Full-suite / mandatory entries without a library marker are left unattributed;
+    the scorecard row then falls back to the aggregate suite outcome.
+    """
+    by_lib = {n: [] for n in library_names}
+    entries = []
+    if selection_report:
+        entries.extend(selection_report.get("selected") or [])
+        entries.extend(selection_report.get("widened") or [])
+        for name in (selection_report.get("mandatory") or {}).get("appended") or []:
+            entries.append({"test": name, "reason": "mandatory"})
+    for e in entries:
+        test = e.get("test") if isinstance(e, dict) else e
+        reason = e.get("reason", "") if isinstance(e, dict) else ""
+        if not test:
+            continue
+        matched = [n for n in library_names if f"<- {n} " in reason]
+        for n in matched:
+            if test not in by_lib[n]:
+                by_lib[n].append(test)
+    return by_lib
+
+
+def compose_test_results(*, methods_passed=0, methods_failed=0, summary="",
+                         status="ran", failed_names=None, selection_report=None,
+                         library_names=None):
+    """Build upgrade-delta/test-results/v1 for scorecard regeneration."""
+    failed_names = list(failed_names or [])
+    library_names = list(library_names or [])
+    methods_run = int(methods_passed) + int(methods_failed)
+    by_sel = attribute_tests_by_library(selection_report, library_names)
+
+    by_library = {}
+    for lib, tests in by_sel.items():
+        lib_fails = sorted(
+            n for n in failed_names
+            if any(_test_class_of(n) == t or n.startswith(t + ".") or _test_class_of(n) == _test_class_of(t)
+                   for t in tests)
+        )
+        if status != "ran":
+            st = "not_run"
+        elif not tests:
+            st = "not_selected"
+        elif methods_failed and lib_fails:
+            st = "failed"
+        elif methods_failed and not failed_names:
+            # Aggregate failure only — flag every lib that had selected tests.
+            st = "failed"
+            lib_fails = failed_names[:]  # may be empty; banner carries the count
+        elif methods_failed and failed_names and not lib_fails:
+            st = "passed"  # failures attributed elsewhere
+        else:
+            st = "passed"
+        by_library[lib] = {
+            "selected_tests": tests,
+            "selected_count": len(tests),
+            "status": st,
+            "failed_names": lib_fails,
+        }
+
+    totals = (selection_report or {}).get("totals") or {}
+    return {
+        "schema": "upgrade-delta/test-results/v1",
+        "status": status,
+        "methods_passed": int(methods_passed),
+        "methods_failed": int(methods_failed),
+        "methods_run": methods_run,
+        "summary": summary or "",
+        "failed_names": failed_names,
+        "by_library": by_library,
+        "selection_final": totals.get("final"),
+        "selection_suite": totals.get("suite"),
+    }
+
+
+def _do_with_tests_html(lane, library, test_results):
+    scope = _scope_label(lane)
+    base = f'Recommended scope: {esc(scope)}'
+    if test_results is None:
+        return f'<div class="skel"><span class="skel-k">Do:</span> {base}.</div>'
+
+    status = test_results.get("status") or "not_run"
+    per = (test_results.get("by_library") or {}).get(library) or {}
+    n = per.get("selected_count")
+    if n is None and test_results.get("selection_final") is not None:
+        n = test_results.get("selection_final")
+
+    if status != "ran":
+        return (f'<div class="skel"><span class="skel-k">Do:</span> {base}. '
+                f'<span class="test-skip">Tests not run.</span></div>')
+
+    st = per.get("status") or "unknown"
+    fails = per.get("failed_names") or []
+    # Fall back to suite-level failure names only when this row is marked failed
+    # without a more specific attribution.
+    if st == "failed" and not fails:
+        fails = test_results.get("failed_names") or []
+    n_label = "test" if n == 1 else "tests"
+    if st == "not_selected" or (n == 0 and not test_results.get("selection_final")):
+        outcome = '<span class="test-skip">No tests selected for this change.</span>'
+    elif st == "not_selected" and test_results.get("selection_final"):
+        # Full-suite / unattributed: still show aggregate outcome on every row.
+        run = test_results.get("methods_run") or 0
+        failed = test_results.get("methods_failed") or 0
+        if failed:
+            outcome = (f'<span class="test-fail">Suite ran <b>{run}</b> methods — '
+                       f'<b>{failed} FAILED</b> ✗</span>')
+        else:
+            outcome = (f'<span class="test-pass">Suite ran <b>{run}</b> methods — '
+                       f'all passed ✓</span>')
+    elif st == "failed" or (test_results.get("methods_failed") and st != "passed" and n):
+        fail_n = len(fails) or test_results.get("methods_failed") or 1
+        who = ""
+        if fails:
+            shown = ", ".join(fails[:3])
+            more = ""
+            if len(fails) > 3:
+                more = f" (+{len(fails)-3} more)"
+            elif len(fails) > 1:
+                more = ""
+            who = f' (<span class="m">{esc(shown)}</span>{esc(more)})'
+        if n:
+            outcome = (f'<span class="test-fail">Ran <b>{n}</b> selected {n_label} — '
+                       f'<b>{fail_n} FAILED</b> ✗{who}</span>')
+        else:
+            outcome = (f'<span class="test-fail">Selected tests ran — '
+                       f'<b>{fail_n} FAILED</b> ✗{who}</span>')
+    elif st == "passed" or test_results.get("methods_failed") == 0:
+        if n:
+            outcome = (f'<span class="test-pass">Ran <b>{n}</b> selected {n_label} — '
+                       f'all passed ✓</span>')
+        else:
+            run = test_results.get("methods_run") or 0
+            outcome = (f'<span class="test-pass">Suite ran <b>{run}</b> methods — '
+                       f'all passed ✓</span>' if run else
+                       '<span class="test-pass">Selected tests ran — all passed ✓</span>')
+    else:
+        outcome = '<span class="test-skip">Test outcome unavailable.</span>'
+
+    return f'<div class="skel"><span class="skel-k">Do:</span> {base}. {outcome}</div>'
+
+
+def _tests_outcome_banner_html(test_results):
+    # None = pre-test scan render (no banner). Explicit not_run / ran from
+    # record-test-results always produces a banner after the pipeline acts.
+    if test_results is None:
+        return ""
+    status = test_results.get("status") or "not_run"
+    if status != "ran":
+        return ('<p class="tests-banner test-skip-banner">Selected tests for the changed '
+                'dependencies: <b>not run</b>.</p>')
+    passed = test_results.get("methods_passed") or 0
+    failed = test_results.get("methods_failed") or 0
+    run = test_results.get("methods_run") or (passed + failed)
+    sel = test_results.get("selection_final")
+    sel_bit = f"{sel} classes selected · " if sel is not None else ""
+    if failed:
+        fails = test_results.get("failed_names") or []
+        who = ""
+        if fails:
+            who = " — " + ", ".join(fails[:5])
+            if len(fails) > 5:
+                who += f" (+{len(fails)-5} more)"
+        return (f'<p class="tests-banner test-fail-banner">{esc(sel_bit)}'
+                f'<b>{run}</b> methods run, <b>{passed}</b> passed, '
+                f'<b>{failed} FAILED</b> ✗{esc(who)}</p>')
+    return (f'<p class="tests-banner test-pass-banner">{esc(sel_bit)}'
+            f'<b>{run}</b> methods run, <b>{passed}</b> passed, '
+            f'<b>0</b> failed ✓</p>')
+
+
+def render_scorecard(r, test_results=None):
     p = r["project"]
     libs = r["libraries"]
+    tr = test_results if test_results is not None else r.get("test_results")
     has_transitive = any(l.get("transitive") for l in libs)
     verdict = _verdict_html(p, libs)
     testing = _testing_summary_html(libs)
@@ -2731,18 +2936,19 @@ def render_scorecard(r):
 
     blocks, safe, clean = _partition_action_buckets(libs)
     triage = _triage_summary_html(blocks, safe, clean)
+    tests_banner = _tests_outcome_banner_html(tr)
     deps_html = (
         _action_bucket_html(
             f"Blocks your upgrade ({len(blocks)})",
-            "".join(_dep_row_html(l, expanded=True) for l in blocks),
+            "".join(_dep_row_html(l, expanded=True, test_results=tr) for l in blocks),
             kind="block")
         + _action_bucket_html(
             f"Safe, but test these ({len(safe)})",
-            "".join(_dep_row_html(l, expanded=False) for l in safe),
+            "".join(_dep_row_html(l, expanded=False, test_results=tr) for l in safe),
             kind="safe")
         + _action_bucket_html(
             f"Clean — smoke test only ({len(clean)})",
-            "".join(_dep_row_html(l, expanded=False) for l in clean),
+            "".join(_dep_row_html(l, expanded=False, test_results=tr) for l in clean),
             kind="clean")
     )
 
@@ -2807,6 +3013,17 @@ not the same as catalog “uncovered”: a package can be Lightwell drop-in read
   background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
   font-size:13.5px;line-height:1.5;color:var(--ink)}}
 .triage{{margin:0 0 16px;font-size:15.5px;line-height:1.45;max-width:72ch;font-weight:500}}
+.tests-banner{{margin:0 0 18px;padding:10px 12px;border-radius:6px;font-size:14px;
+  line-height:1.45;max-width:72ch}}
+.test-pass-banner{{background:color-mix(in srgb,var(--pass) 12%,var(--card));
+  border:1px solid color-mix(in srgb,var(--pass) 40%,transparent)}}
+.test-fail-banner{{background:color-mix(in srgb,var(--stop) 14%,var(--card));
+  border:2px solid var(--stop);font-weight:600}}
+.test-skip-banner{{background:color-mix(in srgb,var(--rule) 55%,var(--card));
+  border:1px solid var(--rule);color:var(--ink-soft)}}
+.test-pass{{color:var(--pass);font-weight:600}}
+.test-fail{{color:var(--stop);font-weight:700}}
+.test-skip{{color:var(--ink-soft)}}
 .test-sum{{margin:0 0 22px}}
 .test-sum p{{margin:0 0 10px;font-size:14.5px;line-height:1.45;max-width:72ch}}
 .risk-strip{{display:flex;height:10px;border-radius:5px;overflow:hidden;
@@ -2872,6 +3089,7 @@ details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
   {testing}
   <h2>Dependencies</h2>{_grade_legend_html()}
   {triage}
+  {tests_banner}
   {transitive_key}
   {deps_html}
   {bridge}
@@ -3195,6 +3413,50 @@ def verify_seal(args):
     if not ok:
         sys.exit(5)
 
+def record_test_results_cmd(args):
+    sel = None
+    if args.selection and os.path.isfile(args.selection):
+        with open(args.selection) as f:
+            sel = json.load(f)
+    lib_names = []
+    if args.scorecard and os.path.isfile(args.scorecard):
+        with open(args.scorecard) as f:
+            sc = json.load(f)
+        lib_names = [l["library"] for l in sc.get("libraries") or [] if l.get("library")]
+    result = compose_test_results(
+        methods_passed=args.passed, methods_failed=args.failed,
+        summary=args.summary, status=args.status,
+        failed_names=args.failed_name, selection_report=sel,
+        library_names=lib_names)
+    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    with open(args.out, "w") as f:
+        json.dump(result, f, indent=2)
+    print(f"  test-results: {args.out} "
+          f"(status={result['status']} passed={result['methods_passed']} "
+          f"failed={result['methods_failed']})")
+
+
+def render_scorecard_cmd(args):
+    with open(args.scorecard_json) as f:
+        sc = json.load(f)
+    tr = None
+    if args.test_results:
+        if os.path.isfile(args.test_results):
+            with open(args.test_results) as f:
+                tr = json.load(f)
+        else:
+            print(f"  ! {args.test_results} missing — rendering with tests-not-run note")
+            tr = compose_test_results(status="not_run", summary="tests not run",
+                                      library_names=[l["library"] for l in sc.get("libraries") or []])
+    else:
+        tr = sc.get("test_results")
+    html = render_scorecard(sc, test_results=tr)
+    os.makedirs(os.path.dirname(args.html) or ".", exist_ok=True)
+    with open(args.html, "w") as f:
+        f.write(html)
+    print(f"  scorecard html: {args.html}")
+
+
 # ---------------------------------------------------------------- cli
 
 def main():
@@ -3279,6 +3541,31 @@ def main():
     p.add_argument("reports", nargs="+")
     p.add_argument("--out", required=True)
     p.set_defaults(fn=publish)
+
+    rs = sub.add_parser("render-scorecard",
+                        help="regenerate scorecard.html from scorecard.json "
+                             "(optionally with test outcomes)")
+    rs.add_argument("scorecard_json", help="path to scorecard.json")
+    rs.add_argument("--html", required=True, help="write scorecard HTML here")
+    rs.add_argument("--test-results",
+                    help="optional upgrade-delta/test-results/v1 JSON "
+                         "(from record-test-results)")
+    rs.set_defaults(fn=render_scorecard_cmd)
+
+    rt = sub.add_parser("record-test-results",
+                        help="write out/test-results.json joining selection "
+                             "with pass/fail counts for scorecard regeneration")
+    rt.add_argument("--out", required=True)
+    rt.add_argument("--passed", type=int, default=0)
+    rt.add_argument("--failed", type=int, default=0)
+    rt.add_argument("--summary", default="")
+    rt.add_argument("--status", default="ran",
+                    choices=["ran", "not_run"])
+    rt.add_argument("--failed-name", action="append", default=[],
+                    help="Class or Class.method that failed (repeatable)")
+    rt.add_argument("--selection", help="selection-report.json path")
+    rt.add_argument("--scorecard", help="scorecard.json for library name list")
+    rt.set_defaults(fn=record_test_results_cmd)
 
     args = ap.parse_args()
     args.fn(args)

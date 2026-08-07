@@ -47,7 +47,7 @@ spec:
         # must NOT report success -- a build that never ran the tests is a failure,
         # not "0 failures".
         python3 - "$(params.app-module-dir)" "$MVN_RC" <<'PY'
-        import glob, re, sys
+        import glob, re, sys, os, json, subprocess
         base, mvn_rc = sys.argv[1], int(sys.argv[2])
         total_run = total_fail = total_err = 0
         reports = glob.glob(f"{base}/**/surefire-reports/*.txt", recursive=True)
@@ -59,17 +59,39 @@ spec:
                 total_run += run; total_fail += fail; total_err += err
         failed = total_fail + total_err
 
+        failed_names = []
+        for xf in glob.glob(f"{base}/**/surefire-reports/TEST-*.xml", recursive=True):
+            try:
+                text = open(xf, errors="replace").read()
+            except OSError:
+                continue
+            for m in re.finditer(
+                    r'<(?:failure|error)\b[^>]*>.*?</(?:failure|error)>|'
+                    r'<testcase\b([^>]*?)\s+name="([^"]+)"([^>]*?)>',
+                    text, re.S):
+                pass
+            for m in re.finditer(
+                    r'<testcase\b[^>]*?\bclassname="([^"]+)"[^>]*?\bname="([^"]+)"[^>]*>'
+                    r'(?:(?!</testcase>).)*?<(?:failure|error)\b',
+                    text, re.S):
+                cls = m.group(1).rsplit(".", 1)[-1]
+                failed_names.append(f"{cls}.{m.group(2)}")
+            for m in re.finditer(
+                    r'<testcase\b[^>]*?\bname="([^"]+)"[^>]*?\bclassname="([^"]+)"[^>]*>'
+                    r'(?:(?!</testcase>).)*?<(?:failure|error)\b',
+                    text, re.S):
+                cls = m.group(2).rsplit(".", 1)[-1]
+                name = f"{cls}.{m.group(1)}"
+                if name not in failed_names:
+                    failed_names.append(name)
+
         if mvn_rc != 0:
-            # Maven itself failed. Whatever the reports say, this run is NOT green.
             msg = (f"Maven FAILED (exit {mvn_rc}) -- the test suite did not complete. "
                    f"{total_run} test method(s) had been recorded before the failure. "
                    f"Treat this as a failed gate, not a pass.")
             passed_count = 0
-            failed_count = max(failed, 1)   # never report 0 failures on a failed build
+            failed_count = max(failed, 1)
         elif not reports:
-            # Maven "succeeded" but produced no surefire reports at all -- usually
-            # means no tests were selected/matched. Report it plainly rather than
-            # claiming everything passed.
             msg = ("Maven completed but produced NO surefire reports -- 0 tests actually "
                    "ran. This is not a pass; check that the selected tests exist and that "
                    "the includes file matched them.")
@@ -86,6 +108,18 @@ spec:
         open("$(results.TEST_METHODS_FAILED_COUNT.path)", "w").write(str(failed_count))
         open("$(results.TESTS_ACTUALLY_EXECUTED_SUMMARY.path)", "w").write(msg)
         print(msg)
+
+        ud = ".upgrade-delta/upgrade_delta.py" if os.path.isfile(".upgrade-delta/upgrade_delta.py") \
+            else "upgrade_delta.py"
+        cmd = [sys.executable, ud, "record-test-results",
+               "--out", "out/test-results.json",
+               "--passed", str(passed_count), "--failed", str(failed_count),
+               "--summary", msg, "--status", "ran",
+               "--selection", "out/routing-out/selection-report.json",
+               "--scorecard", "out/scorecard.json"]
+        for n in failed_names:
+            cmd += ["--failed-name", n]
+        subprocess.check_call(cmd)
         PY
         # a genuine test failure (or a build failure) turns the PipelineRun red
         exit $MVN_RC

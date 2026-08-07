@@ -25,6 +25,25 @@ spec:
         #!/usr/bin/env bash
         set -uo pipefail
         HOST="$(params.scorecard-route-host)"
+
+        # Re-render scorecard.html with test outcomes (or a not-run note).
+        # Runs in finally so failures in run-tests still update the Route artifact.
+        UD=upgrade_delta.py
+        [ -f .upgrade-delta/upgrade_delta.py ] && UD=.upgrade-delta/upgrade_delta.py
+        if [ -f out/scorecard.json ]; then
+          if [ ! -f out/test-results.json ]; then
+            python3 "$UD" record-test-results \
+              --out out/test-results.json --status not_run \
+              --summary "tests not run" \
+              --selection out/routing-out/selection-report.json \
+              --scorecard out/scorecard.json || true
+          fi
+          mkdir -p out/reports
+          python3 "$UD" render-scorecard out/scorecard.json \
+            --html out/reports/scorecard.html \
+            --test-results out/test-results.json || true
+        fi
+
         python3 - "$HOST" <<'PY'
         import json, sys
         host = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -36,6 +55,7 @@ spec:
         sc  = load("out/scorecard.json")
         sel = load("out/routing-out/selection-report.json")
         gate= load("out/routing-out/deploy-gate.json")
+        tr  = load("out/test-results.json")
         line = "=" * 64
         print(line); print(" UPGRADE-DELTA VERDICT"); print(line)
         if sc:
@@ -51,6 +71,14 @@ spec:
             s = sel["totals"]
             print(f" Tests routed  : {s['final']} of {s['suite']} classes  "
                   f"({s['selected']} by coverage, {s['mandatory_appended']} mandatory)")
+        if tr:
+            if tr.get("status") != "ran":
+                print(" Tests run     : not run")
+            else:
+                print(f" Tests run     : {tr.get('methods_run', 0)} methods  "
+                      f"({tr.get('methods_passed', 0)} passed / {tr.get('methods_failed', 0)} failed)")
+                if tr.get("summary"):
+                    print(f"               : {tr['summary']}")
         print(line)
         if sc:
             print(" Per-dependency (recommended path):")
@@ -70,6 +98,12 @@ spec:
                         more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
                         print(f"     -> internal call chain: {chain['closure_methods_reached']} method(s) "
                               f"from {chain['closure_seed_count']} entry point(s) reach {hits[0]}{more}")
+                if tr and tr.get("by_library", {}).get(lib["library"]):
+                    o = tr["by_library"][lib["library"]]
+                    print(f"     -> tests: {o.get('status')} "
+                          f"({o.get('selected_count', 0)} selected"
+                          + (f", failed={o['failed_names']}" if o.get("failed_names") else "")
+                          + ")")
             lh = sc["project"]["lane_histogram"]
             print(" Lanes         : " + ", ".join(f"{k}: {sum(v.values())}" for k, v in lh.items()))
         if gate:

@@ -183,11 +183,41 @@ spec:
             for s in rep["skipped"]:
                 lines.append(f"- \u26aa {s['test']} \u2014 {s['reason']}")
 
+        tr_path = "out/test-results.json"
+        if os.path.exists(tr_path):
+            tr = json.load(open(tr_path))
+            lines += ["", "### Test results"]
+            if tr.get("status") != "ran":
+                lines.append("- Tests were **not run** in this pipeline.")
+            elif tr.get("methods_failed"):
+                fails = tr.get("failed_names") or []
+                who = (" \u2014 `" + "`, `".join(fails[:8]) + "`") if fails else ""
+                lines.append(
+                    f"- \u274c **{tr.get('methods_failed')} FAILED** / "
+                    f"{tr.get('methods_passed', 0)} passed "
+                    f"({tr.get('methods_run', 0)} methods run){who}")
+            else:
+                lines.append(
+                    f"- \u2705 **All passed** \u2014 {tr.get('methods_passed', 0)} methods "
+                    f"({tr.get('methods_run', 0)} run, 0 failed)")
+            for lib, o in sorted((tr.get("by_library") or {}).items()):
+                if not o.get("selected_count") and o.get("status") == "not_selected":
+                    continue
+                mark = "\u2705" if o.get("status") == "passed" else (
+                    "\u274c" if o.get("status") == "failed" else "\u26aa")
+                extra = ""
+                if o.get("failed_names"):
+                    extra = " \u2014 `" + "`, `".join(o["failed_names"][:3]) + "`"
+                lines.append(
+                    f"- {mark} **`{lib}`** \u2014 {o.get('selected_count', 0)} selected, "
+                    f"status `{o.get('status')}`{extra}")
+
         lines += ["", "---", "**CAB approval:** this comment is the change-board summary. "
                   "Approve by reviewing here and merging \u2014 branch protection requires this "
                   "check to pass.", "*Grade \u2265 D auto-fails the pipeline; any de-escalation is "
                   "signed off and recorded on the sealed evidence.*",
-                  "", "<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs). "
+                  "", "<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs + "
+                  "test outcomes). "
                   "coverage.html answers catalog availability; this comment answers graded "
                   "upgrade cost. \u270d\ufe0f = de-escalation signed off.</sub>"]
 
