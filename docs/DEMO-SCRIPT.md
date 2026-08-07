@@ -79,6 +79,7 @@ Walk the Results table:
 | `PROJECT_GRADE` | **F** | snakeyaml will break — migrate `Constructor(TypeDescription, Collection)` first |
 | `COVERAGE_PCT` / `COVERED` / `NEAR` / `UNCOVERED` | **59 / 16 / 1 / 10** | 16 deps have a drop-in remediated build; snakeyaml is uncovered |
 | `TESTS_SELECTED` / `SUITE_SIZE` | **6 / 6** | F/C lanes force full-suite fallback |
+| `TESTS_PASSED` / `TESTS_FAILED` | **9 / 0** | MiniRunner with `demo-jars/lib` — real outcomes, not CP noise |
 
 > "Land this line: **reachability turns a library-wide F into an app-specific call site.**
 > snakeyaml's removed Constructor is not theoretical — `ConfigLoader` invokes it. json-path
@@ -94,19 +95,17 @@ Open the viewer Route: `https://scorecard-upgrade-delta-demo.apps.asaran.na-laun
 Durable callouts: [`TREVOR-WALKTHROUGH.md`](TREVOR-WALKTHROUGH.md). Walk the rendered
 report:
 
-- **Per-dependency grades** — `json-path` → B, `spring-core` takes the A "fast-lane"
-  backport over the F forward-upgrade, `jackson-databind` → B.
-- **The de-escalation story — the money slide.** `snakeyaml` is a transitive that grades
-  **D**. But method-level reachability proves no changed member is reachable through this
-  app's call paths, so it's de-escalated to **B with sign-off**:
-  > "This is class-level vs method-level precision. Class-granular analysis would flag the
-  > codec's removed `Hex.encode` and block the upgrade. Method-granular proves the app never
-  > reaches it — the one path to it is a `debugDump()` this app never calls. So the scan
-  > offers a scope shrink, a human signs off, and it's recorded `D → B`. Precision that
-  > avoids blocking a safe upgrade — without ever hiding the risk."
-- **Lane routing** — fast lane vs targeted tests: the pipeline runs only the tests the change
-  requires, not the whole suite.
-- **"What this report cannot see"** — reflection and config-driven paths. Point at it:
+- **Two jobs on the page** — eyebrow says static grade early / tests decide the gate.
+  Banner: **6 classes selected · 9 methods run, 9 passed, 0 failed**.
+- **Per-dependency grades** — `snakeyaml` **F** (blocks: reachable removed
+  `Constructor(TypeDescription, Collection)`), `json-path` **C**, `spring-core` **B**
+  (Lightwell z-stream backport).
+- **Do: rows** — per-library selected tests attributed via the coverage map even in
+  full-suite mode (snakeyaml 1 / json-path 2 / spring-core 2).
+- **Honesty** — F / transitive rows note reflection/DI is invisible to static analysis;
+  sign-off still required to de-escalate a transitive.
+- **"Limitations — what this scan cannot see"** — reflection and config-driven paths.
+  Point at it:
   > "That's why the canary stays in the plan for every grade, including A. The honesty is
   > the credibility."
 
@@ -114,8 +113,8 @@ report:
 
 Switch back to the GitHub tab. The `pr-comment` step has posted a **change-board comment**
 right on the pull request: the project grade, the per-library before→after table with lanes,
-the "**would be F** without the backports" gap, and the **named test plan** with a reason for
-every RUN and skip.
+the catalog coverage bridge, the **named test plan**, and **test results** (9 methods, all
+passed) — even when the grade-gate keeps the check red.
 
 > "So a developer opened a PR, and the change board got back — *on the PR itself* — a graded,
 > evidence-backed upgrade analysis: which Lightwell libraries to adopt and at what risk, which
@@ -132,17 +131,15 @@ test), the PR gets a comment saying the tool blocked it and why. The audit trail
 
 Both are real gates. A red PipelineRun here is the product working, not a failure — say so.
 
-### Lever A — remove the sign-off, watch the gate bite
-In a PR, edit `integration/tekton/pipeline-demo.yaml`, in the `scan` task change
-`accept-transitive-scope` from `"true"` to `"false"`, and open/push the PR.
+### Lever A — remove the sign-off (when a transitive D is on the board)
+In a PR that grades a **transitive** dependency, edit `integration/tekton/pipeline-demo.yaml`,
+in the `scan` task change `accept-transitive-scope` from `"true"` to `"false"`.
 
-> "I'm revoking the human sign-off on that codec de-escalation. Without it, the transitive
-> counts at its raw grade **D**, which breaches the pipeline's `fail-on: D`."
+> "Without human sign-off, a transitive whose changed members are unreachable stays at its
+> raw grade **D**, which breaches `fail-on: D`."
 
-The run goes **red at `grade-gate`** (after tests), not at `scan` — scan uses an empty
-`fail-on` so the scorecard still gets test outcomes. The cluster enforced that a
-de-escalation requires an explicit human decision — it isn't a suggestion the tool can
-grant itself.
+The run goes **red at `grade-gate`** (after tests). On the default fixture corpus today
+the blocker is direct **snakeyaml F**, so Lever B is the clearer live demo.
 
 ### Lever B — untag the mandatory gate test
 In a PR, open `examples/tests/BootSmokeIT.java` and remove its `@Tag("upgrade-gate")` line.

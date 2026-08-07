@@ -30,11 +30,14 @@ tkn pipelinerun describe --last     # <- the summary: grade, coverage %, tests
 ```
 
 Expected results on the run (real-library corpus):
-`PROJECT_GRADE=F · COVERAGE_PCT=59 · COVERED=16 NEAR=1 UNCOVERED=10` —
-snakeyaml grades F (reachable removed `Constructor(TypeDescription, Collection)`),
-so the scan task exits 2 and the PipelineRun goes red at the grade gate (`fail-on: D`).
+`PROJECT_GRADE=F · COVERAGE_PCT=59 · COVERED=16 NEAR=1 UNCOVERED=10` ·
+`TEST_METHODS_PASSED=9 · FAILED=0` —
+snakeyaml grades F (reachable removed `Constructor(TypeDescription, Collection)`).
+Scan uses an empty `fail-on`; the PipelineRun goes red at **grade-gate** after tests
+(`fail-on: D`) so scorecard.html and the PR comment still carry pass/fail.
 That red run is the demo: coverage.html and scorecard.html both use
-`examples/demo-jars/payments-service.sbom.json`.
+`examples/demo-jars/payments-service.sbom.json`. Also needs `examples/demo-jars/lib/`
+on the MiniRunner classpath (wired in `upgrade-delta-run-tests`).
 
 Scorecard rows (when you inspect `out/scorecard.json` / the HTML card):
 spring-core → B (1 call site), json-path → C (1 call site), snakeyaml → F (4 call sites, incompatible-reachable).

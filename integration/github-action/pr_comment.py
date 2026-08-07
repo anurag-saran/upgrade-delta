@@ -2,9 +2,12 @@
 """Render scorecard.json as a PR comment (markdown). Post with:
    gh pr comment $PR --body-file pr-comment.md   (or the REST API)
 
-Kept in sync with the scorecard HTML: full Maven GAV, named call sites, CVEs.
+Kept in sync with the scorecard HTML and the Tekton pr-comment Task:
+full Maven GAV, named call sites, CVEs, optional test plan + outcomes.
 """
+import argparse
 import json
+import os
 import re
 import sys
 
@@ -51,8 +54,15 @@ def _calls_line(rec):
     return f"{shown}{more}{from_bit}"
 
 
-def main(scorecard_path, out_path):
-    r = json.load(open(scorecard_path))
+def _load(path):
+    if path and os.path.isfile(path):
+        with open(path) as f:
+            return json.load(f)
+    return None
+
+
+def render(scorecard, *, selection=None, test_results=None):
+    r = scorecard
     p = r["project"]
     g = p["headline_grade"] or "—"
     lines = [f"## {BADGE.get(g,'⚪')} upgrade-delta: project grade **{g}**",
@@ -119,12 +129,73 @@ def main(scorecard_path, out_path):
         lines += ["", f"**Coverage gap — not rated yet:** "
                       f"{', '.join(x.replace('/', '.') for x in r['unrated_packages'])} "
                       f"— no delta report published yet; upgrades here are tested blind."]
-    lines += ["", "<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs). "
-                  "Coverage.html answers catalog availability; this comment answers graded "
-                  "upgrade cost. ✍️ = de-escalation signed off.</sub>"]
-    open(out_path, "w").write("\n".join(lines) + "\n")
-    print(f"wrote {out_path}")
+
+    if selection:
+        t = selection["totals"]
+        lines += ["", f"### Test plan — {t['final']} of {t['suite']} test classes",
+                  "Every RUN carries a printed reason; skips are recorded too.", ""]
+        for s in selection.get("selected") or []:
+            lines.append(f"- ✅ **{s['test']}** — {s['reason']}")
+        for m in (selection.get("mandatory") or {}).get("appended") or []:
+            lines.append(f"- 🔒 **{m}** — mandatory `@Tag(upgrade-gate)`, always runs")
+        for s in selection.get("skipped") or []:
+            lines.append(f"- ⚪ {s['test']} — {s['reason']}")
+
+    if test_results:
+        lines += ["", "### Test results"]
+        if test_results.get("status") != "ran":
+            lines.append("- Tests were **not run** in this pipeline.")
+        elif test_results.get("methods_failed"):
+            fails = test_results.get("failed_names") or []
+            who = (" — `" + "`, `".join(fails[:8]) + "`") if fails else ""
+            lines.append(
+                f"- ❌ **{test_results.get('methods_failed')} FAILED** / "
+                f"{test_results.get('methods_passed', 0)} passed "
+                f"({test_results.get('methods_run', 0)} methods run){who}")
+        else:
+            lines.append(
+                f"- ✅ **All passed** — {test_results.get('methods_passed', 0)} methods "
+                f"({test_results.get('methods_run', 0)} run, 0 failed)")
+        for lib, o in sorted((test_results.get("by_library") or {}).items()):
+            if not o.get("selected_count") and o.get("status") == "not_selected":
+                continue
+            mark = "✅" if o.get("status") == "passed" else (
+                "❌" if o.get("status") == "failed" else "⚪")
+            extra = ""
+            if o.get("failed_names"):
+                extra = " — `" + "`, `".join(o["failed_names"][:3]) + "`"
+            lines.append(
+                f"- {mark} **`{lib}`** — {o.get('selected_count', 0)} selected, "
+                f"status `{o.get('status')}`{extra}")
+
+    lines += ["", "---",
+              "**CAB approval:** this comment is the change-board summary. "
+              "Approve by reviewing here and merging — branch protection requires this "
+              "check to pass.",
+              "*Grade ≥ D auto-fails the pipeline (after tests); any de-escalation is "
+              "signed off and recorded on the sealed evidence.*",
+              "",
+              "<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs + "
+              "test outcomes). Coverage.html answers catalog availability; this comment "
+              "answers graded upgrade cost. ✍️ = de-escalation signed off.</sub>"]
+    return "\n".join(lines) + "\n"
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("scorecard")
+    ap.add_argument("out", nargs="?", default="pr-comment.md")
+    ap.add_argument("--selection", help="selection-report.json (test plan)")
+    ap.add_argument("--test-results", help="test-results.json (pass/fail)")
+    args = ap.parse_args(argv)
+    body = render(
+        json.load(open(args.scorecard)),
+        selection=_load(args.selection),
+        test_results=_load(args.test_results),
+    )
+    open(args.out, "w").write(body)
+    print(f"wrote {args.out}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "pr-comment.md")
+    main()

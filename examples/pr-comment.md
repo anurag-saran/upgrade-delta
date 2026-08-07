@@ -40,4 +40,24 @@
 
 **Coverage gap — not rated yet:** com.fasterxml.jackson.databind, org.apache.http.client.methods, org.springframework.boot — no delta report published yet; upgrades here are tested blind.
 
-<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs). Coverage.html answers catalog availability; this comment answers graded upgrade cost. ✍️ = de-escalation signed off.</sub>
+### Test plan — 6 of 6 test classes
+Every RUN carries a printed reason; skips are recorded too.
+
+- ✅ **BootSmokeIT** — full-suite fallback: a pending upgrade's lane is Partial/Full regression — coverage of the old code says nothing about the new code paths
+- ✅ **ConfigLoaderTest** — full-suite fallback: a pending upgrade's lane is Partial/Full regression — coverage of the old code says nothing about the new code paths
+- ✅ **GatewayClientTest** — full-suite fallback: a pending upgrade's lane is Partial/Full regression — coverage of the old code says nothing about the new code paths
+- ✅ **LedgerTest** — full-suite fallback: a pending upgrade's lane is Partial/Full regression — coverage of the old code says nothing about the new code paths
+- ✅ **PaymentServiceTest** — full-suite fallback: a pending upgrade's lane is Partial/Full regression — coverage of the old code says nothing about the new code paths
+- ✅ **RefundServiceTest** — full-suite fallback: a pending upgrade's lane is Partial/Full regression — coverage of the old code says nothing about the new code paths
+
+### Test results
+- ✅ **All passed** — 9 methods (9 run, 0 failed)
+- ✅ **`json-path`** — 2 selected, status `passed`
+- ✅ **`snakeyaml`** — 1 selected, status `passed`
+- ✅ **`spring-core`** — 2 selected, status `passed`
+
+---
+**CAB approval:** this comment is the change-board summary. Approve by reviewing here and merging — branch protection requires this check to pass.
+*Grade ≥ D auto-fails the pipeline (after tests); any de-escalation is signed off and recorded on the sealed evidence.*
+
+<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs + test outcomes). Coverage.html answers catalog availability; this comment answers graded upgrade cost. ✍️ = de-escalation signed off.</sub>

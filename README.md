@@ -41,10 +41,15 @@ tests that pass or fail** are the real merge gate. Reflection/DI stays invisible
 analysis — transitive de-escalation needs explicit sign-off; we do not treat JaCoCo as a
 second grade.
 
-**What a run produces** (verified): grade **F** · coverage **59%** (16 drop-in / 1 serviced
-elsewhere / 10 uncovered) · scorecard rows **spring-core B / json-path C / snakeyaml F**
-(reachable removed Constructor — the grade gate fires). Those land on the PipelineRun's
-**Results** tab; the rendered HTML scorecard is browsable via the viewer Route if you deploy it.
+**What a run produces** (verified on `upgrade-delta-demo-real-w4hdx`): grade **F** ·
+coverage **59%** (16 drop-in / 1 serviced elsewhere / 10 uncovered) · scorecard rows
+**spring-core B / json-path C / snakeyaml F** · tests **9 passed / 0 failed** (6 classes
+selected). The PipelineRun goes red at **grade-gate** (F ≥ D) *after* tests so the
+scorecard and PR comment still carry pass/fail. Artifacts:
+[`examples/scorecard.html`](examples/scorecard.html),
+[`examples/coverage.html`](examples/coverage.html),
+[`examples/pr-comment.md`](examples/pr-comment.md). Live Route:
+https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html.
 
 How the pieces fit:
 
@@ -178,8 +183,9 @@ Secrets never belong in git. The `.gitignore` blocks them, and this tree ships n
 ## Status & scope
 
 Verified prototype, JVM ecosystem. The console pipeline runs end-to-end on the committed
-real-library corpus (grade F / 59% / spring-core B · json-path C · snakeyaml F), with the
-snakeyaml grade gate demonstrated. The
+real-library corpus (grade F / 59% / spring-core B · json-path C · snakeyaml F /
+9 tests passed · grade-gate after tests), with the snakeyaml grade gate demonstrated.
+Re-sync committed snapshots anytime with `./demo.sh`. The
 live-cluster PaC + signing paths are YAML-valid and documented; budget one shakedown for the
 GitHub App webhook and any RWX StorageClass wiring. The Maven plugin is an honest scaffold
 (`test_router.py` is its executable behavior spec). Internal Red Hat material — do not
