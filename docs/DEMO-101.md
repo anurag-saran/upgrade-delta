@@ -120,6 +120,7 @@ scorecard**.
 | [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md) | Full presenter run-of-show (~10 min, two browser tabs) |
 | [`TEKTON-ENABLEMENT.md`](TEKTON-ENABLEMENT.md) | Every Pipeline / Task / PVC / PaC object and how they connect |
 | [`CONSULTING-WALKTHROUGH.md`](CONSULTING-WALKTHROUGH.md) | What to point at on the scorecard |
+| [`REFLECTION-101.md`](REFLECTION-101.md) | Grades vs tests vs reflection blind spot (what we have vs what was proposed) |
 | [`INSTALL-OPENSHIFT.md`](INSTALL-OPENSHIFT.md) | Cluster setup once |
 | [`USER-GUIDE.md`](USER-GUIDE.md) | CLI / deeper tool usage |
 
