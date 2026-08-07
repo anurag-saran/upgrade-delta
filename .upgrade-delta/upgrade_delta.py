@@ -1254,31 +1254,58 @@ def _delta_stats(opt):
     }
 
 
-def _value_contrast_html(rec):
+def _maven_coord(gav, version):
+    """group:artifact:version when GAV known; else just version."""
+    if gav and version:
+        return f"{gav}:{version}"
+    return version or "?"
+
+
+def _lib_display_name(lib_row):
+    """Prefer Maven group:artifact; fall back to short evidence library name."""
+    return lib_row.get("gav") or lib_row.get("library") or "?"
+
+
+def _value_contrast_html(rec, gav=None):
     """Lightwell 'with vs without remediation' line for a dependency row."""
     grade = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
     c = GRADE_COLOR.get(grade, "var(--steel)")
     remediated = _is_remediated_version(rec.get("new"))
     n_break = len(rec["ix"].get("touched_incompatible") or [])
+    old_c = _maven_coord(gav, rec.get("old"))
+    new_c = _maven_coord(gav, rec.get("new"))
+    path = f'{esc(old_c)} → {esc(new_c)}'
     if remediated:
         kind = ("remediated backport" if str(rec.get("stream", "")).startswith("z")
                 else "remediated build")
         return (f'<div class="value">'
                 f'<span class="chip" style="--c:{c}">{esc(grade)}</span> '
-                f'with Red Hat\'s {kind} '
-                f'<span class="lane">({esc(rec["old"])} → {esc(rec["new"])})</span>'
+                f'with Red Hat\'s {kind}'
+                f'<div class="coords"><span class="m">{path}</span></div>'
                 f'</div>')
     if n_break or grade in ("D", "F"):
         return (f'<div class="value value-gap">'
-                f'<b>No Red Hat remediated build</b> — community upgrade '
-                f'{esc(rec["old"])} → {esc(rec["new"])} breaks your code. '
+                f'<b>No Red Hat remediated build</b> — community upgrade breaks your code. '
                 f'This is the gap Lightwell fills.'
+                f'<div class="coords"><span class="m">{path}</span></div>'
                 f'</div>')
     return (f'<div class="value">'
             f'<span class="chip" style="--c:{c}">{esc(grade)}</span> '
-            f'community path {esc(rec["old"])} → {esc(rec["new"])} '
+            f'community path '
             f'<span class="lane">(no remediated build for this version)</span>'
+            f'<div class="coords"><span class="m">{path}</span></div>'
             f'</div>')
+
+
+def _lib_heading_html(lib_row):
+    """Primary title = full Maven GAV; short name as secondary when GAV present."""
+    gav = lib_row.get("gav")
+    short = lib_row.get("library") or ""
+    if gav:
+        extra = (f'<div class="lane">artifact <span class="m">{esc(short)}</span></div>'
+                 if short and short not in gav else "")
+        return f'<b class="gav">{esc(gav)}</b>{extra}'
+    return f'<b>{esc(short)}</b>'
 
 
 def _why_grade_html(rec):
@@ -1365,14 +1392,15 @@ def _verdict_html(p, libs):
         rec = l["recommended"]
         g = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
         if g != grade:
-            safe.append(l["library"])
+            safe.append(_lib_display_name(l))
     if blocker and grade in ("D", "F"):
         n_break = len(blocker["recommended"]["ix"].get("touched_incompatible") or [])
+        blocker_name = _lib_display_name(blocker)
         if n_break:
-            reason = (f'<b>{esc(blocker["library"])}</b> has a breaking change your code '
+            reason = (f'<b>{esc(blocker_name)}</b> has a breaking change your code '
                       f'calls directly.')
         else:
-            reason = f'<b>{esc(blocker["library"])}</b> sets the project grade.'
+            reason = f'<b>{esc(blocker_name)}</b> sets the project grade.'
         others = ""
         if safe:
             if len(safe) == 1:
@@ -1402,7 +1430,7 @@ def _testing_summary_html(libs):
     by_grade = {}
     for l in libs:
         g = l["recommended"]["rating"]["effective_grade"] or l["recommended"]["rating"]["grade"]
-        by_grade.setdefault(g, []).append(l["library"])
+        by_grade.setdefault(g, []).append(_lib_display_name(l))
     parts, strip = [], ""
     total = max(len(libs), 1)
     for label, grades, color in buckets:
@@ -2239,10 +2267,12 @@ def scan(args):
     def eff(o):
         return o["rating"]["effective_grade"] or o["rating"]["grade"]
     libs = []
+    gav_map = (sbom or {}).get("gav") or {}
     for name, options in sorted(per_lib.items()):
         options.sort(key=lambda o: (gi[eff(o)], not o["in_place"]))
         meta = lib_meta[name]
-        libs.append({"library": name, "options": options,
+        libs.append({"library": name, "gav": gav_map.get(name),
+                     "options": options,
                      "recommended": options[0], "worst": options[-1],
                      "call_sites": options[0]["ix"]["lib_call_sites"],
                      "transitive": meta["transitive"], "parent": meta["parent"],
@@ -2320,14 +2350,16 @@ def scan(args):
     for l in libs:
         rec = l["recommended"]
         tag = f"  [transitive via {l['parent']}]" if l["transitive"] else ""
+        label = _lib_display_name(l)
         opts = " / ".join(
-            f"{o['old']}->{o['new']}: {eff(o)}" +
+            f"{_maven_coord(l.get('gav'), o['old'])}->{_maven_coord(l.get('gav'), o['new'])}: {eff(o)}" +
             ("" if o["in_place"] else " (stream switch)") for o in l["options"])
-        print(f"   {l['library']}{tag}  ({l['call_sites']} call sites)   paths: {opts}")
+        print(f"   {label}{tag}  ({l['call_sites']} call sites)   paths: {opts}")
         g = rec["rating"]
         shown = (f"{g['grade']}->{g['effective_grade']} (signed off)"
                  if g["effective_grade"] else g["grade"])
-        print(f"     -> recommended: {rec['old']}->{rec['new']}  grade {shown}  lane: {g['lane']}")
+        print(f"     -> recommended: {_maven_coord(l.get('gav'), rec['old'])}->"
+              f"{_maven_coord(l.get('gav'), rec['new'])}  grade {shown}  lane: {g['lane']}")
         if rec.get("cves_fixed"):
             print(f"        fixes: {', '.join(rec['cves_fixed'])}")
         if l["transitive"]:
@@ -2446,7 +2478,8 @@ def render_scorecard(r):
         c = GRADE_COLOR[shown]
         touched = (len(rec["ix"]["touched_incompatible"]), len(rec["ix"]["touched_changed"]))
         lane = esc(g["lane"])
-        value = _value_contrast_html(rec)
+        heading = _lib_heading_html(l)
+        value = _value_contrast_html(rec, gav=l.get("gav"))
         why = _why_grade_html(rec)
         break_html = _breaking_call_html(rec["ix"].get("touched_incompatible") or [])
         cves_html = _cves_fixed_html(rec)
@@ -2462,10 +2495,12 @@ def render_scorecard(r):
                     continue
                 og = o["rating"]
                 oc = GRADE_COLOR[og["effective_grade"] or og["grade"]]
+                old_c = _maven_coord(l.get("gav"), o.get("old"))
+                new_c = _maven_coord(l.get("gav"), o.get("new"))
                 alts.append(
                     f'<div class="alt"><span class="chip" style="--c:{oc}">'
                     f'{og["effective_grade"] or og["grade"]}</span> '
-                    f'<span class="m">{esc(o["old"])} → {esc(o["new"])}</span>'
+                    f'<span class="m">{esc(old_c)} → {esc(new_c)}</span>'
                     f'<span class="lane"> · {esc(og["lane"])}</span></div>')
             if alts:
                 alt_html = '<div class="alts"><span class="lane">Other paths:</span>' + "".join(alts) + '</div>'
@@ -2477,14 +2512,14 @@ def render_scorecard(r):
                         f' calls <span class="m">{esc(via_line[0])}</span></div>') if via_line else ""
             use = _app_use_blurb(l["call_sites"], touched[0], touched[1],
                                  transitive=True, parent=l["parent"])
-            rows += f"""<tr class="sub"><td><span class="lane">↳ indirect</span> <b>{esc(l['library'])}</b><br>
+            rows += f"""<tr class="sub"><td><span class="lane">↳ indirect</span> {heading}<br>
 {use}{break_html}{why}
 <div class="sub">Pulled in by <b>{esc(l['parent'])}</b> — upgrade the parent or pin an override.
 {via_html}</div></td>
 <td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
         else:
             use = _app_use_blurb(l["call_sites"], touched[0], touched[1])
-            rows += f"""<tr><td><b>{esc(l['library'])}</b><br>
+            rows += f"""<tr><td>{heading}<br>
 {use}{break_html}{why}</td>
 <td>{value}{cves_html}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
 
@@ -2539,6 +2574,8 @@ exists, an upgrade there would be tested blind.</p>
 .value{{margin:0 0 4px;font-size:14px;line-height:1.45}}
 .value-gap{{padding:8px 10px;background:color-mix(in srgb,var(--stop) 12%,var(--card));
   border-radius:6px;border:1px solid color-mix(in srgb,var(--stop) 35%,transparent)}}
+.gav{{font-family:var(--mono);font-size:14px;font-weight:700;word-break:break-all}}
+.coords{{margin:4px 0 0;font-size:12.5px;line-height:1.4;word-break:break-all}}
 .why{{margin:8px 0 0;font-size:13px;color:var(--ink);line-height:1.45}}
 .break{{margin:8px 0 0;font-size:13.5px;line-height:1.45}}
 .break details.tech{{margin-top:4px;font-size:12px}}

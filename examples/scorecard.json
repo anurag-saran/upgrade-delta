@@ -8,6 +8,7 @@
   "libraries": [
     {
       "library": "json-path",
+      "gav": "com.jayway.jsonpath:json-path",
       "options": [
         {
           "old": "2.6.0",
@@ -185,6 +186,7 @@
     },
     {
       "library": "snakeyaml",
+      "gav": "org.yaml:snakeyaml",
       "options": [
         {
           "old": "1.30",
@@ -365,6 +367,7 @@
     },
     {
       "library": "spring-core",
+      "gav": "org.springframework:spring-core",
       "options": [
         {
           "old": "5.3.18",
