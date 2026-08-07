@@ -2360,6 +2360,23 @@ def scan(args):
             "transitive" if l["transitive"] else "direct"] += 1
     histogram = dict(histogram)
 
+    catalog_coverage = None
+    cov_path = getattr(args, "coverage", None)
+    if cov_path and os.path.isfile(cov_path):
+        try:
+            with open(cov_path) as f:
+                cov = json.load(f)
+            t = cov.get("totals") or {}
+            catalog_coverage = {
+                "dependencies": t.get("dependencies", 0),
+                "exact": t.get("exact", 0),
+                "serviced_other_version": t.get("serviced_other_version", 0),
+                "uncovered": t.get("uncovered", 0),
+                "source": os.path.basename(cov_path),
+            }
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"  ! could not load --coverage {cov_path}: {e}")
+
     result = {
         "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},
         "date": str(date.today()),
@@ -2374,6 +2391,7 @@ def scan(args):
             "rated_libraries": len(libs),
             "unrated_package_roots": len(unrated),
             "lane_histogram": dict(histogram),
+            "catalog_coverage": catalog_coverage,
         },
     }
 
@@ -2486,6 +2504,37 @@ def scan(args):
     return result
 
 
+def _coverage_bridge_html(p, libs):
+    """Explain why catalog coverage (e.g. 16/27) ≠ scorecard graded rows (e.g. 3)."""
+    cov = p.get("catalog_coverage")
+    n = p.get("rated_libraries") or len(libs or [])
+    if not cov:
+        return (
+            f'<div class="bridge"><b>Why only {n} rows here?</b> '
+            f'This scorecard grades libraries that have a <b>published delta report</b> '
+            f'and that your app actually calls. Catalog drop-in coverage is a separate '
+            f'meter (coverage.html) — those numbers are not missing from this page; '
+            f'they answer a different question.</div>'
+        )
+    exact = cov.get("exact", 0)
+    total = cov.get("dependencies", 0)
+    near = cov.get("serviced_other_version", 0)
+    unc = cov.get("uncovered", 0)
+    return (
+        f'<div class="bridge">'
+        f'<b>Catalog coverage vs this scorecard</b> — two different questions, same SBOM.<br>'
+        f'<span class="m">{exact}/{total}</span> dependencies have a <b>drop-in</b> Lightwell build '
+        f'(suffix swap, no base-version upgrade) · '
+        f'<span class="m">{near}</span> serviced at another version · '
+        f'<span class="m">{unc}</span> not in the catalog.<br>'
+        f'This page grades <span class="m">{n}</span> libraries that have '
+        f'<b>published delta evidence</b> your app reaches — not the full catalog list. '
+        f'Drop-in covered deps usually need configuration, not an API-diff grade; '
+        f'they appear on coverage.html, not as extra rows here.'
+        f'</div>'
+    )
+
+
 def render_scorecard(r):
     p = r["project"]
     color = GRADE_COLOR.get(p["headline_grade"], "var(--steel)")
@@ -2493,6 +2542,7 @@ def render_scorecard(r):
     has_transitive = any(l.get("transitive") for l in libs)
     verdict = _verdict_html(p, libs)
     testing = _testing_summary_html(libs)
+    bridge = _coverage_bridge_html(p, libs)
 
     compare = ""
     if p.get("worst_without_best_path") and p["worst_without_best_path"] != p["headline_grade"]:
@@ -2589,11 +2639,21 @@ constants — the cheap slice of the reflection blind spot, made visible instead
     unrated_html = ""
     if r["unrated_packages"]:
         items = "".join(f'<li class="m">{esc(u.replace("/", "."))}</li>' for u in r["unrated_packages"])
-        unrated_html = f"""<h2>Coverage gap — not rated yet</h2>
+        unrated_html = f"""<h2>No delta evidence yet</h2>
 <p style="color:var(--ink-soft)">Your app also calls these packages, but <b>no delta report
-has been published for them yet</b> — so they do not affect the project grade. Until evidence
-exists, an upgrade there would be tested blind.</p>
+has been published for them yet</b> — so they do not affect the project grade. This is
+not the same as catalog “uncovered”: a package can be Lightwell drop-in ready on
+coverage.html and still lack a graded row here until evidence exists.</p>
 <ul class="list">{items}</ul>"""
+
+    cov = p.get("catalog_coverage") or {}
+    if cov:
+        vers = (f'<div class="vers"><b>{p["rated_libraries"]}</b> dependencies graded on published evidence'
+                f' · catalog: <b>{cov.get("exact", 0)}/{cov.get("dependencies", 0)}</b> drop-in ready'
+                f' · <b>{p["unrated_package_roots"]}</b> called packages still lack delta reports</div>')
+    else:
+        vers = (f'<div class="vers"><b>{p["rated_libraries"]}</b> dependencies graded'
+                f' · <b>{p["unrated_package_roots"]}</b> other packages your app calls have no delta report yet</div>')
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2602,6 +2662,9 @@ exists, an upgrade there would be tested blind.</p>
 .verdict{{margin:14px 0 18px;padding:12px 14px;border-left:4px solid var(--vc);
   background:color-mix(in srgb,var(--vc) 10%,var(--card));border-radius:0 6px 6px 0;
   font-size:14.5px;line-height:1.45;max-width:72ch}}
+.bridge{{margin:0 0 18px;padding:12px 14px;border-left:4px solid var(--steel);
+  background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
+  font-size:13.5px;line-height:1.5;max-width:78ch;color:var(--ink)}}
 .test-sum{{margin:0 0 22px}}
 .test-sum p{{margin:0 0 10px;font-size:14.5px;line-height:1.45;max-width:72ch}}
 .risk-strip{{display:flex;height:10px;border-radius:5px;overflow:hidden;
@@ -2634,9 +2697,9 @@ details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
   <div class="stamp"><span class="g">{esc(p['headline_grade'] or '—')}</span><span class="l">project</span></div>
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
   <h1>{esc(r['app'])}</h1>
-  <div class="vers"><b>{p['rated_libraries']}</b> dependencies graded
-  · <b>{p['unrated_package_roots']}</b> other packages your app calls have no delta report yet</div>
+  {vers}
   {verdict}
+  {bridge}
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
   <b>worst dependency in this upgrade</b> (not an average). Each row is the
   <b>lowest-risk upgrade path</b> available — and calls out when Lightwell is what makes that path safe.</p>
@@ -2884,11 +2947,10 @@ td.act{{color:var(--ink);font-size:12.5px}}
   <div class="vers">{total} dependencies checked against {esc(r['catalog'])}</div>
   <p class="cov-sub">How many of this application's dependencies Red Hat Lightwell can
   remediate <b>without an upgrade</b> — today, for the exact versions in production.
-  This meter answers availability in the catalog. The <b>project scorecard</b> answers a
-  different question — what a graded upgrade path costs for <b>your</b> call sites — using
-  published evidence (Maven <span class="m">group:artifact:version</span>). When both list
-  the same dependency, the GAV coordinates should match; if the catalog tip is newer than
-  the graded evidence, prefer the scorecard path for change-board decisions.</p>
+  <b>This is not the project scorecard.</b> The scorecard grades only libraries with
+  <b>published delta evidence</b> your app reaches (often a small subset). The
+  <span class="m">{exact_n}/{total}</span> drop-in rows below are usually a version-suffix
+  swap — they belong here, not as extra graded rows on scorecard.html.</p>
   <div class="legend">
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
       <span class="n" style="color:var(--pass)">{exact_n}</span>
@@ -3025,6 +3087,9 @@ def main():
                    "osv/java/remediated). Ignored with --no-osv-fetch")
     s.add_argument("--no-osv-fetch", action="store_true",
                    help="do not contact the network for OSV advisories; use --osv-dir only")
+    s.add_argument("--coverage", help="coverage.json from a prior `coverage` run — "
+                   "embeds catalog totals on the scorecard so 16/27 drop-in vs 3 graded "
+                   "rows is explained, not contradictory")
     s.set_defaults(fn=scan)
 
     cv = sub.add_parser("coverage", help="match an app SBOM against the Lightwell "

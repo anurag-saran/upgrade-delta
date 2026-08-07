@@ -1,5 +1,6 @@
 ## 🔴 upgrade-delta: project grade **F**
 *worst pending grade across best available remediation paths* — 3 rated dependencies, 3 unrated package roots
+> **Catalog coverage** `16/27` drop-in ready — that is *not* the scorecard row count. This comment grades **3** libraries with published delta evidence; drop-in deps stay on coverage.html as suffix swaps.
 
 | Dependency | Path | Calls | Grade | Lane | CVEs fixed |
 |---|---|---|---|---|---|

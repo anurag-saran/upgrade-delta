@@ -22,6 +22,7 @@ set +e
 python3 upgrade_delta.py scan "$APP" \
   --evidence "$EV" --sbom "$SBOM" \
   --osv-dir examples/osv --no-osv-fetch \
+  --coverage out/coverage.json \
   --lib-jars examples/demo-jars \
   --routing-payload out/routing.json \
   --json out/scorecard.json --html out/reports/scorecard.html \

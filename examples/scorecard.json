@@ -689,6 +689,13 @@
         "direct": 1,
         "transitive": 0
       }
+    },
+    "catalog_coverage": {
+      "dependencies": 27,
+      "exact": 16,
+      "serviced_other_version": 1,
+      "uncovered": 10,
+      "source": "coverage.json"
     }
   }
 }

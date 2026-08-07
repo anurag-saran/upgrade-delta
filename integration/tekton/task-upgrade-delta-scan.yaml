@@ -54,6 +54,7 @@ spec:
         EXTRA=""
         [ -n "$(params.lib-jars)" ] && EXTRA="$EXTRA --lib-jars $(params.lib-jars)"
         [ "$(params.accept-transitive-scope)" = "true" ] && EXTRA="$EXTRA --accept-transitive-scope"
+        [ -f out/coverage.json ] && EXTRA="$EXTRA --coverage out/coverage.json"
         # shellcheck disable=SC2086
         python3 upgrade_delta.py scan "$(params.app-jar)" \
           --evidence "$(params.evidence-dir)" --sbom "$(params.sbom)" $EXTRA \

@@ -62,6 +62,13 @@ def main(scorecard_path, out_path):
         lines.append(f"> Without the best available remediation paths this project scores "
                      f"**{p['worst_without_best_path']}** — that gap is the measured value "
                      f"of the maintained backports.")
+    cov = p.get("catalog_coverage") or {}
+    if cov:
+        lines.append(
+            f"> **Catalog coverage** `{cov.get('exact', 0)}/{cov.get('dependencies', 0)}` "
+            f"drop-in ready — that is *not* the scorecard row count. This comment grades "
+            f"**{p['rated_libraries']}** libraries with published delta evidence; drop-in "
+            f"deps stay on coverage.html as suffix swaps.")
     lines += ["",
               "| Dependency | Path | Calls | Grade | Lane | CVEs fixed |",
               "|---|---|---|---|---|---|"]

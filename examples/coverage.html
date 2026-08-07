@@ -111,11 +111,10 @@ td.act{color:var(--ink);font-size:12.5px}
   <div class="vers">27 dependencies checked against lightwell-remediated-java-sbom.json</div>
   <p class="cov-sub">How many of this application's dependencies Red Hat Lightwell can
   remediate <b>without an upgrade</b> — today, for the exact versions in production.
-  This meter answers availability in the catalog. The <b>project scorecard</b> answers a
-  different question — what a graded upgrade path costs for <b>your</b> call sites — using
-  published evidence (Maven <span class="m">group:artifact:version</span>). When both list
-  the same dependency, the GAV coordinates should match; if the catalog tip is newer than
-  the graded evidence, prefer the scorecard path for change-board decisions.</p>
+  <b>This is not the project scorecard.</b> The scorecard grades only libraries with
+  <b>published delta evidence</b> your app reaches (often a small subset). The
+  <span class="m">16/27</span> drop-in rows below are usually a version-suffix
+  swap — they belong here, not as extra graded rows on scorecard.html.</p>
   <div class="legend">
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
       <span class="n" style="color:var(--pass)">16</span>

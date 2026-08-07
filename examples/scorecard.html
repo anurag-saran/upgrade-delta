@@ -83,6 +83,9 @@ td a:hover{text-decoration:underline}
 .verdict{margin:14px 0 18px;padding:12px 14px;border-left:4px solid var(--vc);
   background:color-mix(in srgb,var(--vc) 10%,var(--card));border-radius:0 6px 6px 0;
   font-size:14.5px;line-height:1.45;max-width:72ch}
+.bridge{margin:0 0 18px;padding:12px 14px;border-left:4px solid var(--steel);
+  background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
+  font-size:13.5px;line-height:1.5;max-width:78ch;color:var(--ink)}
 .test-sum{margin:0 0 22px}
 .test-sum p{margin:0 0 10px;font-size:14.5px;line-height:1.45;max-width:72ch}
 .risk-strip{display:flex;height:10px;border-radius:5px;overflow:hidden;
@@ -115,9 +118,9 @@ details.limits summary{cursor:pointer;font-weight:700;font-size:15px}
   <div class="stamp"><span class="g">F</span><span class="l">project</span></div>
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
   <h1>payments-service-1.0.0.jar</h1>
-  <div class="vers"><b>3</b> dependencies graded
-  · <b>3</b> other packages your app calls have no delta report yet</div>
+  <div class="vers"><b>3</b> dependencies graded on published evidence · catalog: <b>16/27</b> drop-in ready · <b>3</b> called packages still lack delta reports</div>
   <div class="verdict" style="--vc:var(--stop)"><span class="chip" style="--c:var(--stop)">Project F</span> <b>org.yaml:snakeyaml</b> has a breaking change your code calls directly. The other 2 (<b><b>com.jayway.jsonpath:json-path</b></b> and <b>org.springframework:spring-core</b>) are safe with testing.</div>
+  <div class="bridge"><b>Catalog coverage vs this scorecard</b> — two different questions, same SBOM.<br><span class="m">16/27</span> dependencies have a <b>drop-in</b> Lightwell build (suffix swap, no base-version upgrade) · <span class="m">1</span> serviced at another version · <span class="m">10</span> not in the catalog.<br>This page grades <span class="m">3</span> libraries that have <b>published delta evidence</b> your app reaches — not the full catalog list. Drop-in covered deps usually need configuration, not an API-diff grade; they appear on coverage.html, not as extra rows here.</div>
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
   <b>worst dependency in this upgrade</b> (not an average). Each row is the
   <b>lowest-risk upgrade path</b> available — and calls out when Lightwell is what makes that path safe.</p>
@@ -139,10 +142,11 @@ details.limits summary{cursor:pointer;font-weight:700;font-size:15px}
 These notes explain mismatches — they are not upgrade blockers by themselves.</p>
 <ul><li><span class="m">[informational]</span> The application jar's own classes (payments-service) are not listed as a dependency in its SBOM — expected, not a packaging bug.</li><li><span class="m">[informational]</span> 27 libraries are in the SBOM but not packaged inside this jar (normal for a thin application jar that loads dependencies from the classpath at runtime — not a packaging bug by itself).</li></ul>
   
-  <h2>Coverage gap — not rated yet</h2>
+  <h2>No delta evidence yet</h2>
 <p style="color:var(--ink-soft)">Your app also calls these packages, but <b>no delta report
-has been published for them yet</b> — so they do not affect the project grade. Until evidence
-exists, an upgrade there would be tested blind.</p>
+has been published for them yet</b> — so they do not affect the project grade. This is
+not the same as catalog “uncovered”: a package can be Lightwell drop-in ready on
+coverage.html and still lack a graded row here until evidence exists.</p>
 <ul class="list"><li class="m">com.fasterxml.jackson.databind</li><li class="m">org.apache.http.client.methods</li><li class="m">org.springframework.boot</li></ul>
   <details class="limits">
     <summary>Limitations — what this scan cannot see</summary>

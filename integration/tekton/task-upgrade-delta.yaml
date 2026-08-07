@@ -93,6 +93,7 @@ spec:
           [ "$(params.accept-transitive-scope)" = "true" ] && EXTRA="$EXTRA --accept-transitive-scope"
           [ -n "$(params.osv-dir)" ] && EXTRA="$EXTRA --osv-dir $(params.osv-dir)"
           [ "$(params.no-osv-fetch)" = "true" ] && EXTRA="$EXTRA --no-osv-fetch"
+          [ -f out/coverage.json ] && EXTRA="$EXTRA --coverage out/coverage.json"
           # shellcheck disable=SC2086
           python3 upgrade_delta.py scan "$(params.app-jar)" \
             --evidence "$(params.evidence-dir)" --sbom "$SCAN_SBOM" $EXTRA \
