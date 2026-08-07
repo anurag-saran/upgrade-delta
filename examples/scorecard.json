@@ -47,6 +47,11 @@
           },
           "churn": 16.5,
           "incompatible": 0,
+          "api_added": 51,
+          "api_removed": 0,
+          "api_modified": 0,
+          "behavior_resources": 0,
+          "remediated": true,
           "in_place": true
         }
       ],
@@ -88,6 +93,11 @@
         },
         "churn": 16.5,
         "incompatible": 0,
+        "api_added": 51,
+        "api_removed": 0,
+        "api_modified": 0,
+        "behavior_resources": 0,
+        "remediated": true,
         "in_place": true
       },
       "worst": {
@@ -128,6 +138,11 @@
         },
         "churn": 16.5,
         "incompatible": 0,
+        "api_added": 51,
+        "api_removed": 0,
+        "api_modified": 0,
+        "behavior_resources": 0,
+        "remediated": true,
         "in_place": true
       },
       "call_sites": 1,
@@ -186,6 +201,11 @@
           },
           "churn": 46.2,
           "incompatible": 15,
+          "api_added": 14,
+          "api_removed": 9,
+          "api_modified": 6,
+          "behavior_resources": 2,
+          "remediated": false,
           "in_place": true
         }
       ],
@@ -237,6 +257,11 @@
         },
         "churn": 46.2,
         "incompatible": 15,
+        "api_added": 14,
+        "api_removed": 9,
+        "api_modified": 6,
+        "behavior_resources": 2,
+        "remediated": false,
         "in_place": true
       },
       "worst": {
@@ -287,6 +312,11 @@
         },
         "churn": 46.2,
         "incompatible": 15,
+        "api_added": 14,
+        "api_removed": 9,
+        "api_modified": 6,
+        "behavior_resources": 2,
+        "remediated": false,
         "in_place": true
       },
       "call_sites": 4,
@@ -333,6 +363,11 @@
           },
           "churn": 0.1,
           "incompatible": 0,
+          "api_added": 0,
+          "api_removed": 0,
+          "api_modified": 0,
+          "behavior_resources": 2,
+          "remediated": true,
           "in_place": true
         }
       ],
@@ -372,6 +407,11 @@
         },
         "churn": 0.1,
         "incompatible": 0,
+        "api_added": 0,
+        "api_removed": 0,
+        "api_modified": 0,
+        "behavior_resources": 2,
+        "remediated": true,
         "in_place": true
       },
       "worst": {
@@ -410,6 +450,11 @@
         },
         "churn": 0.1,
         "incompatible": 0,
+        "api_added": 0,
+        "api_removed": 0,
+        "api_modified": 0,
+        "behavior_resources": 2,
+        "remediated": true,
         "in_place": true
       },
       "call_sites": 1,

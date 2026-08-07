@@ -1186,36 +1186,273 @@ def _app_use_blurb(call_sites, n_breaking, n_changed, *, transitive=False, paren
                 f'test those paths.</span>')
     if call_sites:
         return (f'<span class="lane">{lead} '
-                f'None of those calls hit an API that changed or broke in this upgrade — '
-                f'you are not blocked on a compile break. The grade is about how much to '
-                f'test (new APIs, defaults, or internal churn), not about rewriting call sites.</span>')
+                f'None of those calls hit an API that changed or broke in this upgrade.</span>')
     return (f'<span class="lane">{lead} '
             f'This scan found no direct call sites into it.</span>')
 
 
-def _hazards_html(hazards):
-    """Render artifact-vs-SBOM hazards. Thin jars flood declared-not-shipped;
-    collapse that bucket so the scorecard stays readable."""
+def _is_remediated_version(ver):
+    return bool(re.search(r"[.-](rhlw|redhat)-\d+", ver or ""))
+
+
+def _humanize_member(desc):
+    """Constructor#<init>(L…TypeDescription;L…Collection;)V → Constructor(TypeDescription, Collection)."""
+    if not desc:
+        return "", ""
+    raw = desc
+    cls, _, rest = desc.partition("#")
+    simple = cls.rsplit(".", 1)[-1] if cls else desc
+    if rest.startswith("<init>(") or rest.startswith("<init>"):
+        # pull class names out of JVM type descriptors
+        args = re.findall(r"L([\w/$]+);", rest)
+        short = ", ".join(a.rsplit("/", 1)[-1] for a in args)
+        return f"{simple}({short})", raw
+    if "(" in rest:
+        name, _, sig = rest.partition("(")
+        args = re.findall(r"L([\w/$]+);", "(" + sig)
+        short = ", ".join(a.rsplit("/", 1)[-1] for a in args)
+        return f"{simple}.{name}({short})", raw
+    return f"{simple}.{rest}" if rest else simple, raw
+
+
+def _delta_stats(opt):
+    """Counts used for per-row 'why this grade' copy. Prefer explicit fields;
+    fall back to machine when rendering the in-memory scorecard."""
+    if "api_added" in opt:
+        return {
+            "api_added": opt.get("api_added", 0),
+            "api_removed": opt.get("api_removed", 0),
+            "api_modified": opt.get("api_modified", 0),
+            "behavior_resources": opt.get("behavior_resources", 0),
+            "churn": opt.get("churn", 0),
+            "incompatible": opt.get("incompatible", 0),
+        }
+    m = opt.get("machine") or {}
+    delta = _delta_from_machine(m) if m.get("api_added") is not None else None
+    if not delta:
+        return {"api_added": 0, "api_removed": 0, "api_modified": 0,
+                "behavior_resources": 0, "churn": opt.get("churn", 0),
+                "incompatible": opt.get("incompatible", 0)}
+    behavior = [r for r in delta["res_changed"] + delta["res_added"] + delta["res_removed"]
+                if not r.startswith("META-INF/MANIFEST")]
+    return {
+        "api_added": len(delta["api_added"]),
+        "api_removed": len(delta["api_removed"]),
+        "api_modified": len(delta["api_modified"]),
+        "behavior_resources": len(behavior),
+        "churn": opt.get("churn", delta.get("impl_churn_pct", 0)),
+        "incompatible": opt.get("incompatible", len(delta["api_incompatible"])),
+    }
+
+
+def _value_contrast_html(rec):
+    """Lightwell 'with vs without remediation' line for a dependency row."""
+    grade = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
+    c = GRADE_COLOR.get(grade, "var(--steel)")
+    remediated = _is_remediated_version(rec.get("new"))
+    n_break = len(rec["ix"].get("touched_incompatible") or [])
+    if remediated:
+        kind = ("remediated backport" if str(rec.get("stream", "")).startswith("z")
+                else "remediated build")
+        return (f'<div class="value">'
+                f'<span class="chip" style="--c:{c}">{esc(grade)}</span> '
+                f'with Red Hat\'s {kind} '
+                f'<span class="lane">({esc(rec["old"])} → {esc(rec["new"])})</span>'
+                f'</div>')
+    if n_break or grade in ("D", "F"):
+        return (f'<div class="value value-gap">'
+                f'<b>No Red Hat remediated build</b> — community upgrade '
+                f'{esc(rec["old"])} → {esc(rec["new"])} breaks your code. '
+                f'This is the gap Lightwell fills.'
+                f'</div>')
+    return (f'<div class="value">'
+            f'<span class="chip" style="--c:{c}">{esc(grade)}</span> '
+            f'community path {esc(rec["old"])} → {esc(rec["new"])} '
+            f'<span class="lane">(no remediated build for this version)</span>'
+            f'</div>')
+
+
+def _why_grade_html(rec):
+    """Per-row reason — not the shared boilerplate reachability sentence."""
+    st = _delta_stats(rec)
+    stream = rec.get("stream") or ""
+    grade = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
+    n_break = len(rec["ix"].get("touched_incompatible") or [])
+    bits = []
+    if stream.startswith("y"):
+        bits.append("minor bump")
+    elif stream.startswith("z"):
+        bits.append("patch / z-stream")
+    elif stream.startswith("x"):
+        bits.append("major bump")
+    if st["api_added"] and not st["api_removed"]:
+        bits.append(f'{st["api_added"]} new API{"s" if st["api_added"] != 1 else ""}, nothing removed')
+    elif st["api_added"] or st["api_removed"]:
+        bits.append(f'+{st["api_added"]} / −{st["api_removed"]} public APIs')
+    if st["api_modified"]:
+        bits.append(f'{st["api_modified"]} modified')
+    if st["incompatible"] and not n_break:
+        bits.append(f'{st["incompatible"]} incompatible changes (not reached by your app)')
+    if st["behavior_resources"] and st["churn"] < 1 and not st["api_added"] and not st["api_removed"]:
+        # the "even a perfect drop-in needs testing" story
+        return (f'<div class="why"><b>Why {esc(grade)}:</b> code is effectively unchanged '
+                f'(~{st["churn"]}% churn), but <b>{st["behavior_resources"]} config / default '
+                f'resource(s) changed</b> — behavior can shift with zero API change. '
+                f'Smoke-test the parts you use.</div>')
+    if st["behavior_resources"]:
+        bits.append(f'{st["behavior_resources"]} default/resource change(s)')
+    if n_break:
+        return (f'<div class="why"><b>Why {esc(grade)}:</b> '
+                f'your app calls a removed/incompatible API — it will not compile or run '
+                f'until that call is updated.</div>')
+    if grade == "C":
+        detail = ", ".join(bits) if bits else "new functionality expected"
+        return (f'<div class="why"><b>Why {esc(grade)}:</b> {esc(detail)} '
+                f'→ test each module that uses it.</div>')
+    if grade == "B":
+        detail = ", ".join(bits) if bits else "patch with non-trivial surface"
+        return (f'<div class="why"><b>Why {esc(grade)}:</b> {esc(detail)} '
+                f'→ test the parts you use.</div>')
+    if bits:
+        return f'<div class="why"><b>Why {esc(grade)}:</b> {esc(", ".join(bits))}.</div>'
+    return ""
+
+
+def _breaking_call_html(incompat_list):
+    if not incompat_list:
+        return ""
+    human, raw = _humanize_member(incompat_list[0])
+    more = ""
+    if len(incompat_list) > 1:
+        more = f' <span class="lane">(+{len(incompat_list)-1} more)</span>'
+    note = ""
+    if "Constructor" in human and "TypeDescription" in human:
+        note = (" — signature changed in 1.33 (CVE-2022-1471 hardening). "
+                "Your code calls it directly; it won't compile until updated.")
+    else:
+        note = (" — your code calls it directly; it won't compile until updated.")
+    return (
+        f'<div class="break">'
+        f'<b>{esc(human)}</b>{note}{more}'
+        f'<details class="tech"><summary>technical detail</summary>'
+        f'<code>{esc(raw)}</code></details></div>'
+    )
+
+
+def _verdict_html(p, libs):
+    grade = p.get("headline_grade") or "—"
+    c = GRADE_COLOR.get(grade, "var(--steel)")
+    # Pick the library that sets the project grade (worst recommended).
+    gi = {g: i for i, g in enumerate(GRADE_ORDER)}
+    blocker = None
+    for l in libs:
+        rec = l["recommended"]
+        g = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
+        if g == grade:
+            blocker = l
+            break
+    safe = []
+    for l in libs:
+        rec = l["recommended"]
+        g = rec["rating"]["effective_grade"] or rec["rating"]["grade"]
+        if g != grade:
+            safe.append(l["library"])
+    if blocker and grade in ("D", "F"):
+        n_break = len(blocker["recommended"]["ix"].get("touched_incompatible") or [])
+        if n_break:
+            reason = (f'<b>{esc(blocker["library"])}</b> has a breaking change your code '
+                      f'calls directly.')
+        else:
+            reason = f'<b>{esc(blocker["library"])}</b> sets the project grade.'
+        others = ""
+        if safe:
+            if len(safe) == 1:
+                others = f' The other dependency (<b>{esc(safe[0])}</b>) is safe with testing.'
+            else:
+                named = ", ".join(f'<b>{esc(s)}</b>' for s in safe[:-1])
+                others = (f' The other {len(safe)} (<b>{named}</b> and '
+                          f'<b>{esc(safe[-1])}</b>) are safe with testing.')
+        return (f'<div class="verdict" style="--vc:{c}">'
+                f'<span class="chip" style="--c:{c}">Project {esc(grade)}</span> '
+                f'{reason}{others}</div>')
+    return (f'<div class="verdict" style="--vc:{c}">'
+            f'<span class="chip" style="--c:{c}">Project {esc(grade)}</span> '
+            f'Worst pending dependency grade across the best remediation path available.'
+            f'</div>')
+
+
+def _testing_summary_html(libs):
+    """Replace the uninformative equal-length bar chart with one sentence + strip."""
+    # Merge grades that share a customer action into one bucket.
+    buckets = [
+        ("needs a code fix", {"F", "D"}, "var(--stop)"),
+        ("needs module testing", {"C"}, "var(--watch)"),
+        ("needs a smoke test", {"B"}, "var(--watch)"),
+        ("smoke-test only", {"A"}, "var(--pass)"),
+    ]
+    by_grade = {}
+    for l in libs:
+        g = l["recommended"]["rating"]["effective_grade"] or l["recommended"]["rating"]["grade"]
+        by_grade.setdefault(g, []).append(l["library"])
+    parts, strip = [], ""
+    total = max(len(libs), 1)
+    for label, grades, color in buckets:
+        names = []
+        for g in grades:
+            names.extend(by_grade.get(g) or [])
+        if not names:
+            continue
+        n = len(names)
+        who = ", ".join(names)
+        parts.append(f'<b>{n}</b> {esc(label)} ({esc(who)})')
+        pct = max(round(100 * n / total), 8)  # keep tiny segments visible
+        strip += f'<i style="width:{pct}%;background:{color}" title="{esc(label)}: {esc(who)}"></i>'
+    if not parts:
+        return ""
+    sentence = f'{len(libs)} dependencies: ' + ", ".join(parts) + "."
+    return (f'<div class="test-sum"><p>{sentence}</p>'
+            f'<div class="risk-strip">{strip}</div></div>')
+
+
+def _hazards_html(hazards, app_name=""):
+    """SBOM vs artifact notes. Thin jars flood declared-not-shipped;
+    the app jar flagging itself is expected — explain, don't alarm."""
     if not hazards:
         return ""
+    app_base = re.sub(r"-\d.*$", "", (app_name or "").replace(".jar", ""))
     by = {}
     for kind, msg in hazards:
         by.setdefault(kind, []).append(msg)
     items = []
-    # Keep signal kinds individual; summarize the thin-jar noise bucket.
     for kind, msgs in by.items():
+        if kind == "shipped-not-declared":
+            kept = []
+            for msg in msgs:
+                name = msg.split(" ", 1)[0]
+                if app_base and (name == app_base or name.startswith(app_base + "-")):
+                    items.append(
+                        f'<li><span class="m">[informational]</span> '
+                        f'The application jar\'s own classes ({esc(name)}) are not listed as a '
+                        f'dependency in its SBOM — expected, not a packaging bug.</li>')
+                else:
+                    kept.append(msg)
+            msgs = kept
+            if not msgs:
+                continue
         if kind == "declared-not-shipped" and len(msgs) > 3:
             items.append(
-                f'<li><span class="m">[{esc(kind)}]</span> '
+                f'<li><span class="m">[informational]</span> '
                 f'{len(msgs)} libraries are in the SBOM but not packaged inside this jar '
                 f'(normal for a thin application jar that loads dependencies from the '
                 f'classpath at runtime — not a packaging bug by itself).</li>')
         else:
             for msg in msgs:
                 items.append(f'<li><span class="m">[{esc(kind)}]</span> {esc(msg)}</li>')
-    return f"""<h2>Hazards — artifact vs declared graph</h2>
+    if not items:
+        return ""
+    return f"""<h2>SBOM vs. shipped artifact <span class="lane">(informational)</span></h2>
 <p style="color:var(--ink-soft)">The SBOM is the map; the shipped artifact is the territory.
-Where they disagree, you would otherwise be rating a dependency tree that isn't the one running.</p>
+These notes explain mismatches — they are not upgrade blockers by themselves.</p>
 <ul>{''.join(items)}</ul>"""
 
 
@@ -1742,14 +1979,23 @@ def scan(args):
                 ix["internal_chain"] = internal_chain_intersect(
                     app_view, lib_old, _delta_from_machine(m))
         rated_pkgs |= set(m["packages"])
-        rating = rate(r["stream"], _delta_from_machine(m), ix,
+        delta_m = _delta_from_machine(m)
+        rating = rate(r["stream"], delta_m, ix,
                       transitive=transitive, signoff=args.accept_transitive_scope)
         installed = sbom["versions"].get(r["library"]) if sbom else None
+        behavior_n = len([
+            x for x in delta_m["res_changed"] + delta_m["res_added"] + delta_m["res_removed"]
+            if not x.startswith("META-INF/MANIFEST")])
         per_lib[r["library"]].append({
             "machine": m,
             "old": r["old_version"], "new": r["new_version"], "stream": r["stream"],
             "rating": rating, "ix": ix, "churn": m["impl_churn_pct"],
             "incompatible": len(m["api_incompatible"]),
+            "api_added": len(delta_m["api_added"]),
+            "api_removed": len(delta_m["api_removed"]),
+            "api_modified": len(delta_m["api_modified"]),
+            "behavior_resources": behavior_n,
+            "remediated": _is_remediated_version(r["new_version"]),
             "in_place": (installed is None or installed == r["old_version"]),
         })
         lib_meta[r["library"]] = {"transitive": transitive, "parent": parent,
@@ -1928,110 +2174,76 @@ def scan(args):
 def render_scorecard(r):
     p = r["project"]
     color = GRADE_COLOR.get(p["headline_grade"], "var(--steel)")
-    # Derive the display order from LANES itself (A..F) rather than hardcoding
-    # the names -- a hardcoded list silently drops every bar if a lane is renamed.
-    lanes_order = [LANES[g][0] for g in GRADE_ORDER]
-    total = max(sum(h.get("direct", 0) + h.get("transitive", 0)
-                    for h in p["lane_histogram"].values()), 1)
-    bars = ""
-    for lane in lanes_order:
-        h = p["lane_histogram"].get(lane)
-        if not h:
-            continue
-        d_n, t_n = h.get("direct", 0), h.get("transitive", 0)
-        d_pct = round(100 * d_n / total); t_pct = round(100 * t_n / total)
-        label = f"{d_n + t_n}" + (f" ({t_n} indirect)" if t_n else "")
-        bars += (f'<div class="bar-row"><span class="bar-label">{esc(lane)}</span>'
-                 f'<span class="bar"><i style="width:{d_pct}%"></i>'
-                 f'<i class="t" style="width:{t_pct}%"></i></span>'
-                 f'<span class="bar-n">{label}</span></div>')
-    bars += ('<div class="bar-row"><span class="bar-label"></span>'
-             '<div class="bar-key" style="grid-column:2/4">'
-             '<span><i class="k-solid"></i>solid — your app uses it directly</span>'
-             '<span><i class="k-hatch"></i>striped — it comes in through another '
-             'dependency (counted the same, because the risk is the same)</span>'
-             '</div></div>')
+    libs = r["libraries"]
+    has_transitive = any(l.get("transitive") for l in libs)
+    verdict = _verdict_html(p, libs)
+    testing = _testing_summary_html(libs)
+
+    compare = ""
+    if p.get("worst_without_best_path") and p["worst_without_best_path"] != p["headline_grade"]:
+        c2 = GRADE_COLOR[p["worst_without_best_path"]]
+        compare = (f'<div class="note">Without Red Hat remediated builds, this project '
+                   f'would score '
+                   f'<span class="chip" style="--c:{c2}">{p["worst_without_best_path"]}</span>. '
+                   f'That gap is the measured value of Lightwell.</div>')
 
     rows = ""
-    for l in r["libraries"]:
-        opts_html = ""
-        for o in l["options"]:
-            g = o["rating"]
-            shown = g["effective_grade"] or g["grade"]
-            c = GRADE_COLOR[shown]
-            chip = (f'{g["grade"]} → {g["effective_grade"]}' if g["effective_grade"] else g["grade"])
-            marker = " ←" if o is l["recommended"] and len(l["options"]) > 1 else ""
-            switch = "" if o.get("in_place", True) else                 f'<span class="lane"> · stream switch from {esc(l.get("installed") or "?")}</span>'
-            opts_html += (f'<div><span class="chip" style="--c:{c}">{chip}</span> '
-                          f'<span class="m">{esc(o["old"])} → {esc(o["new"])}</span>'
-                          f'<span class="lane"> · {esc(g["lane"])}{marker}</span>{switch}</div>')
+    for l in libs:
         rec = l["recommended"]
         g = rec["rating"]
+        shown = g["effective_grade"] or g["grade"]
+        c = GRADE_COLOR[shown]
         touched = (len(rec["ix"]["touched_incompatible"]), len(rec["ix"]["touched_changed"]))
+        lane = esc(g["lane"])
+        value = _value_contrast_html(rec)
+        why = _why_grade_html(rec)
+        break_html = _breaking_call_html(rec["ix"].get("touched_incompatible") or [])
+        note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
+                if g.get("scope_note") else "")
+
+        # Additional upgrade options (when more than the recommended path exists)
+        alt_html = ""
+        if len(l["options"]) > 1:
+            alts = []
+            for o in l["options"]:
+                if o is rec:
+                    continue
+                og = o["rating"]
+                oc = GRADE_COLOR[og["effective_grade"] or og["grade"]]
+                alts.append(
+                    f'<div class="alt"><span class="chip" style="--c:{oc}">'
+                    f'{og["effective_grade"] or og["grade"]}</span> '
+                    f'<span class="m">{esc(o["old"])} → {esc(o["new"])}</span>'
+                    f'<span class="lane"> · {esc(og["lane"])}</span></div>')
+            if alts:
+                alt_html = '<div class="alts"><span class="lane">Other paths:</span>' + "".join(alts) + '</div>'
+
         if l["transitive"]:
             via = rec["ix"].get("via", {})
             via_line = next(iter(via.items()), None)
             via_html = (f'<div class="eg">for example: <span class="m">{esc(via_line[1])}</span>'
                         f' calls <span class="m">{esc(via_line[0])}</span></div>') if via_line else ""
-            note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
-                    if g["scope_note"] else "")
-            n_would = len(rec["ix"].get("class_level_would_touch") or [])
-            precision_html = (
-                f'<div class="sub"><b>Why this is safe:</b> a rougher, class-level check would '
-                f'have flagged {n_would} item(s) here and blocked the upgrade. Looking at the '
-                f'individual methods shows your app never actually reaches them.</div>'
-                if (rec["ix"].get("class_level_would_touch")
-                    and not (rec["ix"]["touched_changed"] or rec["ix"]["touched_incompatible"]))
-                else "")
             use = _app_use_blurb(l["call_sites"], touched[0], touched[1],
                                  transitive=True, parent=l["parent"])
             rows += f"""<tr class="sub"><td><span class="lane">↳ indirect</span> <b>{esc(l['library'])}</b><br>
-{use}
-<div class="sub">To change it, upgrade {esc(l['parent'])} or pin an override.
-Reachable parent methods: {rec['ix'].get('reachable_parent_methods', '?')}.
-{via_html}</div>{precision_html}</td>
-<td>{opts_html}{note}</td></tr>"""
+{use}{break_html}{why}
+<div class="sub">Pulled in by <b>{esc(l['parent'])}</b> — upgrade the parent or pin an override.
+{via_html}</div></td>
+<td>{value}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
         else:
-            note = (f'<div class="note" style="margin:8px 0 0">{esc(g["scope_note"])}</div>'
-                    if g["scope_note"] else "")
-            chain = rec["ix"].get("internal_chain")
-            chain_html = ""
-            if chain and chain.get("closure_methods_reached"):
-                hits = (chain["internal_touched_incompatible"] + chain["internal_touched_changed"]
-                        + chain["internal_touched_impl_changed"])
-                seeds = chain.get("internal_seed_owners") or []
-                seed_html = (f'<div class="eg">starting from your code in '
-                             f'<span class="m">{esc(seeds[0])}</span>'
-                             + (f' (+{len(seeds)-1} more)' if len(seeds) > 1 else '')
-                             + '</div>') if seeds else ''
-                if hits:
-                    more = f' <span class="lane">(and {len(hits)-1} more)</span>' if len(hits) > 1 else ''
-                    chain_html = (
-                        f'<div class="sub"><b>Reached indirectly:</b> your code doesn\'t call it '
-                        f'by name, but following the calls '
-                        f'{chain["closure_methods_reached"]} steps in leads to changed code:'
-                        f'<div class="eg"><span class="m">{esc(hits[0])}</span>{more}</div>'
-                        f'{seed_html}</div>')
-                else:
-                    chain_html = (
-                        f'<div class="sub">Followed {chain["closure_methods_reached"]} method call(s) '
-                        f'inward from your code — none of them reach anything that changed.</div>')
-            # Name the breaking member when there is exactly one — the "this breaks you" line.
-            break_detail = ""
-            incompat = rec["ix"].get("touched_incompatible") or []
-            if len(incompat) == 1:
-                break_detail = (f'<div class="eg">Breaking call: '
-                                f'<span class="m">{esc(incompat[0])}</span></div>')
-            elif len(incompat) > 1:
-                break_detail = (f'<div class="eg">Breaking calls include '
-                                f'<span class="m">{esc(incompat[0])}</span> '
-                                f'<span class="lane">(+{len(incompat)-1} more)</span></div>')
             use = _app_use_blurb(l["call_sites"], touched[0], touched[1])
             rows += f"""<tr><td><b>{esc(l['library'])}</b><br>
-{use}{break_detail}{chain_html}</td>
-<td>{opts_html}{note}</td></tr>"""
+{use}{break_html}{why}</td>
+<td>{value}<div class="lane" style="margin-top:6px">{lane}</div>{alt_html}{note}</td></tr>"""
 
-    hazards_html = _hazards_html(r.get("hazards") or [])
+    transitive_key = ""
+    if has_transitive:
+        transitive_key = (
+            '<p class="lane" style="margin:0 0 12px">Rows marked '
+            '<span class="lane">↳ indirect</span> come in through another dependency '
+            '(same risk accounting as a direct dependency).</p>')
+
+    hazards_html = _hazards_html(r.get("hazards") or [], app_name=r.get("app") or "")
 
     heur_html = ""
     if r.get("heuristics"):
@@ -2054,40 +2266,39 @@ constants — the cheap slice of the reflection blind spot, made visible instead
     unrated_html = ""
     if r["unrated_packages"]:
         items = "".join(f'<li class="m">{esc(u.replace("/", "."))}</li>' for u in r["unrated_packages"])
-        unrated_html = f"""<h2>Not rated yet</h2>
-<p style="color:var(--ink-soft)">Your app also calls these packages, but this scan has no
-delta report for them — so they do not affect the project grade. An upgrade there would be
-tested blind until evidence is published.</p>
+        unrated_html = f"""<h2>Coverage gap — not rated yet</h2>
+<p style="color:var(--ink-soft)">Your app also calls these packages, but <b>no delta report
+has been published for them yet</b> — so they do not affect the project grade. Until evidence
+exists, an upgrade there would be tested blind.</p>
 <ul class="list">{items}</ul>"""
-
-    compare = ""
-    if p["worst_without_best_path"] and p["worst_without_best_path"] != p["headline_grade"]:
-        c2 = GRADE_COLOR[p["worst_without_best_path"]]
-        compare = (f'<div class="note">Upgrading to the community releases instead of the '
-                   f'Red Hat builds would score this project '
-                   f'<span class="chip" style="--c:{c2}">{p["worst_without_best_path"]}</span>. '
-                   f'The difference between the two grades is the measured value of the '
-                   f'Red Hat builds.</div>')
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(r['app'])} — project delta scorecard</title>
 {FONTS}<style>{CSS}
-.bar-row{{display:grid;grid-template-columns:210px 1fr 90px;gap:12px;align-items:center;margin:7px 0}}
-.bar-label{{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink)}}
-.bar{{background:color-mix(in srgb,var(--rule) 55%,transparent);height:16px;
-  display:flex;border-radius:3px;overflow:hidden}}
-.bar i{{display:block;height:100%;background:var(--steel)}}
-.bar i.t{{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}}
-.bar-key{{display:flex;flex-direction:column;gap:5px;margin-top:9px;
-  font-size:12.5px;color:var(--ink-soft);line-height:1.5}}
-.bar-key span{{display:flex;align-items:flex-start;gap:8px}}
-.bar-key i{{flex:none;width:13px;height:13px;border-radius:3px;margin-top:2px}}
-.bar-key i.k-solid{{background:var(--steel)}}
-.bar-key i.k-hatch{{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}}
+.verdict{{margin:14px 0 18px;padding:12px 14px;border-left:4px solid var(--vc);
+  background:color-mix(in srgb,var(--vc) 10%,var(--card));border-radius:0 6px 6px 0;
+  font-size:14.5px;line-height:1.45;max-width:72ch}}
+.test-sum{{margin:0 0 22px}}
+.test-sum p{{margin:0 0 10px;font-size:14.5px;line-height:1.45;max-width:72ch}}
+.risk-strip{{display:flex;height:10px;border-radius:5px;overflow:hidden;
+  background:color-mix(in srgb,var(--rule) 55%,transparent);max-width:420px}}
+.risk-strip i{{display:block;height:100%}}
+.value{{margin:0 0 4px;font-size:14px;line-height:1.45}}
+.value-gap{{padding:8px 10px;background:color-mix(in srgb,var(--stop) 12%,var(--card));
+  border-radius:6px;border:1px solid color-mix(in srgb,var(--stop) 35%,transparent)}}
+.why{{margin:8px 0 0;font-size:13px;color:var(--ink);line-height:1.45}}
+.break{{margin:8px 0 0;font-size:13.5px;line-height:1.45}}
+.break details.tech{{margin-top:4px;font-size:12px}}
+.break details.tech summary{{cursor:pointer;color:var(--ink-soft)}}
+.break details.tech code{{display:block;margin-top:4px;word-break:break-all;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}}
+.alts{{margin-top:8px}}
+.alt{{margin-top:4px}}
 tr.sub td{{background:color-mix(in srgb,var(--rule) 22%,var(--card))}}
 tr.sub td:first-child{{padding-left:28px}}
-.bar-n{{font-family:var(--mono);font-size:12.5px;text-align:left;color:var(--ink-soft)}}
+details.limits{{margin:18px 0 0}}
+details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
 </style></head><body>
 <div class="sheet" style="--stamp-c:{color}">
   <div class="stamp"><span class="g">{esc(p['headline_grade'] or '—')}</span><span class="l">project</span></div>
@@ -2095,26 +2306,30 @@ tr.sub td:first-child{{padding-left:28px}}
   <h1>{esc(r['app'])}</h1>
   <div class="vers"><b>{p['rated_libraries']}</b> dependencies graded
   · <b>{p['unrated_package_roots']}</b> other packages your app calls have no delta report yet</div>
+  {verdict}
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
-  <b>worst dependency in this upgrade</b> (not an average). One library that needs a code fix
-  sets the grade for the whole project. Each row below is the <b>lowest-risk upgrade path</b>
-  available for that library.</p>
+  <b>worst dependency in this upgrade</b> (not an average). Each row is the
+  <b>lowest-risk upgrade path</b> available — and calls out when Lightwell is what makes that path safe.</p>
   {compare}
-  <h2>How much testing this upgrade needs</h2>{bars}
+  <h2>What this upgrade needs</h2>
+  {testing}
   <h2>Dependencies</h2>{_grade_legend_html()}
-  <table><thead><tr><th>Dependency · what your app actually hits</th><th>Upgrade path · what to do</th></tr></thead>
+  {transitive_key}
+  <table><thead><tr><th>Dependency · what your app actually hits</th><th>Lightwell path · what to do</th></tr></thead>
   <tbody>{rows}</tbody></table>
   {hazards_html}
   {heur_html}
   {unrated_html}
-  <h2>What this scan cannot see</h2>
-  <div class="blind"><ul>
-    <li>Reflection and config-driven use of a library will not appear as call sites — and this
-    blindness compounds across hops, so transitive reachability evidence carries lower confidence
-    than direct analysis. De-escalating a transitive always requires explicit sign-off.</li>
-    <li>Ratings come from published, app-agnostic delta reports; only the intersection ran here — your code never left this machine.</li>
-    <li>A behavior change with no structural fingerprint is invisible; canary and rollback stay in every lane.</li>
-  </ul></div>
+  <details class="limits">
+    <summary>Limitations — what this scan cannot see</summary>
+    <div class="blind" style="margin-top:10px"><ul>
+      <li>Reflection and config-driven use of a library will not appear as call sites — and this
+      blindness compounds across hops, so transitive reachability evidence carries lower confidence
+      than direct analysis. De-escalating a transitive always requires explicit sign-off.</li>
+      <li>Ratings come from published, app-agnostic delta reports; only the intersection ran here — your code never left this machine.</li>
+      <li>A behavior change with no structural fingerprint is invisible; canary and rollback stay in every lane.</li>
+    </ul></div>
+  </details>
   <div class="footer"><span>gate suggestion: fail CI when project grade ≥ D</span>
   <span>upgrade-delta v{TOOL_VERSION} · {esc(r['date'])}</span></div>
 </div></body></html>"""

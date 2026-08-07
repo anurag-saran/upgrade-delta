@@ -80,21 +80,29 @@ td a:hover{text-decoration:underline}
  .stamp{position:static;display:inline-block;margin-bottom:14px}
  .sheet{padding:24px 18px}}
 
-.bar-row{display:grid;grid-template-columns:210px 1fr 90px;gap:12px;align-items:center;margin:7px 0}
-.bar-label{font-family:var(--sans);font-size:13px;font-weight:600;color:var(--ink)}
-.bar{background:color-mix(in srgb,var(--rule) 55%,transparent);height:16px;
-  display:flex;border-radius:3px;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--steel)}
-.bar i.t{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}
-.bar-key{display:flex;flex-direction:column;gap:5px;margin-top:9px;
-  font-size:12.5px;color:var(--ink-soft);line-height:1.5}
-.bar-key span{display:flex;align-items:flex-start;gap:8px}
-.bar-key i{flex:none;width:13px;height:13px;border-radius:3px;margin-top:2px}
-.bar-key i.k-solid{background:var(--steel)}
-.bar-key i.k-hatch{background:repeating-linear-gradient(45deg,var(--steel) 0 4px,color-mix(in srgb,var(--steel) 35%,var(--card)) 4px 8px)}
+.verdict{margin:14px 0 18px;padding:12px 14px;border-left:4px solid var(--vc);
+  background:color-mix(in srgb,var(--vc) 10%,var(--card));border-radius:0 6px 6px 0;
+  font-size:14.5px;line-height:1.45;max-width:72ch}
+.test-sum{margin:0 0 22px}
+.test-sum p{margin:0 0 10px;font-size:14.5px;line-height:1.45;max-width:72ch}
+.risk-strip{display:flex;height:10px;border-radius:5px;overflow:hidden;
+  background:color-mix(in srgb,var(--rule) 55%,transparent);max-width:420px}
+.risk-strip i{display:block;height:100%}
+.value{margin:0 0 4px;font-size:14px;line-height:1.45}
+.value-gap{padding:8px 10px;background:color-mix(in srgb,var(--stop) 12%,var(--card));
+  border-radius:6px;border:1px solid color-mix(in srgb,var(--stop) 35%,transparent)}
+.why{margin:8px 0 0;font-size:13px;color:var(--ink);line-height:1.45}
+.break{margin:8px 0 0;font-size:13.5px;line-height:1.45}
+.break details.tech{margin-top:4px;font-size:12px}
+.break details.tech summary{cursor:pointer;color:var(--ink-soft)}
+.break details.tech code{display:block;margin-top:4px;word-break:break-all;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
+.alts{margin-top:8px}
+.alt{margin-top:4px}
 tr.sub td{background:color-mix(in srgb,var(--rule) 22%,var(--card))}
 tr.sub td:first-child{padding-left:28px}
-.bar-n{font-family:var(--mono);font-size:12.5px;text-align:left;color:var(--ink-soft)}
+details.limits{margin:18px 0 0}
+details.limits summary{cursor:pointer;font-weight:700;font-size:15px}
 </style></head><body>
 <div class="sheet" style="--stamp-c:var(--stop)">
   <div class="stamp"><span class="g">F</span><span class="l">project</span></div>
@@ -102,39 +110,43 @@ tr.sub td:first-child{padding-left:28px}
   <h1>payments-service-1.0.0.jar</h1>
   <div class="vers"><b>3</b> dependencies graded
   · <b>3</b> other packages your app calls have no delta report yet</div>
+  <div class="verdict" style="--vc:var(--stop)"><span class="chip" style="--c:var(--stop)">Project F</span> <b>snakeyaml</b> has a breaking change your code calls directly. The other 2 (<b><b>json-path</b></b> and <b>spring-core</b>) are safe with testing.</div>
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
-  <b>worst dependency in this upgrade</b> (not an average). One library that needs a code fix
-  sets the grade for the whole project. Each row below is the <b>lowest-risk upgrade path</b>
-  available for that library.</p>
+  <b>worst dependency in this upgrade</b> (not an average). Each row is the
+  <b>lowest-risk upgrade path</b> available — and calls out when Lightwell is what makes that path safe.</p>
   
-  <h2>How much testing this upgrade needs</h2><div class="bar-row"><span class="bar-label">Test the parts you use</span><span class="bar"><i style="width:33%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label">Test each module that uses it</span><span class="bar"><i style="width:33%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label">Fix your code first</span><span class="bar"><i style="width:33%"></i><i class="t" style="width:0%"></i></span><span class="bar-n">1</span></div><div class="bar-row"><span class="bar-label"></span><div class="bar-key" style="grid-column:2/4"><span><i class="k-solid"></i>solid — your app uses it directly</span><span><i class="k-hatch"></i>striped — it comes in through another dependency (counted the same, because the risk is the same)</span></div></div>
+  <h2>What this upgrade needs</h2>
+  <div class="test-sum"><p>3 dependencies: <b>1</b> needs a code fix (snakeyaml), <b>1</b> needs module testing (json-path), <b>1</b> needs a smoke test (spring-core).</p><div class="risk-strip"><i style="width:33%;background:var(--stop)" title="needs a code fix: snakeyaml"></i><i style="width:33%;background:var(--watch)" title="needs module testing: json-path"></i><i style="width:33%;background:var(--watch)" title="needs a smoke test: spring-core"></i></div></div>
   <h2>Dependencies</h2><div class="scale"><div class="sc-title">What each grade means for you</div><div class="sc-row"><span class="chip sm" style="--c:var(--pass)">A</span><span class="sc-lane">Just smoke-test it</span><span class="sc-desc">A clean patch. Nothing in the public API changed and almost no code moved.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--watch)">B</span><span class="sc-lane">Test the parts you use</span><span class="sc-desc">A patch, but it added new methods, rewrote a lot internally, or changed a default setting.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--watch)">C</span><span class="sc-lane">Test each module that uses it</span><span class="sc-desc">A minor release. New functionality, but nothing that should break existing code.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--stop)">D</span><span class="sc-lane">Run your full test suite</span><span class="sc-desc">Something was removed or changed shape, or this is a major release.</span></div><div class="sc-row"><span class="chip sm" style="--c:var(--stop)">F</span><span class="sc-lane">Fix your code first</span><span class="sc-desc">Something your app actually calls was removed or changed. It will break as-is.</span></div></div>
-  <table><thead><tr><th>Dependency · what your app actually hits</th><th>Upgrade path · what to do</th></tr></thead>
-  <tbody><tr><td><b>json-path</b><br>
-<span class="lane">Your app calls this library in <b>1</b> place. None of those calls hit an API that changed or broke in this upgrade — you are not blocked on a compile break. The grade is about how much to test (new APIs, defaults, or internal churn), not about rewriting call sites.</span></td>
-<td><div><span class="chip" style="--c:var(--watch)">C</span> <span class="m">2.6.0 → 2.8.0.rhlw-00001</span><span class="lane"> · Test each module that uses it</span></div><div class="note" style="margin:8px 0 0">You could test this more lightly: nothing your app calls actually changed shape. With sign-off, run the lighter test set instead — but still roll out to one instance first.</div></td></tr><tr><td><b>snakeyaml</b><br>
-<span class="lane">Your app calls this library in <b>4</b> places. <b>1</b> of them hit a <b>breaking</b> API change — fix that call before you upgrade.</span><div class="eg">Breaking call: <span class="m">org.yaml.snakeyaml.constructor.Constructor#&lt;init&gt;(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V</span></div></td>
-<td><div><span class="chip" style="--c:var(--stop)">F</span> <span class="m">1.30 → 1.33</span><span class="lane"> · Fix your code first</span></div></td></tr><tr><td><b>spring-core</b><br>
-<span class="lane">Your app calls this library in <b>1</b> place. None of those calls hit an API that changed or broke in this upgrade — you are not blocked on a compile break. The grade is about how much to test (new APIs, defaults, or internal churn), not about rewriting call sites.</span></td>
-<td><div><span class="chip" style="--c:var(--watch)">B</span> <span class="m">5.3.18 → 5.3.18.rhlw-00003</span><span class="lane"> · Test the parts you use</span></div></td></tr></tbody></table>
-  <h2>Hazards — artifact vs declared graph</h2>
-<p style="color:var(--ink-soft)">The SBOM is the map; the shipped artifact is the territory.
-Where they disagree, you would otherwise be rating a dependency tree that isn't the one running.</p>
-<ul><li><span class="m">[shipped-not-declared]</span> payments-service 1.0.0 is inside the artifact but absent from the SBOM</li><li><span class="m">[declared-not-shipped]</span> 27 libraries are in the SBOM but not packaged inside this jar (normal for a thin application jar that loads dependencies from the classpath at runtime — not a packaging bug by itself).</li></ul>
   
-  <h2>Not rated yet</h2>
-<p style="color:var(--ink-soft)">Your app also calls these packages, but this scan has no
-delta report for them — so they do not affect the project grade. An upgrade there would be
-tested blind until evidence is published.</p>
+  <table><thead><tr><th>Dependency · what your app actually hits</th><th>Lightwell path · what to do</th></tr></thead>
+  <tbody><tr><td><b>json-path</b><br>
+<span class="lane">Your app calls this library in <b>1</b> place. None of those calls hit an API that changed or broke in this upgrade.</span><div class="why"><b>Why C:</b> minor bump, 51 new APIs, nothing removed → test each module that uses it.</div></td>
+<td><div class="value"><span class="chip" style="--c:var(--watch)">C</span> with Red Hat's remediated build <span class="lane">(2.6.0 → 2.8.0.rhlw-00001)</span></div><div class="lane" style="margin-top:6px">Test each module that uses it</div><div class="note" style="margin:8px 0 0">You could test this more lightly: nothing your app calls actually changed shape. With sign-off, run the lighter test set instead — but still roll out to one instance first.</div></td></tr><tr><td><b>snakeyaml</b><br>
+<span class="lane">Your app calls this library in <b>4</b> places. <b>1</b> of them hit a <b>breaking</b> API change — fix that call before you upgrade.</span><div class="break"><b>Constructor(TypeDescription, Collection)</b> — signature changed in 1.33 (CVE-2022-1471 hardening). Your code calls it directly; it won't compile until updated.<details class="tech"><summary>technical detail</summary><code>org.yaml.snakeyaml.constructor.Constructor#&lt;init&gt;(Lorg/yaml/snakeyaml/TypeDescription;Ljava/util/Collection;)V</code></details></div><div class="why"><b>Why F:</b> your app calls a removed/incompatible API — it will not compile or run until that call is updated.</div></td>
+<td><div class="value value-gap"><b>No Red Hat remediated build</b> — community upgrade 1.30 → 1.33 breaks your code. This is the gap Lightwell fills.</div><div class="lane" style="margin-top:6px">Fix your code first</div></td></tr><tr><td><b>spring-core</b><br>
+<span class="lane">Your app calls this library in <b>1</b> place. None of those calls hit an API that changed or broke in this upgrade.</span><div class="why"><b>Why B:</b> code is effectively unchanged (~0.1% churn), but <b>2 config / default resource(s) changed</b> — behavior can shift with zero API change. Smoke-test the parts you use.</div></td>
+<td><div class="value"><span class="chip" style="--c:var(--watch)">B</span> with Red Hat's remediated backport <span class="lane">(5.3.18 → 5.3.18.rhlw-00003)</span></div><div class="lane" style="margin-top:6px">Test the parts you use</div></td></tr></tbody></table>
+  <h2>SBOM vs. shipped artifact <span class="lane">(informational)</span></h2>
+<p style="color:var(--ink-soft)">The SBOM is the map; the shipped artifact is the territory.
+These notes explain mismatches — they are not upgrade blockers by themselves.</p>
+<ul><li><span class="m">[informational]</span> The application jar's own classes (payments-service) are not listed as a dependency in its SBOM — expected, not a packaging bug.</li><li><span class="m">[informational]</span> 27 libraries are in the SBOM but not packaged inside this jar (normal for a thin application jar that loads dependencies from the classpath at runtime — not a packaging bug by itself).</li></ul>
+  
+  <h2>Coverage gap — not rated yet</h2>
+<p style="color:var(--ink-soft)">Your app also calls these packages, but <b>no delta report
+has been published for them yet</b> — so they do not affect the project grade. Until evidence
+exists, an upgrade there would be tested blind.</p>
 <ul class="list"><li class="m">com.fasterxml.jackson.databind</li><li class="m">org.apache.http.client.methods</li><li class="m">org.springframework.boot</li></ul>
-  <h2>What this scan cannot see</h2>
-  <div class="blind"><ul>
-    <li>Reflection and config-driven use of a library will not appear as call sites — and this
-    blindness compounds across hops, so transitive reachability evidence carries lower confidence
-    than direct analysis. De-escalating a transitive always requires explicit sign-off.</li>
-    <li>Ratings come from published, app-agnostic delta reports; only the intersection ran here — your code never left this machine.</li>
-    <li>A behavior change with no structural fingerprint is invisible; canary and rollback stay in every lane.</li>
-  </ul></div>
+  <details class="limits">
+    <summary>Limitations — what this scan cannot see</summary>
+    <div class="blind" style="margin-top:10px"><ul>
+      <li>Reflection and config-driven use of a library will not appear as call sites — and this
+      blindness compounds across hops, so transitive reachability evidence carries lower confidence
+      than direct analysis. De-escalating a transitive always requires explicit sign-off.</li>
+      <li>Ratings come from published, app-agnostic delta reports; only the intersection ran here — your code never left this machine.</li>
+      <li>A behavior change with no structural fingerprint is invisible; canary and rollback stay in every lane.</li>
+    </ul></div>
+  </details>
   <div class="footer"><span>gate suggestion: fail CI when project grade ≥ D</span>
   <span>upgrade-delta v0.1.0 · 2026-08-06</span></div>
 </div></body></html>
