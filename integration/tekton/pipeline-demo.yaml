@@ -29,6 +29,12 @@ spec:
     - name: pull-request-number
       type: string
       default: ""
+    - name: fail-on
+      type: string
+      default: "D"
+      description: >-
+        Fail the PipelineRun when the project grade is this bad or worse.
+        Applied AFTER tests run so scorecard.html still gets pass/fail outcomes.
   workspaces:
     - name: source
     - name: basic-auth
@@ -37,8 +43,6 @@ spec:
   tasks:
     - name: clone
       displayName: "1. Clone the repo at this PR's commit"
-      # git-clone must exist in this namespace. Install it once with:
-      #   oc apply -f https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml
       taskRef: {name: git-clone}
       workspaces: [{name: output, workspace: source}]
       params:
@@ -50,7 +54,6 @@ spec:
       taskRef: {name: upgrade-delta-coverage}
       workspaces: [{name: source, workspace: source}]
       params:
-        # Same SBOM as scan — coverage.html / scorecard.html / PR comment describe one app
         - {name: app-sbom, value: examples/demo-jars/payments-service.sbom.json}
     - name: scan
       displayName: "3. Grade the upgrade risk (reachability + sign-off)"
@@ -60,36 +63,68 @@ spec:
       params:
         - {name: app-jar, value: examples/demo-jars/payments-service-1.0.0.jar}
         - {name: sbom, value: examples/demo-jars/payments-service.sbom.json}
-        # Real-library evidence only (json-path, snakeyaml, spring-core)
         - {name: evidence-dir, value: examples/evidence}
         - {name: lib-jars, value: examples/demo-jars}
         - {name: accept-transitive-scope, value: "true"}
-        # snakeyaml grades F (reachable breaking Constructor) — gate fires on purpose
-        - {name: fail-on, value: "D"}
-    # select-tests + run-tests live in finally so they still run after the grade
-    # gate fails — otherwise scorecard.html never gets real pass/fail outcomes.
-  finally:
+        # Empty: do not fail here — grade-gate after tests keeps the demo red
+        # while still letting select/run populate scorecard test outcomes.
+        - {name: fail-on, value: ""}
     - name: select-tests
       displayName: "4. Pick which tests this upgrade owes"
+      runAfter: [scan]
       taskRef: {name: upgrade-delta-select-tests}
       workspaces: [{name: source, workspace: source}]
     - name: run-tests
       displayName: "5. RUN the selected tests for real"
       runAfter: [select-tests]
-      # Test failures must not skip summary's scorecard re-render.
+      # MiniRunner may fail some methods (missing transitive jars on the demo
+      # classpath); continue so grade-gate + summary still run.
       onError: continue
       taskRef: {name: upgrade-delta-run-tests}
       workspaces: [{name: source, workspace: source}]
+    - name: grade-gate
+      displayName: "5b. Enforce project grade gate"
+      runAfter: [run-tests]
+      taskSpec:
+        params:
+          - {name: fail-on, type: string}
+        steps:
+          - name: gate
+            image: registry.access.redhat.com/ubi9/python-311:latest
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              FAIL_ON="$(params.fail-on)"
+              [ -n "$FAIL_ON" ] || { echo "fail-on empty — skipping grade gate"; exit 0; }
+              python3 - <<PY
+              import json, sys
+              order = ["A", "B", "C", "D", "F"]
+              sc = json.load(open("out/scorecard.json"))
+              grade = sc["project"].get("headline_grade") or "-"
+              fail_on = "$FAIL_ON"
+              if grade == "-" or grade not in order or fail_on not in order:
+                  print(f"grade={grade} fail-on={fail_on} — nothing to gate")
+                  sys.exit(0)
+              if order.index(grade) >= order.index(fail_on):
+                  print(f"GATE: project grade {grade} breaches --fail-on {fail_on}")
+                  sys.exit(2)
+              print(f"grade={grade} within fail-on={fail_on}")
+              PY
+        workspaces:
+          - {name: source}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: fail-on, value: $(params.fail-on)}
+  finally:
     - name: summary
       displayName: "6. Print the verdict banner"
-      runAfter: [run-tests]
       taskRef: {name: upgrade-delta-summary}
       workspaces: [{name: source, workspace: source}]
       params:
         - {name: scorecard-route-host, value: $(params.scorecard-route-host)}
     - name: pr-comment
       displayName: "7. Post CAB comment + test plan to the PR"
-      runAfter: [summary]
       taskRef: {name: upgrade-delta-pr-comment}
       workspaces:
         - {name: source, workspace: source}
@@ -107,9 +142,9 @@ spec:
     - {name: DEPENDENCIES_COVERED_EXACT, value: $(tasks.coverage.results.DEPENDENCIES_COVERED_EXACT)}
     - {name: DEPENDENCIES_NEAR_OTHER_VERSION, value: $(tasks.coverage.results.DEPENDENCIES_NEAR_OTHER_VERSION)}
     - {name: DEPENDENCIES_UNCOVERED, value: $(tasks.coverage.results.DEPENDENCIES_UNCOVERED)}
-    - {name: TEST_CLASSES_SELECTED_COUNT, value: $(finally.select-tests.results.TEST_CLASSES_SELECTED_COUNT)}
-    - {name: TEST_CLASSES_TOTAL_SUITE, value: $(finally.select-tests.results.TEST_CLASSES_TOTAL_SUITE)}
-    - {name: TEST_CLASSES_SELECTED_NAMES, value: $(finally.select-tests.results.TEST_CLASSES_SELECTED_NAMES)}
-    - {name: TEST_METHODS_PASSED_COUNT, value: $(finally.run-tests.results.TEST_METHODS_PASSED_COUNT)}
-    - {name: TEST_METHODS_FAILED_COUNT, value: $(finally.run-tests.results.TEST_METHODS_FAILED_COUNT)}
-    - {name: TESTS_ACTUALLY_EXECUTED_SUMMARY, value: $(finally.run-tests.results.TESTS_ACTUALLY_EXECUTED_SUMMARY)}
+    - {name: TEST_CLASSES_SELECTED_COUNT, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_COUNT)}
+    - {name: TEST_CLASSES_TOTAL_SUITE, value: $(tasks.select-tests.results.TEST_CLASSES_TOTAL_SUITE)}
+    - {name: TEST_CLASSES_SELECTED_NAMES, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_NAMES)}
+    - {name: TEST_METHODS_PASSED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_PASSED_COUNT)}
+    - {name: TEST_METHODS_FAILED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_FAILED_COUNT)}
+    - {name: TESTS_ACTUALLY_EXECUTED_SUMMARY, value: $(tasks.run-tests.results.TESTS_ACTUALLY_EXECUTED_SUMMARY)}
