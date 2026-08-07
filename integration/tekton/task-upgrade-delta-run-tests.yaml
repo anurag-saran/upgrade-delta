@@ -28,23 +28,28 @@ spec:
         set -uo pipefail
         CP=$(ls examples/demo-jars/*.jar | tr '\n' ':')
         java -cp "$CP" testing.MiniRunner out/routing-out/surefire-includes.txt | tee /tmp/exec.log
-        EXECUTED=$(grep -oE '[0-9]+ test method' /tmp/exec.log | tail -1 | grep -oE '^[0-9]+'); EXECUTED=${EXECUTED:-0}
-        FAILED=$(grep -oE '[0-9]+ failure'     /tmp/exec.log | tail -1 | grep -oE '^[0-9]+'); FAILED=${FAILED:-0}
-        PASSED=$((EXECUTED - FAILED)); [ "$PASSED" -lt 0 ] && PASSED=0
+        # MiniRunner may crash mid-suite (missing transitive jars on the demo
+        # classpath) before printing its summary line — count PASS/FAIL lines.
+        PASSED=$(grep -cE '^[[:space:]]*PASS[[:space:]]' /tmp/exec.log || true)
+        FAILED=$(grep -cE '^[[:space:]]*FAIL[[:space:]]' /tmp/exec.log || true)
+        PASSED=${PASSED:-0}; FAILED=${FAILED:-0}
+        EXECUTED=$((PASSED + FAILED))
         printf '%s' "$PASSED"  > "$(results.TEST_METHODS_PASSED_COUNT.path)"
         printf '%s' "$FAILED"  > "$(results.TEST_METHODS_FAILED_COUNT.path)"
-        if [ "$FAILED" -eq 0 ]; then
+        if [ "$FAILED" -eq 0 ] && [ "$EXECUTED" -gt 0 ]; then
           SUMMARY=$(printf 'Ran %s test method(s) for real in this JVM -- all passed, 0 failed.' "$EXECUTED")
+        elif [ "$EXECUTED" -eq 0 ]; then
+          SUMMARY='MiniRunner produced no PASS/FAIL lines — 0 tests recorded.'
         else
           SUMMARY=$(printf 'Ran %s test method(s) for real in this JVM -- %s FAILED (see this task'"'"'s logs).' "$EXECUTED" "$FAILED")
         fi
         printf '%s' "$SUMMARY" > "$(results.TESTS_ACTUALLY_EXECUTED_SUMMARY.path)"
         echo "executed=$EXECUTED passed=$PASSED failed=$FAILED"
 
-        # Parse MiniRunner "  FAIL Class#method" / "  FAIL Class.method" lines.
+        # Parse MiniRunner "  FAIL Class.method -> …" lines.
         FAIL_ARGS=()
         while IFS= read -r line; do
-          name=$(echo "$line" | sed -E 's/^[[:space:]]*FAIL[[:space:]]+//;s/#/./')
+          name=$(echo "$line" | sed -E 's/^[[:space:]]*FAIL[[:space:]]+//; s/[[:space:]]*->.*//; s/#/./')
           [ -n "$name" ] && FAIL_ARGS+=(--failed-name "$name")
         done < <(grep -E '^[[:space:]]*FAIL[[:space:]]' /tmp/exec.log || true)
 

@@ -2844,18 +2844,26 @@ def _do_with_tests_html(lane, library, test_results):
     if st == "failed" and not fails:
         fails = test_results.get("failed_names") or []
     n_label = "test" if n == 1 else "tests"
-    if st == "not_selected" or (n == 0 and not test_results.get("selection_final")):
-        outcome = '<span class="test-skip">No tests selected for this change.</span>'
-    elif st == "not_selected" and test_results.get("selection_final"):
-        # Full-suite / unattributed: still show aggregate outcome on every row.
+    if st == "not_selected" and test_results.get("selection_final"):
+        # Full-suite / unattributed: show aggregate suite outcome on every row.
         run = test_results.get("methods_run") or 0
         failed = test_results.get("methods_failed") or 0
         if failed:
+            fails = test_results.get("failed_names") or []
+            who = ""
+            if fails:
+                shown = ", ".join(fails[:3])
+                more = f" (+{len(fails)-3} more)" if len(fails) > 3 else ""
+                who = f' (<span class="m">{esc(shown)}</span>{esc(more)})'
             outcome = (f'<span class="test-fail">Suite ran <b>{run}</b> methods — '
-                       f'<b>{failed} FAILED</b> ✗</span>')
-        else:
+                       f'<b>{failed} FAILED</b> ✗{who}</span>')
+        elif run:
             outcome = (f'<span class="test-pass">Suite ran <b>{run}</b> methods — '
                        f'all passed ✓</span>')
+        else:
+            outcome = '<span class="test-skip">Suite selected; no methods recorded.</span>'
+    elif st == "not_selected" or (n == 0 and not test_results.get("selection_final")):
+        outcome = '<span class="test-skip">No tests selected for this change.</span>'
     elif st == "failed" or (test_results.get("methods_failed") and st != "passed" and n):
         fail_n = len(fails) or test_results.get("methods_failed") or 1
         who = ""

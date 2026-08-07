@@ -55,10 +55,6 @@ spec:
     - name: scan
       displayName: "3. Grade the upgrade risk (reachability + sign-off)"
       runAfter: [coverage]
-      # Grade gate still fails this task (snakeyaml F ≥ fail-on D), but continue so
-      # select-tests → run-tests can close the analyze→test→result loop on the
-      # scorecard. The PipelineRun remains Failed because scan failed.
-      onError: continue
       taskRef: {name: upgrade-delta-scan}
       workspaces: [{name: source, workspace: source}]
       params:
@@ -70,25 +66,30 @@ spec:
         - {name: accept-transitive-scope, value: "true"}
         # snakeyaml grades F (reachable breaking Constructor) — gate fires on purpose
         - {name: fail-on, value: "D"}
+    # select-tests + run-tests live in finally so they still run after the grade
+    # gate fails — otherwise scorecard.html never gets real pass/fail outcomes.
+  finally:
     - name: select-tests
       displayName: "4. Pick which tests this upgrade owes"
-      runAfter: [scan]
       taskRef: {name: upgrade-delta-select-tests}
       workspaces: [{name: source, workspace: source}]
     - name: run-tests
       displayName: "5. RUN the selected tests for real"
       runAfter: [select-tests]
+      # Test failures must not skip summary's scorecard re-render.
+      onError: continue
       taskRef: {name: upgrade-delta-run-tests}
       workspaces: [{name: source, workspace: source}]
-  finally:
     - name: summary
       displayName: "6. Print the verdict banner"
+      runAfter: [run-tests]
       taskRef: {name: upgrade-delta-summary}
       workspaces: [{name: source, workspace: source}]
       params:
         - {name: scorecard-route-host, value: $(params.scorecard-route-host)}
     - name: pr-comment
       displayName: "7. Post CAB comment + test plan to the PR"
+      runAfter: [summary]
       taskRef: {name: upgrade-delta-pr-comment}
       workspaces:
         - {name: source, workspace: source}
@@ -106,9 +107,9 @@ spec:
     - {name: DEPENDENCIES_COVERED_EXACT, value: $(tasks.coverage.results.DEPENDENCIES_COVERED_EXACT)}
     - {name: DEPENDENCIES_NEAR_OTHER_VERSION, value: $(tasks.coverage.results.DEPENDENCIES_NEAR_OTHER_VERSION)}
     - {name: DEPENDENCIES_UNCOVERED, value: $(tasks.coverage.results.DEPENDENCIES_UNCOVERED)}
-    - {name: TEST_CLASSES_SELECTED_COUNT, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_COUNT)}
-    - {name: TEST_CLASSES_TOTAL_SUITE, value: $(tasks.select-tests.results.TEST_CLASSES_TOTAL_SUITE)}
-    - {name: TEST_CLASSES_SELECTED_NAMES, value: $(tasks.select-tests.results.TEST_CLASSES_SELECTED_NAMES)}
-    - {name: TEST_METHODS_PASSED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_PASSED_COUNT)}
-    - {name: TEST_METHODS_FAILED_COUNT, value: $(tasks.run-tests.results.TEST_METHODS_FAILED_COUNT)}
-    - {name: TESTS_ACTUALLY_EXECUTED_SUMMARY, value: $(tasks.run-tests.results.TESTS_ACTUALLY_EXECUTED_SUMMARY)}
+    - {name: TEST_CLASSES_SELECTED_COUNT, value: $(finally.select-tests.results.TEST_CLASSES_SELECTED_COUNT)}
+    - {name: TEST_CLASSES_TOTAL_SUITE, value: $(finally.select-tests.results.TEST_CLASSES_TOTAL_SUITE)}
+    - {name: TEST_CLASSES_SELECTED_NAMES, value: $(finally.select-tests.results.TEST_CLASSES_SELECTED_NAMES)}
+    - {name: TEST_METHODS_PASSED_COUNT, value: $(finally.run-tests.results.TEST_METHODS_PASSED_COUNT)}
+    - {name: TEST_METHODS_FAILED_COUNT, value: $(finally.run-tests.results.TEST_METHODS_FAILED_COUNT)}
+    - {name: TESTS_ACTUALLY_EXECUTED_SUMMARY, value: $(finally.run-tests.results.TESTS_ACTUALLY_EXECUTED_SUMMARY)}
