@@ -43,10 +43,10 @@ spec:
             print(f" Project grade : {p['headline_grade']}   "
                   f"(would be {p['worst_without_best_path']} without the best remediation paths)")
         if cov:
-            t = cov["totals"]; pct = round(100*t['exact']/t['dependencies']) if t['dependencies'] else 0
-            print(f" Coverage      : {pct}% drop-in  "
+            t = cov["totals"]; deps = t['dependencies'] or 0
+            print(f" Coverage      : {t['exact']}/{deps} drop-in ready  "
                   f"({t['exact']} drop-in / {t['serviced_other_version']} serviced elsewhere "
-                  f"/ {t['uncovered']} uncovered of {t['dependencies']})")
+                  f"/ {t['uncovered']} uncovered)")
         if sel:
             s = sel["totals"]
             print(f" Tests routed  : {s['final']} of {s['suite']} classes  "

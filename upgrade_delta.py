@@ -2219,10 +2219,9 @@ def coverage(args):
                       for g, n, v in sorted(uncovered)],
     }
 
-    pct = round(100 * len(exact) / total) if total else 0
     print(f"\n== Lightwell coverage :: {app_name} ==")
     print(f"   {total} dependencies checked against {result['catalog']}")
-    print(f"   {pct}% drop-in ready — {len(exact)} covered, "
+    print(f"   {len(exact)}/{total} drop-in ready — {len(exact)} covered, "
           f"{len(near)} serviced at another version, {len(uncovered)} not covered\n")
     print(f"   COVERED ({len(exact)}) — drop-in remediated build, no upgrade needed:")
     for g, n, v, rv in sorted(exact):
@@ -2249,10 +2248,12 @@ def coverage(args):
 
 def render_coverage(r):
     t = r["totals"]
-    total = t["dependencies"] or 1
-    pct = round(100 * t["exact"] / total)
-    near_pct = round(100 * t["serviced_other_version"] / total)
-    unc_pct = round(100 * t["uncovered"] / total)
+    total = t["dependencies"] or 0
+    exact_n = t["exact"]
+    near_n = t["serviced_other_version"]
+    unc_n = t["uncovered"]
+    # Stamp color: majority drop-in → green, otherwise watch.
+    stamp_ok = (exact_n * 2 >= total) if total else False
 
     def gav(e):
         g = esc(e["group"] or "")
@@ -2293,14 +2294,14 @@ def render_coverage(r):
     body = (
         section("ok", "var(--pass)", "Covered — drop-in remediated build",
                 "Red Hat rebuilt the exact version you run, with the fix. A configuration "
-                "change, not an upgrade.", t["exact"], covered_rows, "Remediated build") +
+                "change, not an upgrade.", exact_n, covered_rows, "Remediated build") +
         section("watch", "var(--pass)", "Serviced — at a different version",
                 "Red Hat services this library at a newer or matching version. A real "
-                "upgrade, or a request for your exact version.", t["serviced_other_version"], near_rows,
+                "upgrade, or a request for your exact version.", near_n, near_rows,
                 "Serviced versions") +
         section("stop", "var(--stop)", "Not covered",
                 "No remediated build exists. Any upgrade here carries the full, unscoped test "
-                "burden — the situation this tool exists to remove.", t["uncovered"],
+                "burden — the situation this tool exists to remove.", unc_n,
                 unc_rows, "Status"))
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -2312,6 +2313,7 @@ def render_coverage(r):
 .legend .n{{font:700 22px/1 var(--head,inherit)}}
 .legend .t{{font-size:12.5px;color:var(--ink-soft)}}
 .legend .dot{{width:9px;height:9px;border-radius:50%;align-self:center}}
+.stamp .g{{font-size:clamp(28px,4vw,42px);letter-spacing:-0.02em}}
 .grp{{margin:0 0 26px}}
 .grp-h{{display:flex;align-items:center;gap:13px;padding:0 0 9px;border-bottom:2px solid var(--gc);margin-bottom:0}}
 .grp .pill{{background:var(--gc);color:#fff;font:700 14px/1 var(--head,inherit);
@@ -2330,23 +2332,23 @@ td.ver.arrow::before{{content:"\2192  ";color:var(--ink-soft);font-weight:400}}
 td.ver.dash{{color:var(--stop)}}
 td.act{{color:var(--ink);font-size:12.5px}}
 </style></head><body>
-<div class="sheet" style="--stamp-c:{'var(--pass)' if pct >= 60 else 'var(--watch)'}">
-  <div class="stamp"><span class="g">{pct}%</span><span class="l">drop-in ready</span></div>
+<div class="sheet" style="--stamp-c:{'var(--pass)' if stamp_ok else 'var(--watch)'}">
+  <div class="stamp"><span class="g">{exact_n}/{total}</span><span class="l">drop-in ready</span></div>
   <div class="eyebrow">Lightwell coverage meter</div>
   <h1>{esc(r['app'])}</h1>
-  <div class="vers">{t['dependencies']} dependencies checked against {esc(r['catalog'])}</div>
-  <p class="cov-sub">How much of this application's dependency risk Red Hat Lightwell can
+  <div class="vers">{total} dependencies checked against {esc(r['catalog'])}</div>
+  <p class="cov-sub">How many of this application's dependencies Red Hat Lightwell can
   remediate <b>without an upgrade</b> — today, for the exact versions in production.</p>
   <div class="legend">
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
-      <span class="n" style="color:var(--pass)">{t['exact']}</span>
-      <span class="t">drop-in remediated<br>({pct}% of deps)</span></div>
+      <span class="n" style="color:var(--pass)">{exact_n}</span>
+      <span class="t">drop-in remediated<br>of {total} deps</span></div>
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
-      <span class="n" style="color:var(--pass)">{t['serviced_other_version']}</span>
-      <span class="t">serviced, other version<br>({near_pct}%)</span></div>
+      <span class="n" style="color:var(--pass)">{near_n}</span>
+      <span class="t">serviced, other version<br>of {total} deps</span></div>
     <div class="li"><span class="dot" style="background:var(--stop)"></span>
-      <span class="n" style="color:var(--stop)">{t['uncovered']}</span>
-      <span class="t">not covered<br>({unc_pct}%)</span></div>
+      <span class="n" style="color:var(--stop)">{unc_n}</span>
+      <span class="t">not covered<br>of {total} deps</span></div>
   </div>
   {body}
   <div class="footer"><span>Covered = same base version, rebuilt by Red Hat (\u2026.rhlw-NNNNN suffix)</span>
