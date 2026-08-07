@@ -117,3 +117,11 @@ automatically — same as the demo, but grading your real code.
 
 **Step-by-step enablement walkthrough** (jackson hero in `sample-app`, PVC, PaC, what to
 watch): [`docs/DEMO-LIVE-POM.md`](../../docs/DEMO-LIVE-POM.md).
+
+**Repeatable demo cycle** (bump → pipeline → close PR without merge so main stays community):
+
+```bash
+./scripts/demo-live-cycle.sh start
+# …watch upgrade-delta-live-pr-……
+./scripts/demo-live-cycle.sh finish
+```

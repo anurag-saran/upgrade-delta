@@ -40,6 +40,13 @@ spec:
       type: string
       default: "https://api.github.com"
       description: Change for GitHub Enterprise (e.g. https://ghe.example.com/api/v3)
+    - name: auto-close-pr
+      type: string
+      default: "false"
+      description: >-
+        When "true", close the PR without merging after posting the CAB comment,
+        but only if out/changed-deps.json shows a real version change. Used by the
+        live sample-app demo cycle so main stays on community jackson for the next run.
   workspaces:
     - name: source
     - name: basic-auth
@@ -253,4 +260,48 @@ spec:
           echo "==================== CAB COMMENT ===================="
           cat out/pr-comment.md
           echo "===================================================="
+        fi
+
+        # Demo cycle: close PR without merge after a real pom version bump so the
+        # baseline branch stays on community libs for the next ./scripts/demo-live-cycle.sh start.
+        if [ "$(params.auto-close-pr)" = "true" ] \
+           && [ -n "$OWNER" ] && [ -n "$REPO" ] && [ -n "$PR" ] && [ -f "$TOKEN_FILE" ]; then
+          python3 - "$OWNER" "$REPO" "$PR" "$(params.github-api)" "$TOKEN_FILE" <<'PY'
+        import json, os, sys, urllib.request
+        owner, repo, pr, api, tokfile = sys.argv[1:6]
+        token = open(tokfile).read().strip()
+        path = "out/changed-deps.json"
+        if not os.path.isfile(path):
+            print("auto-close-pr: no out/changed-deps.json — skip close")
+            sys.exit(0)
+        d = json.load(open(path))
+        # detect_pom_changes.py shape: {changed, lightwell_adopted, added, removed}
+        changes = (d.get("changed") or []) if isinstance(d, dict) else (d or [])
+        if not changes:
+            print("auto-close-pr: no version changes detected — leave PR open")
+            sys.exit(0)
+        body = (
+            "🔄 **Demo auto-reset:** closed without merging so the base branch keeps "
+            "community library versions for the next live demo "
+            "(`./scripts/demo-live-cycle.sh start`).\n\n"
+            "Re-open a fresh bump PR when you want to run the cycle again."
+        )
+        # Comment then close
+        for url, payload in (
+            (f"{api}/repos/{owner}/{repo}/issues/{pr}/comments", {"body": body}),
+            (f"{api}/repos/{owner}/{repo}/pulls/{pr}", {"state": "closed"}),
+        ):
+            req = urllib.request.Request(
+                url, data=json.dumps(payload).encode(), method="POST" if "comments" in url else "PATCH",
+                headers={"Authorization": f"Bearer {token}",
+                         "Accept": "application/vnd.github+json",
+                         "Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(req) as r:
+                    print("auto-close:", url.split("/")[-1], r.status)
+            except Exception as e:
+                print("WARN: auto-close step failed:", e)
+                sys.exit(0)
+        print(f"auto-close-pr: closed PR #{pr} without merge")
+        PY
         fi

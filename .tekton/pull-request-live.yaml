@@ -1,6 +1,9 @@
-# Copy this file to .tekton/pull-request-live.yaml IN YOUR APPLICATION REPO.
-# Named differently from the fixture demo's "upgrade-delta-pr" so both can
-# coexist if you ever run the demo pipeline in the same namespace too.
+# Live pipeline trigger for this monorepo's sample-app (jackson Lightwell demo).
+# Coexists with .tekton/pull-request.yaml (fixture). Separate PVC avoids collisions.
+#
+# Demo cycle: ./scripts/demo-live-cycle.sh start | finish
+# auto-close-pr=true → after a real pom bump, close PR without merge so main
+# stays on community jackson for the next demo.
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
@@ -14,13 +17,6 @@ metadata:
     pipelinesascode.tekton.dev/task-2: ".upgrade-delta/real-pipeline/task-live-coverage.yaml"
     pipelinesascode.tekton.dev/task-3: ".upgrade-delta/real-pipeline/task-generate-evidence.yaml"
     pipelinesascode.tekton.dev/task-4: ".upgrade-delta/real-pipeline/task-run-tests-maven.yaml"
-    # PaC's remote-pipeline resolution requires EVERY task the pipeline
-    # references to be explicitly annotated here -- it does NOT fall back to
-    # whatever Tasks already exist on the cluster, even if they're already
-    # applied (confirmed the hard way: "cannot find referenced task ... if
-    # it's a remote task make sure to add it in the annotations"). So these
-    # three -- reused unmodified from the fixture demo -- must be vendored
-    # and annotated too, not just applied once to the cluster.
     pipelinesascode.tekton.dev/task-5: ".upgrade-delta/real-pipeline/task-upgrade-delta-select-tests.yaml"
     pipelinesascode.tekton.dev/task-6: ".upgrade-delta/real-pipeline/task-upgrade-delta-summary.yaml"
     pipelinesascode.tekton.dev/task-7: ".upgrade-delta/real-pipeline/task-upgrade-delta-pr-comment.yaml"
@@ -37,19 +33,19 @@ spec:
     - name: target-branch
       value: '{{ target_branch }}'
     - name: pom-path
-      value: 'pom.xml'                 # change if your pom.xml isn't at the repo root
+      value: 'sample-app/pom.xml'
     - name: app-name
-      value: 'CHANGE-ME-your-app-name'
+      value: 'payments-service'
     - name: app-module-dir
-      value: '.'                       # change if pom.xml is in a subdirectory/module
+      value: 'sample-app'
     - name: fail-on
       value: 'D'
     - name: accept-transitive-scope
-      value: 'false'                   # set 'true' only as a deliberate sign-off decision
+      value: 'false'
     - name: coverage-map
-      value: 'sample-app/coverage-map.json'   # optional; falls open to full suite if missing
+      value: 'sample-app/coverage-map.json'
     - name: tests-dir
-      value: 'src/test/java'
+      value: 'sample-app/src/test/java'
     - name: repo-owner
       value: '{{ repo_owner }}'
     - name: repo-name
@@ -58,23 +54,17 @@ spec:
       value: '{{ pull_request_number }}'
     - name: scorecard-route-host
       value: 'scorecard-upgrade-delta-demo.apps.asaran.na-launch.com'
-    # Set "true" only for demo repos that run live alone (closes PR after a real
-    # pom bump so the base branch stays on community libs). Leave false for
-    # production app repos — and for monorepos that also run the fixture demo.
+    # Keep false in this monorepo: fixture + live both fire on one PR; auto-close
+    # would cancel the other run. Use ./scripts/demo-live-cycle.sh finish instead.
     - name: auto-close-pr
       value: 'false'
   workspaces:
     - name: source
       persistentVolumeClaim:
-        # SEPARATE from the fixture demo's PVC on purpose -- both pipelines
-        # trigger on every PR and run concurrently. Sharing one PVC caused a
-        # real collision (one pipeline's git-clone wiping files mid-checkout
-        # while the other was still reading them). Create this PVC once:
-        #   oc apply -f deploy/11-live-reports-pvc.yaml
         claimName: upgrade-delta-live-reports
     - name: maven-settings
       secret:
-        secretName: lightwell-maven-settings   # same secret the demo's sample-app already uses
+        secretName: lightwell-maven-settings
     - name: basic-auth
       secret:
         secretName: "{{ git_auth_secret }}"

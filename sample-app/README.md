@@ -32,3 +32,16 @@ python3 ../upgrade_delta.py scan target/payments-service.jar \
 The jackson-databind row is the hero: your app calls `ObjectMapper.readValue` /
 `writeValueAsString` directly, and the Lightwell rebuild `2.13.4 → 2.13.4.rhlw-00001`
 is a drop-in that touches none of it — measured, grade B, 0.3% churn.
+
+## Live demo cycle (pom bump → pipeline → reset)
+
+On **main**, `jackson.version` stays community `2.13.4`. To run the live pipeline demo:
+
+```bash
+# from repo root
+./scripts/demo-live-cycle.sh start    # PR: 2.13.4 → 2.13.4.rhlw-00001
+# …watch upgrade-delta-live-pr-… on the cluster…
+./scripts/demo-live-cycle.sh finish   # close PR without merge; restore baseline if needed
+```
+
+Never merge that PR — otherwise the next demo has nothing to bump. Details: [`docs/DEMO-LIVE-POM.md`](../docs/DEMO-LIVE-POM.md).

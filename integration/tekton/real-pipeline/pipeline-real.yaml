@@ -61,6 +61,13 @@ spec:
     - name: scorecard-route-host
       type: string
       default: ""
+    - name: auto-close-pr
+      type: string
+      default: "false"
+      description: >-
+        When "true", close the PR without merging after the CAB comment if
+        detect-pom-changes found a real version bump. Keeps main on community
+        libs for the next live demo cycle. Leave "false" for real app repos.
   workspaces:
     - name: source
     - name: maven-settings
@@ -217,6 +224,7 @@ spec:
         - {name: repo-owner, value: $(params.repo-owner)}
         - {name: repo-name, value: $(params.repo-name)}
         - {name: pull-request-number, value: $(params.pull-request-number)}
+        - {name: auto-close-pr, value: $(params.auto-close-pr)}
 
   results:
     - {name: VERSION_CHANGES_COUNT, value: $(tasks.detect-pom-changes.results.VERSION_CHANGES_COUNT)}

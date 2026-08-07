@@ -58,6 +58,11 @@ spec:
       value: '{{ pull_request_number }}'
     - name: scorecard-route-host
       value: 'scorecard-upgrade-delta-demo.apps.asaran.na-launch.com'
+    # Set "true" only for demo repos that run live alone (closes PR after a real
+    # pom bump so the base branch stays on community libs). Leave false for
+    # production app repos — and for monorepos that also run the fixture demo.
+    - name: auto-close-pr
+      value: 'false'
   workspaces:
     - name: source
       persistentVolumeClaim:

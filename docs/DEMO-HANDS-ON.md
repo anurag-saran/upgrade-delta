@@ -50,7 +50,8 @@ Setup must already be done: [`INSTALL-OPENSHIFT.md`](INSTALL-OPENSHIFT.md).
 Full presenter beats (what to say): [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md).
 
 > **Want a PR that bumps `pom.xml` instead?** That is the **live** pipeline —
-> follow [`DEMO-LIVE-POM.md`](DEMO-LIVE-POM.md) (jackson → `.rhlw-…` in `sample-app`).
+> [`DEMO-LIVE-POM.md`](DEMO-LIVE-POM.md) and `./scripts/demo-live-cycle.sh start` /
+> `finish` (jackson → `.rhlw-…`, then close without merge so the next demo can repeat).
 
 
 ### Before you start
