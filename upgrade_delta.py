@@ -1188,13 +1188,14 @@ def _app_use_blurb(call_sites, n_breaking, n_changed, *, transitive=False, paren
                    members=None, app_classes=None):
     """Plain-English reachability line for the scorecard dependency row.
 
-    Names the actual class/methods the app calls so "1 place" is never opaque.
-    Distinguishes breaking / changed / calls-only so silence is not read as
-    "your app does not use this library".
+    Lead with the human-readable call count; put method signatures after as evidence.
     """
     members = members or []
     app_classes = app_classes or []
     named, n_named = _format_member_list_html(members)
+    n = call_sites or n_named or 0
+    places = "place" if n == 1 else "places"
+
     from_bit = ""
     if app_classes:
         if len(app_classes) == 1:
@@ -1203,31 +1204,31 @@ def _app_use_blurb(call_sites, n_breaking, n_changed, *, transitive=False, paren
             from_bit = (f' from <span class="m">{esc(app_classes[0])}</span>'
                         f' <span class="lane">(+{len(app_classes)-1} more)</span>')
 
+    sigs = f' <span class="sigs">({named})</span>' if named else ""
+
     if transitive and parent:
         lead = (f'You don\'t depend on this directly — <b>{esc(parent)}</b> pulls it in. '
-                f'Following calls from your app through {esc(parent)} reaches it.')
+                f'Following calls from your app through {esc(parent)} reaches it'
+                f'{from_bit}.')
         if named:
-            lead += f' Reachable API: {named}.'
-    elif named:
-        places = "API" if n_named == 1 else "APIs"
-        lead = f'Your app calls {named}{from_bit}.'
+            lead += f' Reachable API{"" if n_named == 1 else "s"}:{sigs}.'
+    elif n:
+        lead = f'Calls this in <b>{n}</b> {places}{from_bit}.{sigs}'
     else:
-        places = "place" if call_sites == 1 else "places"
-        lead = f'Your app calls this library in <b>{call_sites}</b> {places}{from_bit}.'
+        lead = 'This scan found no direct call sites into it.'
 
     if n_breaking:
         return (f'<span class="lane">{lead} '
-                f'<b>{n_breaking}</b> of them hit a <b>breaking</b> API change — '
+                f'— <b>{n_breaking}</b> hit a <b>breaking</b> API change; '
                 f'fix {("that call" if n_breaking == 1 else "those calls")} before you upgrade.</span>')
     if n_changed:
         return (f'<span class="lane">{lead} '
-                f'<b>{n_changed}</b> of them hit an API that <b>changed</b> in this upgrade — '
+                f'— <b>{n_changed}</b> hit an API that <b>changed</b> in this upgrade; '
                 f'test those paths.</span>')
-    if call_sites or named:
+    if n or named:
         return (f'<span class="lane">{lead} '
                 f'None of those calls hit an API that changed or broke in this upgrade.</span>')
-    return (f'<span class="lane">{lead} '
-            f'This scan found no direct call sites into it.</span>')
+    return f'<span class="lane">{lead}</span>'
 
 
 def _is_remediated_version(ver):
@@ -1503,10 +1504,11 @@ def _dep_row_html(l, *, expanded=True):
     if expanded:
         left = f'{head}{detail}'
     else:
+        # Collapsed preview: title only. Expanded detail uses the same
+        # Reaches → Why → Do order as blocking rows.
         left = (f'{head}'
-                f'<div class="skel"><span class="skel-k">Do:</span> {esc(lane)}</div>'
-                f'<details class="row-more"><summary>show detail</summary>'
-                f'{reaches}{why}{break_html}{parent_html}</details>')
+                f'<details class="row-more"><summary>show detail · {esc(lane)}</summary>'
+                f'{detail}</details>')
 
     right = f'{value}{cves_html}{alt_html}{note}'
     row_class = "row-block" if expanded and shown == "F" else ("row-safe" if not expanded else "")
@@ -1644,8 +1646,7 @@ def _hazards_html(hazards, app_name=""):
                 name = msg.split(" ", 1)[0]
                 if app_base and (name == app_base or name.startswith(app_base + "-")):
                     items.append(
-                        f'<li><span class="m">[informational]</span> '
-                        f'The application jar\'s own classes ({esc(name)}) are not listed as a '
+                        f'<li>The application jar\'s own classes ({esc(name)}) are not listed as a '
                         f'dependency in its SBOM — expected, not a packaging bug.</li>')
                 else:
                     kept.append(msg)
@@ -1654,8 +1655,7 @@ def _hazards_html(hazards, app_name=""):
                 continue
         if kind == "declared-not-shipped" and len(msgs) > 3:
             items.append(
-                f'<li><span class="m">[informational]</span> '
-                f'{len(msgs)} libraries are in the SBOM but not packaged inside this jar '
+                f'<li>{len(msgs)} libraries are in the SBOM but not packaged inside this jar '
                 f'(normal for a thin application jar that loads dependencies from the '
                 f'classpath at runtime — not a packaging bug by itself).</li>')
         else:
@@ -1663,7 +1663,7 @@ def _hazards_html(hazards, app_name=""):
                 items.append(f'<li><span class="m">[{esc(kind)}]</span> {esc(msg)}</li>')
     if not items:
         return ""
-    return f"""<h2>SBOM vs. shipped artifact <span class="lane">(informational)</span></h2>
+    return f"""<h2 id="sbom-notes">SBOM vs. shipped artifact <span class="lane">(informational)</span></h2>
 <p style="color:var(--ink-soft)">The SBOM is the map; the shipped artifact is the territory.
 These notes explain mismatches — they are not upgrade blockers by themselves.</p>
 <ul>{''.join(items)}</ul>"""
@@ -2651,34 +2651,61 @@ def scan(args):
 
 
 def _coverage_bridge_html(p, libs):
-    """Explain why catalog coverage (e.g. 16/27) ≠ scorecard graded rows (e.g. 3)."""
+    """Explain why catalog coverage ≠ scorecard graded rows — collapsed by default."""
     cov = p.get("catalog_coverage")
     n = p.get("rated_libraries") or len(libs or [])
     if not cov:
-        return (
-            f'<div class="bridge"><b>Why only {n} rows here?</b> '
+        body = (
             f'This scorecard grades libraries that have a <b>published delta report</b> '
             f'and that your app actually calls. Catalog drop-in coverage is a separate '
-            f'meter (coverage.html) — those numbers are not missing from this page; '
-            f'they answer a different question.</div>'
+            f'meter (<a href="coverage.html">coverage.html</a>) — those numbers are not '
+            f'missing from this page; they answer a different question. '
+            f'Currently <span class="m">{n}</span> libraries are graded here.'
         )
-    exact = cov.get("exact", 0)
-    total = cov.get("dependencies", 0)
-    near = cov.get("serviced_other_version", 0)
-    unc = cov.get("uncovered", 0)
+    else:
+        exact = cov.get("exact", 0)
+        total = cov.get("dependencies", 0)
+        near = cov.get("serviced_other_version", 0)
+        unc = cov.get("uncovered", 0)
+        body = (
+            f'<span class="m">{exact}/{total}</span> dependencies have a <b>drop-in</b> Lightwell build '
+            f'(suffix swap, no base-version upgrade) · '
+            f'<span class="m">{near}</span> serviced at another version · '
+            f'<span class="m">{unc}</span> not in the catalog. '
+            f'This page grades <span class="m">{n}</span> libraries that have '
+            f'<b>published delta evidence</b> your app reaches — not the full catalog list. '
+            f'Drop-in covered deps usually need configuration, not an API-diff grade; '
+            f'see the <a href="coverage.html">coverage report</a>.'
+        )
     return (
-        f'<div class="bridge">'
-        f'<b>Catalog coverage vs this scorecard</b> — two different questions, same SBOM.<br>'
-        f'<span class="m">{exact}/{total}</span> dependencies have a <b>drop-in</b> Lightwell build '
-        f'(suffix swap, no base-version upgrade) · '
-        f'<span class="m">{near}</span> serviced at another version · '
-        f'<span class="m">{unc}</span> not in the catalog.<br>'
-        f'This page grades <span class="m">{n}</span> libraries that have '
-        f'<b>published delta evidence</b> your app reaches — not the full catalog list. '
-        f'Drop-in covered deps usually need configuration, not an API-diff grade; '
-        f'they appear on coverage.html, not as extra rows here.'
-        f'</div>'
+        f'<details class="bridge-details" id="catalog-vs-scorecard">'
+        f'<summary>Why do the catalog count and the graded count differ?</summary>'
+        f'<div class="bridge">{body}</div></details>'
     )
+
+
+def _subtitle_lines_html(p):
+    """Three self-explanatory accounting lines; link not-yet-graded to its section."""
+    n = p.get("rated_libraries") or 0
+    m = p.get("unrated_package_roots") or 0
+    cov = p.get("catalog_coverage") or {}
+    lines = [
+        f'<div class="acct"><b>{n}</b> dependencies graded — have published delta evidence '
+        f'your app reaches</div>',
+    ]
+    if cov:
+        exact = cov.get("exact", 0)
+        total = cov.get("dependencies", 0)
+        lines.append(
+            f'<div class="acct">Catalog: <b>{exact}</b> of <b>{total}</b> drop-in ready — '
+            f'dependencies with an exact Red Hat remediated build '
+            f'(see <a href="coverage.html">coverage report</a>)</div>')
+    if m:
+        lines.append(
+            f'<div class="acct"><b>{m}</b> packages not yet graded — your app calls them, '
+            f'but no delta report exists yet '
+            f'(<a href="#no-delta-evidence">see which</a>)</div>')
+    return '<div class="vers-block">' + "".join(lines) + '</div>'
 
 
 def render_scorecard(r):
@@ -2689,6 +2716,9 @@ def render_scorecard(r):
     verdict = _verdict_html(p, libs)
     testing = _testing_summary_html(libs)
     bridge = _coverage_bridge_html(p, libs)
+    grade = p.get("headline_grade") or "—"
+    title_chip = (f' <span class="chip title-grade" style="--c:{color}">{esc(grade)}</span>'
+                  if grade and grade != "—" else "")
 
     compare = ""
     if p.get("worst_without_best_path") and p["worst_without_best_path"] != p["headline_grade"]:
@@ -2745,21 +2775,14 @@ constants — the cheap slice of the reflection blind spot, made visible instead
     unrated_html = ""
     if r["unrated_packages"]:
         items = "".join(f'<li class="m">{esc(u.replace("/", "."))}</li>' for u in r["unrated_packages"])
-        unrated_html = f"""<h2>No delta evidence yet</h2>
+        unrated_html = f"""<h2 id="no-delta-evidence">No delta evidence yet</h2>
 <p style="color:var(--ink-soft)">Your app also calls these packages, but <b>no delta report
 has been published for them yet</b> — so they do not affect the project grade. This is
 not the same as catalog “uncovered”: a package can be Lightwell drop-in ready on
-coverage.html and still lack a graded row here until evidence exists.</p>
+<a href="coverage.html">coverage.html</a> and still lack a graded row here until evidence exists.</p>
 <ul class="list">{items}</ul>"""
 
-    cov = p.get("catalog_coverage") or {}
-    if cov:
-        vers = (f'<div class="vers"><b>{p["rated_libraries"]}</b> dependencies graded on published evidence'
-                f' · catalog: <b>{cov.get("exact", 0)}/{cov.get("dependencies", 0)}</b> drop-in ready'
-                f' · <b>{p["unrated_package_roots"]}</b> called packages still lack delta reports</div>')
-    else:
-        vers = (f'<div class="vers"><b>{p["rated_libraries"]}</b> dependencies graded'
-                f' · <b>{p["unrated_package_roots"]}</b> other packages your app calls have no delta report yet</div>')
+    vers = _subtitle_lines_html(p)
 
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2768,9 +2791,15 @@ coverage.html and still lack a graded row here until evidence exists.</p>
 .verdict{{margin:14px 0 18px;padding:12px 14px;border-left:4px solid var(--vc);
   background:color-mix(in srgb,var(--vc) 10%,var(--card));border-radius:0 6px 6px 0;
   font-size:14.5px;line-height:1.45;max-width:72ch}}
-.bridge{{margin:0 0 18px;padding:12px 14px;border-left:4px solid var(--steel);
+.vers-block{{margin:0 0 16px;font-size:13.5px;line-height:1.55;color:var(--ink)}}
+.acct{{margin:0 0 4px;max-width:78ch}}
+.acct a{{color:var(--steel)}}
+.title-grade{{font-size:14px;vertical-align:middle;margin-left:8px}}
+.bridge-details{{margin:18px 0 0;max-width:78ch}}
+.bridge-details summary{{cursor:pointer;font-weight:700;font-size:14px;color:var(--steel)}}
+.bridge{{margin:8px 0 0;padding:12px 14px;border-left:4px solid var(--steel);
   background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
-  font-size:13.5px;line-height:1.5;max-width:78ch;color:var(--ink)}}
+  font-size:13.5px;line-height:1.5;color:var(--ink)}}
 .triage{{margin:0 0 16px;font-size:15.5px;line-height:1.45;max-width:72ch;font-weight:500}}
 .test-sum{{margin:0 0 22px}}
 .test-sum p{{margin:0 0 10px;font-size:14.5px;line-height:1.45;max-width:72ch}}
@@ -2784,6 +2813,7 @@ coverage.html and still lack a graded row here until evidence exists.</p>
 .coords{{margin:4px 0 0;font-size:12.5px;line-height:1.4;word-break:break-all}}
 .skel{{margin:6px 0 0;font-size:13.5px;line-height:1.45}}
 .skel-k{{font-weight:700;color:var(--ink);margin-right:4px}}
+.sigs{{font-family:var(--mono);font-size:12px}}
 .row-head{{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 2px}}
 .row-more{{margin-top:6px;font-size:13px}}
 .row-more summary{{cursor:pointer;color:var(--steel);font-weight:600}}
@@ -2821,14 +2851,13 @@ table.deps th{{font-family:var(--sans);font-weight:700;font-size:11px;letter-spa
 tr.sub td:first-child{{padding-left:28px}}
 details.limits{{margin:18px 0 0}}
 details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
+#no-delta-evidence:target{{outline:2px solid var(--steel);outline-offset:4px}}
 </style></head><body>
-<div class="sheet" style="--stamp-c:{color}">
-  <div class="stamp"><span class="g">{esc(p['headline_grade'] or '—')}</span><span class="l">project</span></div>
+<div class="sheet">
   <div class="eyebrow">Lightwell delta scan · project scorecard</div>
-  <h1>{esc(r['app'])}</h1>
+  <h1>{esc(r['app'])}{title_chip}</h1>
   {vers}
   {verdict}
-  {bridge}
   <p style="max-width:62ch;color:var(--ink-soft)">The project grade is the
   <b>worst dependency in this upgrade</b> (not an average). Each row is the
   <b>lowest-risk upgrade path</b> available — and calls out when Lightwell is what makes that path safe.</p>
@@ -2839,6 +2868,7 @@ details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
   {triage}
   {transitive_key}
   {deps_html}
+  {bridge}
   {hazards_html}
   {heur_html}
   {unrated_html}
