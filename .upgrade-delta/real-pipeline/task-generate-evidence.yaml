@@ -42,11 +42,11 @@ spec:
         set -euo pipefail
         SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
         SCRIPT=".upgrade-delta/real-pipeline/scripts/generate_evidence.sh"
-        chmod +x "$SCRIPT"
+        # Run via bash — OpenShift restricted SCC often denies chmod on the workspace PVC.
 
         # Capture APP_JAR= line; propagate scan's exit code (incl. grade gate 2).
         set +e
-        OUT=$("$SCRIPT" \
+        OUT=$(bash "$SCRIPT" \
           --changes out/changed-deps.json \
           --app-module-dir "$(params.app-module-dir)" \
           --settings "$SETTINGS" \
