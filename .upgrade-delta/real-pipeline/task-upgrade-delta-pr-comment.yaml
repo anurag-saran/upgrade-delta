@@ -5,20 +5,11 @@ metadata:
   labels: {app.kubernetes.io/part-of: upgrade-delta}
 spec:
   description: >-
-    Submit the result to GitHub for CAB review. Renders the scorecard as a
-    change-board comment — project grade, per-library before/after + lane, the
-    B-vs-F "what the backport is worth" gap, same-library internal call-chain
-    evidence (code this app reaches without calling it by name), and the
-    named test plan with a reason for every RUN and skip — then posts it on
-    the pull request. Runs in `finally`, so it comments on RED runs too (the
-    tool blocked it, and says why). If no PR token is available (e.g. a
-    manual run), it prints the comment to the log instead of posting, so it
-    is always safe to run.
-
-    Rendering is fully self-contained in this Task (no dependency on a
-    pr_comment.py file existing in the checked-out repo) so it works
-    unmodified whether this runs in the upgrade-delta demo repo or a target
-    application's own repo via the live pipeline.
+    Submit a short CAB summary to GitHub: project grade, per-library version /
+    grade / lane / CVEs, and test outcome. Deep reachability and call-chain
+    detail stay on scorecard.html — not in this comment. Runs in `finally`
+    so it comments on RED runs too. Uses .upgrade-delta/pr_comment.py (or
+    integration/github-action/pr_comment.py in the demo repo).
   params:
     - name: source-label
       type: string
@@ -64,188 +55,28 @@ spec:
           exit 0
         fi
 
-        # 1) render the CAB comment -- fully self-contained, no external script path
-        # Kept in sync with scorecard.html / integration/github-action/pr_comment.py:
-        # Maven GAV, named call sites, CVEs fixed.
-        python3 - <<'PY'
-        import json, os, re
+        # Short CAB comment — reachability detail stays on scorecard.html.
+        SEL_ARGS=()
+        [ -f out/routing-out/selection-report.json ] && \
+          SEL_ARGS+=(--selection out/routing-out/selection-report.json)
+        [ -f out/test-results.json ] && \
+          SEL_ARGS+=(--test-results out/test-results.json)
 
-        BADGE = {"A": "\U0001f7e2", "B": "\U0001f7e1", "C": "\U0001f7e1", "D": "\U0001f534", "F": "\U0001f534"}
-        DEFAULT_BADGE = "\u26aa"
-        SOURCE_LABEL = "$(params.source-label)"
+        if [ -f .upgrade-delta/pr_comment.py ]; then
+          RENDER=".upgrade-delta/pr_comment.py"
+        elif [ -f integration/github-action/pr_comment.py ]; then
+          RENDER="integration/github-action/pr_comment.py"
+        else
+          echo "FATAL: pr_comment.py not found under .upgrade-delta/ or integration/github-action/"
+          exit 1
+        fi
+        python3 "$RENDER" out/scorecard.json out/pr-comment.md "${SEL_ARGS[@]}"
+        {
+          echo "### $(params.source-label)"
+          cat out/pr-comment.md
+        } > out/pr-comment.md.tmp && mv out/pr-comment.md.tmp out/pr-comment.md
+        echo "wrote out/pr-comment.md"
 
-        def humanize(desc):
-            if not desc:
-                return ""
-            cls, _, rest = desc.partition("#")
-            simple = cls.rsplit(".", 1)[-1] if cls else desc
-            if rest.startswith("<init>(") or rest.startswith("<init>"):
-                args = re.findall(r"L([\w/$]+);", rest)
-                return f"{simple}({', '.join(a.rsplit('/', 1)[-1] for a in args)})"
-            if "(" in rest:
-                name, _, sig = rest.partition("(")
-                args = re.findall(r"L([\w/$]+);", "(" + sig)
-                return f"{simple}.{name}({', '.join(a.rsplit('/', 1)[-1] for a in args)})"
-            return f"{simple}.{rest}" if rest else simple
-
-        def display(lib):
-            return lib.get("gav") or lib.get("library") or "?"
-
-        def coord(gav, version):
-            return f"{gav}:{version}" if gav and version else (version or "?")
-
-        def calls_line(rec):
-            ix = rec.get("ix") or {}
-            members = ix.get("lib_members_used") or []
-            apps = ix.get("affected_app_classes") or []
-            if not members:
-                n = ix.get("lib_call_sites") or 0
-                return f"{n} call site(s)" if n else "no direct call sites"
-            shown = ", ".join(f"`{humanize(m)}`" for m in members[:4])
-            more = f" (+{len(members)-4} more)" if len(members) > 4 else ""
-            frm = f" from `{apps[0]}`" if apps else ""
-            return f"{shown}{more}{frm}"
-
-        r = json.load(open("out/scorecard.json"))
-        p = r["project"]
-        g = p["headline_grade"] or "\u2014"
-        lines = [f"### {SOURCE_LABEL}",
-                 f"## {BADGE.get(g, DEFAULT_BADGE)} upgrade-delta: project grade **{g}**",
-                 f"*{p['headline_note']}* \u2014 {p['rated_libraries']} rated dependencies, "
-                 f"{p['unrated_package_roots']} unrated package roots"]
-        if p.get("worst_without_best_path") and p["worst_without_best_path"] != g:
-            lines.append(f"> Without the best available remediation paths this project scores "
-                         f"**{p['worst_without_best_path']}** \u2014 that gap is the measured value "
-                         f"of the maintained backports.")
-        cov = p.get("catalog_coverage") or {}
-        if cov:
-            lines.append(
-                f"> **Catalog coverage** `{cov.get('exact', 0)}/{cov.get('dependencies', 0)}` "
-                f"drop-in ready \u2014 that is *not* the scorecard row count. This comment grades "
-                f"**{p['rated_libraries']}** libraries with published delta evidence; drop-in "
-                f"deps stay on coverage.html as suffix swaps.")
-
-        libs = r.get("libraries", [])
-        if libs:
-            lines += ["",
-                      "| Dependency | Path | Calls | Grade | Lane | CVEs fixed |",
-                      "|---|---|---|---|---|---|"]
-            for l in libs:
-                rec = l["recommended"]; rt = rec["rating"]
-                shown = (f"{rt['grade']} \u2192 {rt['effective_grade']} \u270d\ufe0f"
-                         if rt.get("effective_grade") else rt["grade"])
-                label = display(l)
-                name = (f"\u21b3 `{label}` *(via {l['parent']})*" if l.get("transitive")
-                        else f"**`{label}`**")
-                path = f"`{coord(l.get('gav'), rec['old'])} \u2192 {coord(l.get('gav'), rec['new'])}`"
-                cves = ", ".join(f"`{c}`" for c in (rec.get("cves_fixed") or [])) or "\u2014"
-                lines.append(
-                    f"| {name} | {path} | {calls_line(rec)} | "
-                    f"{BADGE.get(rt.get('effective_grade') or rt['grade'], DEFAULT_BADGE)} {shown} | "
-                    f"{rt['lane']} | {cves} |")
-        else:
-            lines += ["", "_No Lightwell adoption detected in this change \u2014 nothing to grade._"]
-
-        if r.get("hazards"):
-            lines += ["", "**SBOM vs. shipped artifact (informational)**"] + [
-                f"- `{k}` \u2014 {m}" for k, m in r["hazards"]]
-
-        chain_hits = []
-        for l in libs:
-            chain = (l["recommended"].get("ix") or {}).get("internal_chain")
-            if not chain or not chain.get("closure_methods_reached"):
-                continue
-            hits = (chain.get("internal_touched_incompatible", [])
-                    + chain.get("internal_touched_changed", [])
-                    + chain.get("internal_touched_impl_changed", []))
-            if hits:
-                chain_hits.append((display(l), chain, hits))
-        if chain_hits:
-            lines += ["", "**Internal call-chain reachability** "
-                          "*(reaches changed code this app never calls by name)*"]
-            for name, chain, hits in chain_hits:
-                more = f" (+{len(hits)-1} more)" if len(hits) > 1 else ""
-                hit0 = humanize(hits[0]) if isinstance(hits[0], str) and "#" in hits[0] else hits[0]
-                lines.append(f"- **`{name}`** \u2014 traced {chain['closure_methods_reached']} method(s) from "
-                             f"{chain['closure_seed_count']} entry point(s) \u2192 reaches `{hit0}`{more}")
-
-        hits2 = [h for h in r.get("heuristics", []) if h["intersects_change"]]
-        if hits2:
-            lines += ["", "**Config/reflection reachability**"] + [
-                f"- `{h['fqcn']}` found in {h['found_in'][0]} \u2014 treat as reachable" for h in hits2]
-        if r.get("unrated_packages"):
-            lines += ["", f"**Coverage gap \u2014 not rated yet:** "
-                          f"{', '.join(x.replace('/', '.') for x in r['unrated_packages'])} "
-                          f"\u2014 no delta report published yet; upgrades here are tested blind."]
-
-        sel_path = "out/routing-out/selection-report.json"
-        if os.path.exists(sel_path):
-            rep = json.load(open(sel_path)); t = rep["totals"]
-            lines += ["", f"### Test plan \u2014 {t['final']} of {t['suite']} test classes",
-                      "Every RUN carries a printed reason; skips are recorded too.", ""]
-            for s in rep["selected"]:
-                lines.append(f"- \u2705 **{s['test']}** \u2014 {s['reason']}")
-            for m in rep["mandatory"]["appended"]:
-                lines.append(f"- \U0001f512 **{m}** \u2014 mandatory `@Tag(upgrade-gate)`, always runs")
-            for s in rep["skipped"]:
-                lines.append(f"- \u26aa {s['test']} \u2014 {s['reason']}")
-
-        tr_path = "out/test-results.json"
-        if os.path.exists(tr_path):
-            tr = json.load(open(tr_path))
-            lines += ["", "### Test results"]
-            grade = p.get("headline_grade") or ""
-            if tr.get("status") != "ran":
-                lines.append("- Tests were **not run** in this pipeline.")
-            elif tr.get("methods_failed"):
-                fails = tr.get("failed_names") or []
-                who = (" \u2014 `" + "`, `".join(fails[:8]) + "`") if fails else ""
-                lines.append(
-                    f"- \u274c **{tr.get('methods_failed')} FAILED** / "
-                    f"{tr.get('methods_passed', 0)} passed "
-                    f"({tr.get('methods_run', 0)} methods run){who}")
-            else:
-                caveat = ""
-                if grade in ("F", "D"):
-                    caveat = (f" \u2014 on current jars; does **not** clear project **{grade}** "
-                              f"(re-test after you migrate)")
-                lines.append(
-                    f"- \u2705 **All passed** \u2014 {tr.get('methods_passed', 0)} methods "
-                    f"({tr.get('methods_run', 0)} run, 0 failed){caveat}")
-            lib_grades = {}
-            for l in libs:
-                rt = l["recommended"]["rating"]
-                lib_grades[l.get("library")] = (
-                    rt.get("effective_grade") or rt.get("grade"))
-            for lib, o in sorted((tr.get("by_library") or {}).items()):
-                if not o.get("selected_count") and o.get("status") == "not_selected":
-                    continue
-                mark = "\u2705" if o.get("status") == "passed" else (
-                    "\u274c" if o.get("status") == "failed" else "\u26aa")
-                extra = ""
-                if o.get("failed_names"):
-                    extra = " \u2014 `" + "`, `".join(o["failed_names"][:3]) + "`"
-                elif o.get("status") == "passed" and lib_grades.get(lib) in ("F", "D"):
-                    extra = (f" \u2014 on current jars; does not clear "
-                             f"**{lib_grades[lib]}**")
-                lines.append(
-                    f"- {mark} **`{lib}`** \u2014 {o.get('selected_count', 0)} selected, "
-                    f"status `{o.get('status')}`{extra}")
-
-        lines += ["", "---", "**CAB approval:** this comment is the change-board summary. "
-                  "Approve by reviewing here and merging \u2014 branch protection requires this "
-                  "check to pass.", "*Grade \u2265 D auto-fails the pipeline; any de-escalation is "
-                  "signed off and recorded on the sealed evidence.*",
-                  "", "<sub>Same data as scorecard.html (Maven GAV + named call sites + CVEs + "
-                  "test outcomes). "
-                  "coverage.html answers catalog availability; this comment answers graded "
-                  "upgrade cost. \u270d\ufe0f = de-escalation signed off.</sub>"]
-
-        open("out/pr-comment.md", "w").write("\n".join(lines) + "\n")
-        print("wrote out/pr-comment.md")
-        PY
-
-        # 2) post to the PR if we have a token + PR context; otherwise print it
         OWNER="$(params.repo-owner)"; REPO="$(params.repo-name)"; PR="$(params.pull-request-number)"
         TOKEN_FILE="$(workspaces.basic-auth.path)/git-provider-token"
         if [ -n "$OWNER" ] && [ -n "$REPO" ] && [ -n "$PR" ] && [ -f "$TOKEN_FILE" ]; then
@@ -288,7 +119,6 @@ spec:
             print("auto-close-pr: no out/changed-deps.json — skip close")
             sys.exit(0)
         d = json.load(open(path))
-        # detect_pom_changes.py shape: {changed, lightwell_adopted, added, removed}
         changes = (d.get("changed") or []) if isinstance(d, dict) else (d or [])
         if not changes:
             print("auto-close-pr: no version changes detected — leave PR open")
@@ -299,7 +129,6 @@ spec:
             "(`./scripts/demo-live-cycle.sh start`).\n\n"
             "Re-open a fresh bump PR when you want to run the cycle again."
         )
-        # Comment then close
         for url, payload in (
             (f"{api}/repos/{owner}/{repo}/issues/{pr}/comments", {"body": body}),
             (f"{api}/repos/{owner}/{repo}/pulls/{pr}", {"state": "closed"}),
