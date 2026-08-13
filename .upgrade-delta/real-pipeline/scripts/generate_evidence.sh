@@ -65,11 +65,15 @@ fetch_jar() {
     local base="${LIGHTWELL_REPO%/}"
     local jar_url="${base}/${gpath}/${a}/${v}/${a}-${v}.jar"
     local validated_url="${jar_url/\/remediated\//\/validated\/}"
-    if curl -fsSL -o "$out" "$jar_url"; then
+    ok=0
+    if curl -fsSL -L -o "$out" "$jar_url" && [ -s "$out" ]; then
       echo "  downloaded $jar_url"
-    elif curl -fsSL -o "$out" "$validated_url"; then
+      ok=1
+    elif curl -fsSL -L -o "$out" "$validated_url" && [ -s "$out" ]; then
       echo "  downloaded $validated_url"
-    else
+      ok=1
+    fi
+    if [ "$ok" != 1 ]; then
       rm -f "$out"
       echo "FATAL: could not download $a-$v.jar from public Lightwell demo feeds"
       return 1
