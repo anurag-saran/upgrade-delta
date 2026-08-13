@@ -77,7 +77,7 @@ spec:
       volumes:
         - name: reports
           persistentVolumeClaim:
-            claimName: upgrade-delta-reports
+            claimName: upgrade-delta-live-reports
         - name: nginx-config
           configMap:
             name: scorecard-viewer-nginx
