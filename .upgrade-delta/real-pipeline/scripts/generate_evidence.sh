@@ -22,7 +22,7 @@ CHANGES=""
 APP_MODULE="."
 SETTINGS=""
 UD_PY=".upgrade-delta/upgrade_delta.py"
-LIGHTWELL_REPO="https://packages.redhat.com/lightwell/java/remediated"
+LIGHTWELL_REPO="https://packages.redhat.com/lightwell/public-lightwell-demo/java/remediated/"
 FAIL_ON="D"
 
 while [ $# -gt 0 ]; do
@@ -59,10 +59,12 @@ fetch_jar() {
   fi
   echo "  fetching $g:$a:$v"
   if is_remediated "$v"; then
+    # Use an unauthenticated repo id so a stale lightwell-remediated password
+    # in settings.xml cannot force 403 against the public demo feed.
     mvn -B -s "$SETTINGS" dependency:copy \
       -Dartifact="$g:$a:$v:jar" -DoutputDirectory=out/jars \
       -Dmdep.stripVersion=false \
-      -DremoteRepositories="lightwell-remediated::::${LIGHTWELL_REPO}"
+      -DremoteRepositories="lightwell-public::::${LIGHTWELL_REPO}"
   else
     mvn -B -s "$SETTINGS" dependency:copy \
       -Dartifact="$g:$a:$v:jar" -DoutputDirectory=out/jars \
@@ -90,7 +92,14 @@ PY
 fi
 
 echo "building app module: $APP_MODULE"
-( cd "$APP_MODULE" && mvn -B -s "$SETTINGS" -DskipTests package )
+# Prefer -Pci-community when present so demos don't require a working
+# authenticated Lightwell settings.xml to produce the app jar for analysis.
+BUILD_ARGS=(-B -s "$SETTINGS" -DskipTests package)
+if grep -q '<id>ci-community</id>' "$APP_MODULE/pom.xml" 2>/dev/null; then
+  BUILD_ARGS+=(-Pci-community)
+  echo "  using -Pci-community (Maven Central) for the analysis jar"
+fi
+( cd "$APP_MODULE" && mvn "${BUILD_ARGS[@]}" )
 APP_JAR=$(find "$APP_MODULE/target" -maxdepth 1 -name '*.jar' \
              -not -name '*-sources.jar' -not -name '*-javadoc.jar' -not -name 'original-*' \
            | head -1)
