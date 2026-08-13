@@ -858,7 +858,7 @@ def analyze(args):
             f.write(render_card(report))
         print(f"  report:   {args.html}")
     if getattr(args, "routing_payload", None):
-        shrinkable = {"Fast lane", "Targeted tests"}
+        shrinkable = {"Just smoke-test it", "Test the parts you use"}  # grades A / B
         eff = rating.get("effective_grade")
         payload = {
             "schema": "upgrade-delta/routing/v1",
@@ -2629,7 +2629,7 @@ def scan(args):
         print(f"  scorecard:      {args.html}")
 
     if args.routing_payload:
-        shrinkable = {"Fast lane", "Targeted tests"}
+        shrinkable = {"Just smoke-test it", "Test the parts you use"}  # grades A / B
         payload = {
             "schema": "upgrade-delta/routing/v1",
             "tool": {"name": "upgrade-delta", "version": TOOL_VERSION},

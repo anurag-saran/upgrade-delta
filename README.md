@@ -100,8 +100,8 @@ GitHub PR  ──(Pipelines-as-Code webhook)──►  OpenShift Pipelines
 
 | Grade | Meaning | Test lane |
 |---|---|---|
-| **A** | z-stream, no API change, minimal churn, no default/SPI changes | Fast lane: smoke + canary |
-| **B** | z-stream but with added surface, heavy churn, or shipped-default changes | Targeted tests on the calling packages + canary |
+| **A** | z-stream, no API change, minimal churn, no default/SPI changes | Fast lane: *Just smoke-test it* + canary |
+| **B** | z-stream but with added surface, heavy churn, or shipped-default changes | Fast lane: *Test the parts you use* + canary |
 | **C** | y-stream, no incompatibilities | Partial regression + production-like boot test |
 | **D** | Binary-incompatible changes, or x-stream | Full regression |
 | **F** | Incompatible changes **your app provably calls** | Migration first, then full regression |
