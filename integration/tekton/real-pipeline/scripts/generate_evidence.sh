@@ -59,12 +59,21 @@ fetch_jar() {
   fi
   echo "  fetching $g:$a:$v"
   if is_remediated "$v"; then
-    # Use an unauthenticated repo id so a stale lightwell-remediated password
-    # in settings.xml cannot force 403 against the public demo feed.
-    mvn -B -s "$SETTINGS" dependency:copy \
-      -Dartifact="$g:$a:$v:jar" -DoutputDirectory=out/jars \
-      -Dmdep.stripVersion=false \
-      -DremoteRepositories="lightwell-public::::${LIGHTWELL_REPO}"
+    # Direct HTTP get — Maven dependency:copy still walks parent POMs through
+    # settings.xml and hits lightwell-remediated (403 when the cluster PAT is stale).
+    local gpath=${g//./\/}
+    local base="${LIGHTWELL_REPO%/}"
+    local jar_url="${base}/${gpath}/${a}/${v}/${a}-${v}.jar"
+    local validated_url="${jar_url/\/remediated\//\/validated\/}"
+    if curl -fsSL -o "$out" "$jar_url"; then
+      echo "  downloaded $jar_url"
+    elif curl -fsSL -o "$out" "$validated_url"; then
+      echo "  downloaded $validated_url"
+    else
+      rm -f "$out"
+      echo "FATAL: could not download $a-$v.jar from public Lightwell demo feeds"
+      return 1
+    fi
   else
     mvn -B -s "$SETTINGS" dependency:copy \
       -Dartifact="$g:$a:$v:jar" -DoutputDirectory=out/jars \
