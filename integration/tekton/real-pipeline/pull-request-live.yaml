@@ -57,7 +57,7 @@ spec:
     - name: pull-request-number
       value: '{{ pull_request_number }}'
     - name: scorecard-route-host
-      value: 'scorecard.apps.EXAMPLE.com'
+      value: 'scorecard-upgrade-delta-demo.apps.asaran.na-launch.com'
     # Set "true" for dedicated demo app repos (closes PR after a real pom bump so
     # the base branch stays on community libs). Leave "false" for production apps.
     - name: auto-close-pr
