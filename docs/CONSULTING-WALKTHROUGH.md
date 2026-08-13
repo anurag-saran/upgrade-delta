@@ -7,7 +7,7 @@ Prefer these links over ad-hoc sandbox URLs that get recycled.
 
 Live demo Route (project `upgrade-delta-demo`):
 
-**https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html**
+**https://scorecard.apps.EXAMPLE.com/out/reports/scorecard.html**
 
 Committed snapshot (always available offline):
 [`examples/scorecard.html`](../examples/scorecard.html).

@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-[ -f "$(dirname "$0")/.env.local" ] && . "$(dirname "$0")/.env.local"  # auto-load creds if setup-openshift.sh was run
-# Pull the exact Lightwell remediated jars the sample app depends on, so you can build
-# and analyze locally without Maven resolving them. Community versions come from Central;
-# remediated versions come from Lightwell with your credentials.
+[ -f "$(dirname "$0")/.env.local" ] && . "$(dirname "$0")/.env.local"
+# Pull Lightwell remediated jars for the shared payments-service demo app.
 #
 #   export RHLN_USER='orgID|service-account'  RHLN_TOKEN='...'
 #   ./fetch-lightwell-app-jars.sh
+#
+# Default OUT is sibling ../payments-service/lib (override with PAYMENTS_SERVICE_DIR).
 set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+APP="${PAYMENTS_SERVICE_DIR:-$ROOT/../payments-service}"
 RHLN_REPO="${RHLN_REPO:-https://packages.redhat.com/lightwell/java/remediated}"
-OUT="sample-app/lib"; mkdir -p "$OUT"
+OUT="${APP}/lib"; mkdir -p "$OUT"
+[[ -d "$APP" ]] || { echo "FATAL: payments-service not found at $APP (set PAYMENTS_SERVICE_DIR)" >&2; exit 1; }
 [[ -n "${RHLN_USER:-}" && -n "${RHLN_TOKEN:-}" ]] || { echo "set RHLN_USER and RHLN_TOKEN" >&2; exit 1; }
 
-# group|artifact|remediated-version
 DEPS="
 com.fasterxml.jackson.core|jackson-databind|2.13.4.rhlw-00001
 org.springframework|spring-web|5.3.18.rhlw-00010
@@ -37,4 +39,4 @@ echo "done -> ${OUT}/"
 echo "Note: build numbers advance over time -- these versions were verified current"
 echo "as of this script's last update. If a download 404s, re-run"
 echo "./fetch-lightwell-catalog-metadata.sh to check the real current build number,"
-echo "and update the DEPS list above + pom.xml to match."
+echo "and update the DEPS list above + payments-service/pom.xml to match."

@@ -56,7 +56,7 @@ scorecard and PR comment still carry pass/fail. Artifacts:
 [`examples/scorecard.html`](examples/scorecard.html),
 [`examples/coverage.html`](examples/coverage.html),
 [`examples/pr-comment.md`](examples/pr-comment.md). Live Route:
-https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html.
+https://scorecard.apps.EXAMPLE.com/out/reports/scorecard.html.
 
 How the pieces fit:
 
@@ -135,11 +135,12 @@ The three commands the OpenShift pipeline runs are exactly these (`coverage`, `s
 `test_router.py`). Browsable without running anything: see `examples/` and `docs/`.
 
 ### The credentialed "real app" path
-`sample-app/` is a real Spring Boot service whose dependencies are genuine Lightwell
-*remediated* artifacts (`…redhat-NNNNN`). Building it needs a `console.redhat.com` service
-account (`sample-app/settings.xml`, from the template) or `./fetch-lightwell-app-jars.sh`. On
-OpenShift this becomes the credentialed pipeline variant — see the add-ons in
-[`docs/INSTALL-OPENSHIFT.md`](docs/INSTALL-OPENSHIFT.md) and `integration/tekton/pac/README.md`.
+The sibling repo [`payments-service`](https://github.com/anurag-saran/payments-service) is the
+shared Spring-ish demo app (also the Lightwell GitHub plugin target). Building remediated
+pins needs a `console.redhat.com` service account (`settings.xml` from the template) or
+`./fetch-lightwell-app-jars.sh` (writes into `../payments-service/lib` by default). Live
+OpenShift grading runs **in that app repo** via its `.tekton/pull-request-live.yaml` —
+see [`docs/DEMO-LIVE-POM.md`](docs/DEMO-LIVE-POM.md) and [`docs/INSTALL-OPENSHIFT.md`](docs/INSTALL-OPENSHIFT.md).
 
 ---
 
@@ -149,13 +150,19 @@ OpenShift this becomes the credentialed pipeline variant — see the add-ons in
 upgrade_delta.py        the tool: analyze | publish | scan | seal | verify
 test_router.py          consumer-side test router (executable spec for the Maven plugin)
 demo.sh                 narrated offline demo, incl. the deliberate failure modes
+scripts/ci-check.sh     unit tests + jacoco selftest + offline scan grade gate
+scripts/sync-vendor-bundle.sh  regenerate .upgrade-delta/ from root + integration/
+.github/workflows/ci.yml       GitHub Actions CI (runs ci-check + vendor --check)
+tests/                  unit tests for rating, streams, fingerprints, jar diff
+.upgrade-delta/         generated vendorable bundle (do not hand-edit; run sync script)
 setup-openshift.sh      scripted cluster setup (namespace, tasks, deploy/, git-clone)
 cleanup-openshift.sh    scripted teardown — run before re-installing over a previous version
 deploy/                 cluster resources for the console demo: reports PVC + scorecard viewer
-.tekton/                Pipelines-as-Code PR trigger (fires the demo pipeline on every PR)
+.tekton/                Pipelines-as-Code PR trigger (fixture demo pipeline)
+scripts/demo-live-cycle.sh  wrapper → sibling payments-service live jackson demo
 integration/tekton/     the pipeline + tasks, PaC runbook, CAB approval, RHTAS signing
 integration/            jacoco converter · GitHub Action · Jenkins · Maven-plugin scaffold
-samples/                realworld SBOM mirror + helper scripts
+samples/                small tutorial SBOM (`customer-sbom.json`) for Tier-1 coverage
 catalogs/               the real Lightwell remediated-catalog SBOM (drives `coverage`)
 examples/               real-library evidence, demo jars, tests, and browsable outputs
 docs/                   INSTALL-OPENSHIFT · DEMO-SCRIPT · USER-GUIDE · DESIGN-DECISIONS ·
@@ -163,7 +170,8 @@ docs/                   INSTALL-OPENSHIFT · DEMO-SCRIPT · USER-GUIDE · DESIGN
 ```
 
 Generated dirs (`out/`, `site/`, `samples/jars/`, `real-jars/`) are gitignored and reproduced
-by the pipeline / `demo.sh`.
+by the pipeline / `demo.sh`. After changing the tool or Tekton sources, run
+`./scripts/sync-vendor-bundle.sh` so `.upgrade-delta/` stays aligned.
 
 ## Documentation
 

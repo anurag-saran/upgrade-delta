@@ -102,7 +102,7 @@ those get exercised for the first time.
      resolve-and-grade-transitive run-tests-maven \
      upgrade-delta-select-tests upgrade-delta-summary upgrade-delta-pr-comment -n <namespace>
    ```
-5. **Reuse the existing `lightwell-maven-settings` secret** — the same one `sample-app`
+5. **Reuse the existing `lightwell-maven-settings` secret** — the same one `payments-service`
    already uses (a `settings.xml` file with your Lightwell console credentials). No new
    secret needed; this consolidation dropped the earlier draft's separate
    `lightwell-live-scan-creds` secret in favor of the one credential pattern the rest of
@@ -115,7 +115,7 @@ those get exercised for the first time.
 Open a PR that bumps a dependency to its `rhlw-` version in `pom.xml`, and this triggers
 automatically — same as the demo, but grading your real code.
 
-**Step-by-step enablement walkthrough** (jackson hero in `sample-app`, PVC, PaC, what to
+**Step-by-step enablement walkthrough** (jackson hero in `payments-service`, PVC, PaC, what to
 watch): [`docs/DEMO-LIVE-POM.md`](../../docs/DEMO-LIVE-POM.md).
 
 **Repeatable demo cycle** (bump → pipeline → close PR without merge so main stays community):

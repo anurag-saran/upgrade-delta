@@ -93,7 +93,7 @@ Walk the Results table:
 *(Skip to Beat 5 if you didn't deploy the viewer — the Results tab already carried the
 story.)*
 
-Open the viewer Route: `https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html`
+Open the viewer Route: `https://scorecard.apps.EXAMPLE.com/out/reports/scorecard.html`
 (or your cluster’s `scorecard` Route). Offline snapshot: `examples/scorecard.html`.
 Durable callouts: [`CONSULTING-WALKTHROUGH.md`](CONSULTING-WALKTHROUGH.md). Walk the rendered
 report:

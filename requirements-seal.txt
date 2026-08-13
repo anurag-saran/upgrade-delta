@@ -1,0 +1,4 @@
+# Optional dependency for `upgrade_delta.py seal` / `verify` (Ed25519).
+
+# Production evidence signing prefers Sigstore/RHTAS (see integration/signing.md).
+cryptography>=42.0.0

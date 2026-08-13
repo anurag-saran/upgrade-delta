@@ -109,7 +109,7 @@ feature you shipped — **that feature isn’t there.** Show the **honesty / sig
 manual-check** posture on the scorecard instead.
 
 **Stable scorecard:**  
-https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html
+https://scorecard.apps.EXAMPLE.com/out/reports/scorecard.html
 
 ---
 

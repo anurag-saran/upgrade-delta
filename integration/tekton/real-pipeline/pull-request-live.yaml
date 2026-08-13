@@ -47,7 +47,7 @@ spec:
     - name: accept-transitive-scope
       value: 'false'                   # set 'true' only as a deliberate sign-off decision
     - name: coverage-map
-      value: 'sample-app/coverage-map.json'   # optional; falls open to full suite if missing
+      value: 'coverage-map.json'   # optional; falls open to full suite if missing
     - name: tests-dir
       value: 'src/test/java'
     - name: repo-owner
@@ -57,10 +57,9 @@ spec:
     - name: pull-request-number
       value: '{{ pull_request_number }}'
     - name: scorecard-route-host
-      value: 'scorecard-upgrade-delta-demo.apps.asaran.na-launch.com'
-    # Set "true" only for demo repos that run live alone (closes PR after a real
-    # pom bump so the base branch stays on community libs). Leave false for
-    # production app repos — and for monorepos that also run the fixture demo.
+      value: 'scorecard.apps.EXAMPLE.com'
+    # Set "true" for dedicated demo app repos (closes PR after a real pom bump so
+    # the base branch stays on community libs). Leave "false" for production apps.
     - name: auto-close-pr
       value: 'false'
   workspaces:
@@ -74,7 +73,7 @@ spec:
         claimName: upgrade-delta-live-reports
     - name: maven-settings
       secret:
-        secretName: lightwell-maven-settings   # same secret the demo's sample-app already uses
+        secretName: lightwell-maven-settings   # same secret the demo's payments-service already uses
     - name: basic-auth
       secret:
         secretName: "{{ git_auth_secret }}"

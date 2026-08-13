@@ -1,1 +1,4 @@
-Real Lightwell remediated jars land here via ../fetch-lightwell-app-jars.sh (gitignored).
+Jars fetched by `lightwell-report.sh` land here (gitignored).
+
+For the sibling payments-service app jars, use `./fetch-lightwell-app-jars.sh`
+(writes to `../payments-service/lib` by default).

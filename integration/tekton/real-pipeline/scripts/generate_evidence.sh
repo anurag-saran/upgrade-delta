@@ -6,7 +6,7 @@
 # Usage (from the cloned app workspace root):
 #   generate_evidence.sh \
 #     --changes out/changed-deps.json \
-#     --app-module-dir sample-app \
+#     --app-module-dir . \
 #     --settings /path/to/settings.xml \
 #     --ud-py .upgrade-delta/upgrade_delta.py \
 #     [--lightwell-repo URL] [--fail-on D]

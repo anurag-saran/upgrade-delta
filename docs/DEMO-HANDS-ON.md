@@ -59,7 +59,7 @@ Full presenter beats (what to say): [`DEMO-SCRIPT.md`](DEMO-SCRIPT.md).
 - Tab 1: GitHub repo https://github.com/anurag-saran/upgrade-delta  
 - Tab 2: OpenShift console → project **`upgrade-delta-demo`**
 - Scorecard Route (bookmark):  
-  https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html
+  https://scorecard.apps.EXAMPLE.com/out/reports/scorecard.html
 
 ### Steps
 

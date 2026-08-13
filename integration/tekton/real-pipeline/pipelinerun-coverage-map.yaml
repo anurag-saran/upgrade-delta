@@ -13,11 +13,11 @@ spec:
     name: upgrade-delta-coverage-map
   params:
     - name: git-url
-      value: 'https://github.com/anurag-saran/upgrade-delta'
+      value: 'https://github.com/anurag-saran/payments-service'
     - name: git-revision
       value: 'main'
     - name: app-module-dir
-      value: 'sample-app'
+      value: '.'
     - name: only-prefix
       value: 'com/example/payments'
   workspaces:
@@ -32,4 +32,5 @@ spec:
         secretName: "REPLACE-WITH-YOUR-GIT-PROVIDER-TOKEN-SECRET"
         # This is the SAME secret PaC injects as {{ git_auth_secret }} in your
         # PR triggers. Find its current name with:
-        #   oc get repository upgrade-delta -n upgrade-delta-demo -o jsonpath='{.spec.git_provider.secret.name}'
+        #   oc get repository -n upgrade-delta-demo
+        # (use the payments-service Repository object when running the live path)

@@ -67,7 +67,7 @@ Also expect:
 
 1. **PipelineRun Results / summary log** — one-line verdict (grade, coverage, tests).
 2. **Scorecard HTML** — the readable report  
-   Live: https://scorecard-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html  
+   Live: https://scorecard.apps.EXAMPLE.com/out/reports/scorecard.html  
    Offline: [`examples/scorecard.html`](../examples/scorecard.html)
 3. **PR comment** — CAB summary on the pull request ([`examples/pr-comment.md`](../examples/pr-comment.md)).
 

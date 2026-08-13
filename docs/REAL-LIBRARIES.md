@@ -1,9 +1,11 @@
 # Using real libraries — three tiers of "real"
 
-The committed demo corpus is real libraries now: `examples/evidence/{json-path,snakeyaml,spring-core}.json`
-against `examples/demo-jars/payments-service-1.0.0.jar` (and its CycloneDX SBOM). The old
-tier that matches how much realness you need. Each tier is strictly more real (and more
-setup) than the last.
+The committed demo corpus uses real libraries:
+`examples/evidence/{json-path,snakeyaml,spring-core}.json` against
+`examples/demo-jars/payments-service-1.0.0.jar` (and its CycloneDX SBOM).
+
+Pick the tier that matches how much realness you need. Each tier is strictly more
+real (and more setup) than the last.
 
 ---
 
@@ -52,13 +54,13 @@ dependency graph, not just these four.
 
 The **scan** (per-dependency A–F grades, reachability, the scorecard) needs the actual old
 and new jars, because the grade comes from diffing their bytecode and intersecting it with
-your app's bytecode. `sample-app/` is already wired for this: it's a real Spring Boot
+your app's bytecode. `payments-service` (sibling repo) is already wired for this: it's a real Spring Boot
 service pinned to real `…redhat-NNNNN` versions, with CycloneDX + JaCoCo + Surefire
 `includesFile` configured in its `pom.xml`.
 
 1. Put a real console.redhat.com service-account token back in the cluster secret
    (`lightwell-maven-settings`) — see `CREDENTIALS.md` / `setup-openshift.sh`.
-2. Build `sample-app` against Lightwell (`mvn -s settings.xml clean package`) or pull the
+2. Build `payments-service` against Lightwell (`mvn -s settings.xml clean package`) or pull the
    raw jars with `./fetch-lightwell-app-jars.sh`. This produces the real app jar, a real
    `target/bom.json`, and the resolved dependency jars.
 3. Run `upgrade_delta.py analyze old.jar new.jar --app target/payments-service.jar …` for

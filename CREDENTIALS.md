@@ -2,7 +2,7 @@
 
 ## Note: Podman, not Docker
 
-This laptop uses **Podman** (Red Hat), not Docker. That is fine everywhere here:
+Use **Podman** or Docker locally — either works with the oc commands below. That is fine everywhere here:
 
 - `oc create secret docker-registry` is an **oc subcommand**, not the docker CLI. "docker-registry"
   is just the Kubernetes secret *type* (`dockerconfigjson`) — it works with Podman or no container
@@ -77,7 +77,7 @@ For installing operators and creating the namespace/secrets.
 
 | Item | Where to get it | Used as |
 |---|---|---|
-| **cluster-admin kubeconfig / login** | your cluster (api.asaran.na-launch.com) | `oc login` |
+| **cluster-admin kubeconfig / login** | your cluster (api.EXAMPLE.com) | `oc login` |
 
 ## 5. Sigstore OIDC token — keyless signing identity
 Keyless cosign needs an identity token; **this is not a static secret you fetch** — it's

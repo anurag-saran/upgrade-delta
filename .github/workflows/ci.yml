@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Unit tests + demo scan gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Vendor bundle sync check
+        run: |
+          chmod +x scripts/sync-vendor-bundle.sh scripts/ci-check.sh
+          ./scripts/sync-vendor-bundle.sh --check
+      - name: CI check
+        run: ./scripts/ci-check.sh

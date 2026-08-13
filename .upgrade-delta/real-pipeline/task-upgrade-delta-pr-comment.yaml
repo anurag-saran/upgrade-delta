@@ -46,7 +46,7 @@ spec:
       description: >-
         When "true", close the PR without merging after posting the CAB comment,
         but only if out/changed-deps.json shows a real version change. Used by the
-        live sample-app demo cycle so main stays on community jackson for the next run.
+        live payments-service demo cycle so main stays on community jackson for the next run.
   workspaces:
     - name: source
     - name: basic-auth

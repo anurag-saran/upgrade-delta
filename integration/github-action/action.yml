@@ -13,29 +13,43 @@ runs:
   steps:
     - name: Scan
       shell: bash
+      env:
+        APP_JARS: ${{ inputs.app-jars }}
+        EVIDENCE_DIR: ${{ inputs.evidence-dir }}
+        SBOM: ${{ inputs.sbom }}
+        LIB_JARS: ${{ inputs.lib-jars }}
+        FAIL_ON: ${{ inputs.fail-on }}
+        ACCEPT_TRANSITIVE_SCOPE: ${{ inputs.accept-transitive-scope }}
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         FLAGS=""
-        [ -n "${{ inputs.sbom }}" ] && FLAGS="$FLAGS --sbom ${{ inputs.sbom }}"
-        [ -n "${{ inputs.lib-jars }}" ] && FLAGS="$FLAGS --lib-jars ${{ inputs.lib-jars }}"
-        [ "${{ inputs.accept-transitive-scope }}" = "true" ] && FLAGS="$FLAGS --accept-transitive-scope"
-        python3 ${{ github.action_path }}/../../upgrade_delta.py scan ${{ inputs.app-jars }} \
-          --evidence ${{ inputs.evidence-dir }} $FLAGS \
-          --json scorecard.json --html scorecard.html --fail-on ${{ inputs.fail-on }} \
+        [ -n "$SBOM" ] && FLAGS="$FLAGS --sbom $SBOM"
+        [ -n "$LIB_JARS" ] && FLAGS="$FLAGS --lib-jars $LIB_JARS"
+        [ "$ACCEPT_TRANSITIVE_SCOPE" = "true" ] && FLAGS="$FLAGS --accept-transitive-scope"
+        # shellcheck disable=SC2086
+        python3 "$ACTION_PATH/../../upgrade_delta.py" scan $APP_JARS \
+          --evidence "$EVIDENCE_DIR" $FLAGS \
+          --json scorecard.json --html scorecard.html --fail-on "$FAIL_ON" \
           || echo "GATE_FAILED=1" >> "$GITHUB_ENV"
     - name: Comment on PR
       if: github.event_name == 'pull_request'
       shell: bash
-      env: {GH_TOKEN: "${{ inputs.github-token }}"}
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        ACTION_PATH: ${{ github.action_path }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
       run: |
-        python3 ${{ github.action_path }}/pr_comment.py scorecard.json pr-comment.md
-        gh pr comment ${{ github.event.pull_request.number }} --body-file pr-comment.md
+        python3 "$ACTION_PATH/pr_comment.py" scorecard.json pr-comment.md
+        gh pr comment "$PR_NUMBER" --body-file pr-comment.md
     - name: Upload scorecard artifact
       uses: actions/upload-artifact@v4
       with: {name: upgrade-delta-scorecard, path: "scorecard.*"}
     - name: Enforce gate
       shell: bash
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
       run: |
         if [ "${GATE_FAILED:-0}" = "1" ]; then
-          echo "::error::project grade breached --fail-on ${{ inputs.fail-on }} — see PR comment"
+          echo "::error::project grade breached --fail-on $FAIL_ON — see PR comment"
           exit 1
         fi

@@ -194,7 +194,7 @@ You do **not** need these for the core demo. Add them only if you're showing the
 production-shaped path.
 
 ### A. Real Maven build against Red Hat Lightwell
-Builds `sample-app/` against genuine `…redhat-NNNNN` remediated jars instead of using the
+Builds `payments-service` (sibling repo) against genuine `…redhat-NNNNN` remediated jars instead of using the
 committed fixtures. Needs a `console.redhat.com` service account. Create a
 `lightwell-maven-settings` Secret (a Maven `settings.xml`) in `upgrade-delta-demo`.
 Reference: `CREDENTIALS.md`. The scriptable helper `setup-openshift.sh` also wires this.

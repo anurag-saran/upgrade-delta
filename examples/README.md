@@ -2,7 +2,7 @@
 
 Real-library demo corpus (keep in sync via `./demo.sh`):
 
-- `demo-jars/payments-service-1.0.0.jar` + `payments-service.sbom.json` — sample app
+- `demo-jars/payments-service-1.0.0.jar` + `payments-service.sbom.json` — fixture app jar (same shape as sibling `payments-service`)
 - `demo-jars/payments-tests-1.0.0.jar` — MiniRunner + `com.example.payments` tests
 - `demo-jars/lib/*.jar` — runtime classpath so MiniRunner pass/fail is about the upgrade
 - `evidence/{json-path,snakeyaml,spring-core}.json` — analyze output for the three graded rows
