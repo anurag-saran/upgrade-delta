@@ -32,10 +32,18 @@ spec:
         python3 .upgrade-delta/real-pipeline/scripts/pom_to_cyclonedx.py \
           --pom "$(params.pom-path)" --name "$(params.app-name)" --out out/live-sbom.json
 
+        # Whole-app catalog meter; when detect-pom-changes wrote changed-deps.json,
+        # highlight those G:A rows so coverage stays in sync with CAB + scorecard.
+        HIGHLIGHT=()
+        if [ -f out/changed-deps.json ]; then
+          HIGHLIGHT=(--this-change out/changed-deps.json)
+        fi
+
         python3 .upgrade-delta/upgrade_delta.py coverage \
           --sbom out/live-sbom.json \
           --catalog .upgrade-delta/catalogs/lightwell-remediated-java-sbom.json \
-          --json out/coverage.json --html out/reports/coverage.html
+          --json out/coverage.json --html out/reports/coverage.html \
+          "${HIGHLIGHT[@]}"
 
         python3 -c "
         import json

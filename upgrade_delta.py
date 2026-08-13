@@ -3340,21 +3340,61 @@ def coverage(args):
                       for g, n, v in sorted(uncovered)],
     }
 
+    # Optional: mark libraries this PR / pipeline bumped so coverage stays
+    # whole-app but highlights what CAB/scorecard are talking about.
+    this_change = []
+    change_path = getattr(args, "this_change", None)
+    if change_path and os.path.isfile(change_path):
+        try:
+            raw = json.load(open(change_path))
+            entries = []
+            if isinstance(raw, dict):
+                entries = list(raw.get("changed") or []) + list(raw.get("added") or [])
+            elif isinstance(raw, list):
+                entries = raw
+            for c in entries:
+                g = c.get("group") or c.get("groupId") or ""
+                a = c.get("artifact") or c.get("artifactId") or ""
+                if not a:
+                    continue
+                this_change.append({
+                    "group": g, "artifact": a,
+                    "old_version": c.get("old_version") or c.get("fromVersion") or "",
+                    "new_version": c.get("new_version") or c.get("toVersion") or "",
+                })
+        except (OSError, json.JSONDecodeError, TypeError) as e:
+            print(f"  ! could not load --this-change {change_path}: {e}")
+    change_keys = set()
+    if this_change:
+        change_keys = {(x["group"], x["artifact"]) for x in this_change}
+        result["this_change"] = this_change
+        for bucket in ("exact", "serviced_other_version", "uncovered"):
+            for e in result[bucket]:
+                e["in_this_change"] = (e.get("group"), e.get("artifact")) in change_keys
+
     print(f"\n== Lightwell coverage :: {app_name} ==")
     print(f"   {total} dependencies checked against {result['catalog']}")
     print(f"   {len(exact)}/{total} drop-in ready — {len(exact)} covered, "
-          f"{len(near)} serviced at another version, {len(uncovered)} not covered\n")
+          f"{len(near)} serviced at another version, {len(uncovered)} not covered")
+    if this_change:
+        print(f"   THIS CHANGE — highlighting {len(this_change)} libraries "
+              f"from {change_path}\n")
+    else:
+        print()
     print(f"   COVERED ({len(exact)}) — drop-in remediated build, no upgrade needed:")
     for g, n, v, rv in sorted(exact):
-        print(f"     {g}:{n}  {v} -> {rv}")
+        mark = "  <- this PR" if (g, n) in change_keys else ""
+        print(f"     {g}:{n}  {v} -> {rv}{mark}")
     if near:
         print(f"\n   SERVICED AT ANOTHER VERSION ({len(near)}) — upgrade, or request your version:")
         for g, n, v, sv in sorted(near):
-            print(f"     {g}:{n}  you run {v}  |  serviced: {', '.join(sv)}")
+            mark = "  <- this PR" if (g, n) in change_keys else ""
+            print(f"     {g}:{n}  you run {v}  |  serviced: {', '.join(sv)}{mark}")
     if uncovered:
         print(f"\n   NOT COVERED ({len(uncovered)}) — no remediated build; full regression on any upgrade:")
         for g, n, v in sorted(uncovered):
-            print(f"     {g}:{n}  {v}")
+            mark = "  <- this PR" if (g, n) in change_keys else ""
+            print(f"     {g}:{n}  {v}{mark}")
 
     if args.json:
         with open(args.json, "w") as f:
@@ -3375,29 +3415,43 @@ def render_coverage(r):
     unc_n = t["uncovered"]
     # Stamp color: majority drop-in → green, otherwise watch.
     stamp_ok = (exact_n * 2 >= total) if total else False
+    this_change = r.get("this_change") or []
 
     def gav(e):
         g = esc(e["group"] or "")
         return f'{g}:{esc(e["artifact"])}' if g else esc(e["artifact"])
 
+    def bump_badge(e):
+        if not e.get("in_this_change"):
+            return ""
+        return ' <span class="bump">In this PR</span>'
+
+    def row_class(e):
+        return ' class="this-change"' if e.get("in_this_change") else ""
+
+    def sorted_bucket(rows):
+        # PR bumps first within each catalog bucket so the eye lands on them.
+        return sorted(rows, key=lambda e: (0 if e.get("in_this_change") else 1,
+                                           e.get("group") or "", e.get("artifact") or ""))
+
     covered_rows = "".join(
-        f'<tr><td class="dep">{gav(e)}</td>'
+        f'<tr{row_class(e)}><td class="dep">{gav(e)}{bump_badge(e)}</td>'
         f'<td class="ver">{esc(e["version"])}</td>'
         f'<td class="ver arrow">{esc(e["remediated"])}</td>'
         f'<td class="act">{"Already on the Red Hat remediated build." if e["version"] == e["remediated"] else "Swap the version suffix. No code change."}</td></tr>'
-        for e in r["exact"])
+        for e in sorted_bucket(r["exact"]))
     near_rows = "".join(
-        f'<tr><td class="dep">{gav(e)}</td>'
+        f'<tr{row_class(e)}><td class="dep">{gav(e)}{bump_badge(e)}</td>'
         f'<td class="ver">{esc(e["version"])}</td>'
         f'<td class="ver">{esc(", ".join(e["serviced_versions"]))}</td>'
         f'<td class="act">Move to a serviced version, or request your version.</td></tr>'
-        for e in r["serviced_other_version"])
+        for e in sorted_bucket(r["serviced_other_version"]))
     unc_rows = "".join(
-        f'<tr><td class="dep">{gav(e)}</td>'
+        f'<tr{row_class(e)}><td class="dep">{gav(e)}{bump_badge(e)}</td>'
         f'<td class="ver">{esc(e["version"])}</td>'
         f'<td class="ver dash">not serviced</td>'
         f'<td class="act">No remediated build. Full regression on any upgrade.</td></tr>'
-        for e in r["uncovered"])
+        for e in sorted_bucket(r["uncovered"]))
 
     def section(kind, color, title, subtitle, count, rows, head3):
         if not rows:
@@ -3425,6 +3479,20 @@ def render_coverage(r):
                 "burden — the situation this tool exists to remove.", unc_n,
                 unc_rows, "Status"))
 
+    change_banner = ""
+    if this_change:
+        items = "".join(
+            f'<li><code>{esc(c["group"])}:{esc(c["artifact"])}</code> '
+            f'{esc(c.get("old_version") or "?")} → <b>{esc(c.get("new_version") or "?")}</b></li>'
+            for c in this_change)
+        change_banner = f'''<div class="change-banner">
+    <div class="change-h">This PR / pipeline bumps {len(this_change)} librar{"y" if len(this_change) == 1 else "ies"}</div>
+    <p class="change-s">Coverage stays the whole-app catalog meter. Rows tagged
+    <span class="bump">In this PR</span> are the same bumps graded on
+    <a href="scorecard.html">scorecard.html</a> and summarized in the CAB PR comment.</p>
+    <ul class="change-list">{items}</ul>
+  </div>'''
+
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{esc(r['app'])} — Lightwell coverage</title>{FONTS}<style>{CSS}
@@ -3446,6 +3514,17 @@ table.grid th{{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transf
   color:var(--ink-soft);font-weight:600;padding:11px 12px 7px;border-bottom:1px solid var(--line,#e5e5e5)}}
 table.grid td{{padding:9px 12px;border-bottom:1px solid var(--line,#eee);font-size:13px;vertical-align:top}}
 table.grid tr:last-child td{{border-bottom:none}}
+tr.this-change td{{background:rgba(0,102,204,.06)}}
+tr.this-change td.dep{{box-shadow:inset 3px 0 0 var(--watch,#f0ab00)}}
+.bump{{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;
+  font:600 10px/1.4 var(--head,inherit);letter-spacing:.04em;text-transform:uppercase;
+  background:var(--watch,#f0ab00);color:#1f1f1f;vertical-align:middle}}
+.change-banner{{margin:0 0 22px;padding:14px 16px;border:1px solid var(--watch,#f0ab00);
+  border-left:4px solid var(--watch,#f0ab00);background:rgba(240,171,0,.08);border-radius:6px}}
+.change-h{{font:700 14px/1.3 var(--head,inherit);margin:0 0 6px}}
+.change-s{{font-size:12.5px;color:var(--ink-soft);margin:0 0 10px;line-height:1.5;max-width:72ch}}
+.change-list{{margin:0;padding-left:18px;font-size:12.5px}}
+.change-list code{{font-size:12px}}
 td.dep{{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink);white-space:nowrap}}
 td.ver{{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink-soft);white-space:nowrap}}
 td.ver.arrow{{color:var(--pass);font-weight:600}}
@@ -3463,7 +3542,9 @@ td.act{{color:var(--ink);font-size:12.5px}}
   <b>This is not the project scorecard.</b> The scorecard grades only libraries with
   <b>published delta evidence</b> your app reaches (often a small subset). The
   <span class="m">{exact_n}/{total}</span> drop-in rows below are usually a version-suffix
-  swap — they belong here, not as extra graded rows on scorecard.html.</p>
+  swap — they belong here, not as extra graded rows on scorecard.html.
+  See also <a href="scorecard.html">scorecard.html</a> for this PR's graded bumps.</p>
+  {change_banner}
   <div class="legend">
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
       <span class="n" style="color:var(--pass)">{exact_n}</span>
@@ -3663,6 +3744,9 @@ def main():
     cv.add_argument("--catalog", required=True,
                     help="Lightwell catalog SBOM (e.g. catalogs/lightwell-remediated-java-sbom.json)")
     cv.add_argument("--json"); cv.add_argument("--html")
+    cv.add_argument("--this-change",
+                    help="changed-deps.json from detect-pom-changes — highlight "
+                         "libraries this PR/pipeline bumped on the coverage card")
     cv.set_defaults(fn=coverage)
 
     se = sub.add_parser("seal", help="detached Ed25519 signatures over evidence JSON")
