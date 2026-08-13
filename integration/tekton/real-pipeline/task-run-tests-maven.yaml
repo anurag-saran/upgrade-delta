@@ -36,9 +36,16 @@ spec:
         SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
         INCLUDES="$(workspaces.source.path)/out/routing-out/surefire-includes.txt"
         [ -f "$INCLUDES" ] || { echo "FATAL: $INCLUDES not found -- did select-tests run first?"; exit 1; }
+        MVN_ARGS=(-B -s "$SETTINGS" test "-Dsurefire.includesFile=$INCLUDES")
+        # Prefer -Pci-community when present so demo runs don't need a working
+        # authenticated Lightwell settings.xml (stale PAT → 403 on rhlw pins).
+        if grep -q '<id>ci-community</id>' "$(params.app-module-dir)/pom.xml" 2>/dev/null; then
+          MVN_ARGS+=(-Pci-community)
+          echo "using -Pci-community (Maven Central) for Surefire"
+        fi
         (
           cd "$(params.app-module-dir)"
-          mvn -B -s "$SETTINGS" test -Dsurefire.includesFile="$INCLUDES"
+          mvn "${MVN_ARGS[@]}"
         )
         MVN_RC=$?
         # Sum every surefire-reports/*.txt summary line across all modules --
