@@ -1679,9 +1679,10 @@ def _hazards_html(hazards, app_name=""):
                 continue
         if kind == "declared-not-shipped" and len(msgs) > 3:
             items.append(
-                f'<li>{len(msgs)} libraries are in the SBOM but not packaged inside this jar '
-                f'(normal for a thin application jar that loads dependencies from the '
-                f'classpath at runtime — not a packaging bug by itself).</li>')
+                f'<li>{len(msgs)} libraries are in the SBOM but were not found inside this jar '
+                f'(common for <em>thin</em> jars that load deps from the classpath; a shaded/'
+                f'fat jar should fingerprint them via classes or META-INF/maven pom.properties).'
+                f'</li>')
         else:
             for msg in msgs:
                 items.append(f'<li><span class="m">[{esc(kind)}]</span> {esc(msg)}</li>')
@@ -2090,6 +2091,39 @@ def merge_models(models):
     return out
 
 
+def _gav_parts(sbom, name):
+    """Return (group, artifact) from sbom['gav'] entry 'group:artifact'."""
+    gav = (sbom or {}).get("gav", {}).get(name) or ""
+    if ":" in gav:
+        group, artifact = gav.split(":", 1)
+        return group, artifact
+    return "", name
+
+
+def _fat_jar_covers(app, group, artifact):
+    """True if the app jar contains classes that belong to this Maven GAV.
+
+    Used when META-INF/maven/.../pom.properties is missing (common for Spring
+    and some Central jars). A shaded/fat jar still has the .class files.
+    """
+    classes = app.get("classes") or {}
+    if not classes:
+        return False
+    candidates = []
+    if group:
+        candidates.append(group.replace(".", "/") + "/")
+    # commons-io -> commons/io ; jackson-databind -> jackson/databind
+    slug = artifact.replace("-", "/")
+    if slug:
+        candidates.append("/" + slug + "/")
+        candidates.append(slug + "/")
+    for cname in classes:
+        for cand in candidates:
+            if cand in cname or cname.startswith(cand.lstrip("/")):
+                return True
+    return False
+
+
 def artifact_inventory(app, sbom, evidence_pkg_map):
     """Fat-jar ground truth vs the declared graph. Emits hazards:
     version drift, declared-not-shipped, shipped-not-declared, relocated copies."""
@@ -2100,6 +2134,14 @@ def artifact_inventory(app, sbom, evidence_pkg_map):
                       if "=" in line and not line.startswith("#"))
             if "artifactId" in kv:
                 shipped[kv["artifactId"]] = kv.get("version", "?")
+    # Fat/shaded jars: fill gaps when dependencies omit pom.properties (Spring).
+    if sbom:
+        for name, ver in list(sbom["versions"].items()):
+            if name in shipped:
+                continue
+            group, artifact = _gav_parts(sbom, name)
+            if _fat_jar_covers(app, group, artifact):
+                shipped[name] = ver
     hazards = []
     if shipped and sbom:
         for name, ver in sorted(shipped.items()):
