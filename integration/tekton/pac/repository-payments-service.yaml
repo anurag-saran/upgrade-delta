@@ -1,0 +1,17 @@
+# Pipelines-as-Code Repository CR for the shared demo app.
+# Apply in upgrade-delta-demo alongside the upgrade-delta Repository.
+# Reuses the same provider token / webhook secret as upgrade-delta.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  name: payments-service
+  namespace: upgrade-delta-demo
+spec:
+  url: "https://github.com/anurag-saran/payments-service"
+  git_provider:
+    secret:
+      name: upgrade-delta-provider-token
+      key: provider.token
+    webhook_secret:
+      name: upgrade-delta-provider-token
+      key: webhook.secret
