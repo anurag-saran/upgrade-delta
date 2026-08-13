@@ -38,7 +38,7 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -euo pipefail
-        python3 test_router.py out/routing.json \
+        python3 .upgrade-delta/test_router.py out/routing.json \
           --coverage "$(params.coverage-map)" --tests-dir "$(params.tests-dir)" \
           --head-sha "$(params.head-sha)" --out-dir out/routing-out
         python3 - <<'PY'
