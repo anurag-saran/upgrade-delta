@@ -31,7 +31,7 @@ spec:
       description: Directory containing the pom.xml to build (root, or a module path)
     - name: lightwell-repo
       type: string
-      default: "https://packages.redhat.com/lightwell/java/remediated"
+      default: "https://packages.redhat.com/lightwell/public-lightwell-demo/java/remediated/"
       description: >-
         Lightwell remediated Maven repository URL. Passed explicitly to
         dependency:copy via -DremoteRepositories, because that goal runs

@@ -38,7 +38,7 @@ spec:
       description: Path from resolve-jars' APP_JAR result
     - name: lightwell-repo
       type: string
-      default: "https://packages.redhat.com/lightwell/java/remediated"
+      default: "https://packages.redhat.com/lightwell/public-lightwell-demo/java/remediated/"
     - name: accept-transitive-scope
       type: string
       default: "false"
