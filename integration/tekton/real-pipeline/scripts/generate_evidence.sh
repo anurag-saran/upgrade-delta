@@ -75,7 +75,7 @@ fetch_jar() {
     fi
     if [ "$ok" != 1 ]; then
       rm -f "$out"
-      echo "FATAL: could not download $a-$v.jar from public Lightwell demo feeds"
+      echo "WARN: could not download $a-$v.jar from public Lightwell demo feeds"
       return 1
     fi
   else
@@ -120,12 +120,24 @@ APP_JAR=$(find "$APP_MODULE/target" -maxdepth 1 -name '*.jar' \
 echo "APP_JAR=$APP_JAR"
 
 # Avoid pipe+while subshell so analyze failures abort this script.
+# Skip individual bumps when a jar is missing (e.g. shared Maven property
+# also bumped spring-web/webmvc while only spring-core exists on the public
+# Lightwell demo feeds) — still grade everything we can resolve.
+SKIPPED=0
 while IFS='|' read -r G A OV NV; do
   [ -z "$A" ] && continue
   echo
   echo "=== evidence: $G:$A  $OV -> $NV ==="
-  fetch_jar "$G" "$A" "$OV"
-  fetch_jar "$G" "$A" "$NV"
+  if ! fetch_jar "$G" "$A" "$OV"; then
+    echo "WARN: skip $G:$A — could not fetch old jar $OV"
+    SKIPPED=$((SKIPPED + 1))
+    continue
+  fi
+  if ! fetch_jar "$G" "$A" "$NV"; then
+    echo "WARN: skip $G:$A — could not fetch new jar $NV"
+    SKIPPED=$((SKIPPED + 1))
+    continue
+  fi
   OLD_JAR="out/jars/${A}-${OV}.jar"
   NEW_JAR="out/jars/${A}-${NV}.jar"
   EVIDENCE="out/evidence/${A}-${OV}-to-${NV}.json"
@@ -141,6 +153,9 @@ import json
 for c in json.load(open('$CHANGES'))['changed']:
     print(f\"{c['group']}|{c['artifact']}|{c['old_version']}|{c['new_version']}\")
 ")
+if [ "$SKIPPED" -gt 0 ]; then
+  echo "WARN: skipped $SKIPPED bump(s) due to missing jars"
+fi
 
 EVIDENCE_N=$(find out/evidence -name '*.json' | wc -l | tr -d ' ')
 [ "$EVIDENCE_N" -gt 0 ] || { echo "FATAL: no evidence files written"; exit 1; }
