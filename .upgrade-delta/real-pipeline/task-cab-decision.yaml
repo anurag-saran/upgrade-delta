@@ -1,0 +1,172 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: cab-decision
+spec:
+  description: >-
+    Grade-based Change Advisory Board gate. A/B → auto-approve and write
+    out/cab-signoff.json (audit trail). C → pause until a human creates the
+    upgrade-delta-cab-approved ConfigMap (or timeout). D/F should already have
+    failed grade-gate (fail-on D); if reached, they also require human approval.
+  params:
+    - name: timeout-seconds
+      type: string
+      default: "1800"
+      description: How long to wait for human CAB approval (C / override path)
+    - name: approval-configmap
+      type: string
+      default: "upgrade-delta-cab-approved"
+      description: ConfigMap name that signals human CAB approval
+    - name: pipeline-run-name
+      type: string
+      default: ""
+      description: Optional PipelineRun name recorded in the signoff
+  results:
+    - name: CAB_MODE
+      description: "'auto', 'human', or 'skip'"
+    - name: CAB_GRADE
+      description: Project headline grade that drove the decision
+    - name: CAB_APPROVED
+      description: "'true' if signoff was written"
+  workspaces:
+    - name: source
+  steps:
+    - name: decide
+      displayName: "Auto-approve A/B or wait for CAB on C+"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        mkdir -p out
+        export CAB_TIMEOUT="$(params.timeout-seconds)"
+        export CAB_CM="$(params.approval-configmap)"
+        export CAB_PRUN="$(params.pipeline-run-name)"
+        export CAB_MODE_PATH="$(results.CAB_MODE.path)"
+        export CAB_GRADE_PATH="$(results.CAB_GRADE.path)"
+        export CAB_APPROVED_PATH="$(results.CAB_APPROVED.path)"
+        python3 - <<'PY'
+        import hashlib, json, os, ssl, sys, time, urllib.error, urllib.request
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        def write_result(path, value):
+            Path(path).write_text(value, encoding="utf-8")
+
+        def signoff(mode, approver, note, grade, digest, prun):
+            payload = {
+                "schema": "upgrade-delta/cab-signoff/v1",
+                "mode": mode,
+                "approved": True,
+                "grade": grade,
+                "scorecard_sha256_16": digest,
+                "approver": approver,
+                "note": note,
+                "pipeline_run": prun or None,
+                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            }
+            Path("out/cab-signoff.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+            print("wrote out/cab-signoff.json:", json.dumps(payload))
+            write_result(os.environ["CAB_MODE_PATH"], mode)
+            write_result(os.environ["CAB_APPROVED_PATH"], "true")
+
+        if not Path("out/scorecard.json").is_file():
+            print("no scorecard — skipping CAB (nothing to approve)")
+            write_result(os.environ["CAB_GRADE_PATH"], "-")
+            write_result(os.environ["CAB_MODE_PATH"], "skip")
+            write_result(os.environ["CAB_APPROVED_PATH"], "false")
+            sys.exit(0)
+
+        raw = Path("out/scorecard.json").read_bytes()
+        sc = json.loads(raw)
+        grade = (sc.get("project") or {}).get("headline_grade") or "-"
+        digest = hashlib.sha256(raw).hexdigest()[:16]
+        write_result(os.environ["CAB_GRADE_PATH"], grade)
+        print(f"project grade={grade} scorecard_digest={digest}")
+        prun = os.environ.get("CAB_PRUN") or ""
+
+        if grade in ("A", "B"):
+            print(f"CAB: grade {grade} → AUTO-APPROVE (no human in the loop)")
+            signoff(
+                "auto",
+                "upgrade-delta-cab-decision",
+                f"Auto-approved: project grade {grade} is within A/B fast lane.",
+                grade,
+                digest,
+                prun,
+            )
+            sys.exit(0)
+
+        if grade not in ("C", "D", "F"):
+            print(f"CAB: unknown/missing grade {grade!r} — needing human review")
+            write_result(os.environ["CAB_MODE_PATH"], "human")
+            write_result(os.environ["CAB_APPROVED_PATH"], "false")
+            sys.exit(1)
+
+        cm = os.environ["CAB_CM"]
+        timeout = int(os.environ["CAB_TIMEOUT"])
+        sa = Path("/var/run/secrets/kubernetes.io/serviceaccount")
+        if not (sa / "token").is_file():
+            print("FATAL: no serviceaccount token — cannot poll ConfigMap for CAB approval")
+            sys.exit(1)
+        ns = (sa / "namespace").read_text(encoding="utf-8").strip()
+        token = (sa / "token").read_text(encoding="utf-8").strip()
+        ctx = ssl.create_default_context(cafile=str(sa / "ca.crt"))
+        url = f"https://kubernetes.default.svc/api/v1/namespaces/{ns}/configmaps/{cm}"
+
+        print("=" * 50)
+        print(f" CAB APPROVAL REQUIRED — grade {grade}")
+        print("=" * 50)
+        print(" Review scorecard.html / PR comment, then approve:")
+        print(f"   oc create configmap {cm} -n {ns}")
+        print(f" Reject: do nothing — gate fails after {timeout}s.")
+        print("=" * 50)
+
+        elapsed = 0
+        interval = 10
+        while elapsed <= timeout:
+            req = urllib.request.Request(
+                url,
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                method="GET",
+            )
+            try:
+                with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+                    body = json.loads(resp.read().decode("utf-8"))
+                approver = (body.get("metadata") or {}).get("annotations", {}).get(
+                    "cab.approver"
+                ) or f"human@configmap:{cm}"
+                # delete signal CM
+                del_req = urllib.request.Request(
+                    url,
+                    headers={"Authorization": f"Bearer {token}"},
+                    method="DELETE",
+                )
+                try:
+                    urllib.request.urlopen(del_req, context=ctx, timeout=15).read()
+                except Exception as e:
+                    print("WARN: could not delete approval ConfigMap:", e)
+                print(f"CAB: human approval received (approver={approver})")
+                signoff(
+                    "human",
+                    approver,
+                    f"Human CAB approved proceeding after grade {grade}.",
+                    grade,
+                    digest,
+                    prun,
+                )
+                sys.exit(0)
+            except urllib.error.HTTPError as e:
+                if e.code != 404:
+                    print("WARN: ConfigMap poll error:", e)
+            except Exception as e:
+                print("WARN: ConfigMap poll error:", e)
+            print(f"  ...waiting for CAB ConfigMap {cm} ({elapsed}s)")
+            time.sleep(interval)
+            elapsed += interval
+
+        print(f"REJECTED: no CAB approval within {timeout}s (grade={grade}).")
+        write_result(os.environ["CAB_MODE_PATH"], "human")
+        write_result(os.environ["CAB_APPROVED_PATH"], "false")
+        sys.exit(1)
+        PY

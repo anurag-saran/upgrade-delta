@@ -1,0 +1,66 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-payments-image
+spec:
+  description: >-
+    Build payments-service via an OpenShift Docker strategy BuildConfig
+    (binary start-build) and tag the result as :canary. Avoids privileged
+    buildah on restricted clusters.
+  params:
+    - name: namespace
+      type: string
+      default: "upgrade-delta-demo"
+    - name: build-name
+      type: string
+      default: "payments-service"
+    - name: canary-tag
+      type: string
+      default: "canary"
+    - name: revision-tag
+      type: string
+      default: ""
+  results:
+    - name: IMAGE_DIGEST
+      description: ImageStream tag reference for the canary
+  workspaces:
+    - name: source
+  steps:
+    - name: build-and-tag
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        NS="$(params.namespace)"
+        NAME="$(params.build-name)"
+        TAG="$(params.canary-tag)"
+
+        if ! oc -n "$NS" get buildconfig "$NAME" >/dev/null 2>&1; then
+          echo "Creating BuildConfig $NAME (Docker strategy)"
+          oc -n "$NS" new-build --strategy=docker --binary --name="$NAME" \
+            --to="$NAME:$TAG"
+        fi
+
+        echo "Starting binary build from workspace…"
+        oc -n "$NS" start-build "$NAME" --from-dir=. --follow --wait
+
+        # Point ImageStream canary tag at the latest build output
+        LATEST=$(oc -n "$NS" get is "$NAME" -o jsonpath='{.status.tags[?(@.tag=="latest")].items[0].dockerImageReference}' 2>/dev/null || true)
+        if [ -z "$LATEST" ]; then
+          # new-build --to may already be :canary
+          LATEST=$(oc -n "$NS" get istag "$NAME:$TAG" -o jsonpath='{.image.dockerImageReference}' 2>/dev/null || true)
+        fi
+        oc -n "$NS" tag "$NAME:latest" "$NAME:$TAG" 2>/dev/null || \
+          oc -n "$NS" tag "$NAME:$TAG" "$NAME:$TAG" 2>/dev/null || true
+
+        if [ -n "$(params.revision-tag)" ]; then
+          oc -n "$NS" tag "$NAME:$TAG" "$NAME:$(params.revision-tag)" || true
+        fi
+
+        REF="image-registry.openshift-image-registry.svc:5000/${NS}/${NAME}:${TAG}"
+        # Prefer resolved dockerImageReference when present
+        RESOLVED=$(oc -n "$NS" get istag "$NAME:$TAG" -o jsonpath='{.image.dockerImageReference}' 2>/dev/null || true)
+        [ -n "$RESOLVED" ] && REF="$RESOLVED"
+        printf '%s' "$REF" > "$(results.IMAGE_DIGEST.path)"
+        echo "IMAGE=$REF"

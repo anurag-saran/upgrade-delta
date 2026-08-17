@@ -180,6 +180,8 @@ clone → detect-pom-changes → live-coverage
       → generate-evidence (when HAS_CHANGE)
       → resolve-and-grade-transitive
       → select-tests → run-tests-maven → grade-gate
+      → cab-decision (A/B auto · C human ConfigMap)
+      → build-payments-image → canary-rollout   # when enable-canary=true
       → finally: summary, pr-comment
 ```
 
@@ -191,13 +193,16 @@ clone → detect-pom-changes → live-coverage
 | `grade-transitive` | `resolve-and-grade-transitive` | Two-hop grade for version shifts pulled in by the bump |
 | `select-tests` | `upgrade-delta-select-tests` *(shared)* | Same router Task as demo |
 | `run-tests` | `run-tests-maven` | Maven Surefire + includes file (not MiniRunner) |
-| `grade-gate` | inline | Same policy as demo — after tests |
-| `summary` / `pr-comment` | shared Tasks | Unchanged |
+| `grade-gate` | inline | Same policy as demo — after tests (`fail-on` default **D**) |
+| `cab-decision` | `cab-decision` | A/B → `out/cab-signoff.json` auto; C → wait on ConfigMap; writes audit trail |
+| `build-image` | `build-payments-image` | OpenShift binary Docker build → ImageStream `:canary` |
+| `canary-rollout` | `canary-rollout` | Route weights 1→…→100 + synthetic probes; closes `deploy-gate` canary |
+| `summary` / `pr-comment` | shared Tasks | PR comment includes CAB auto/human line when signoff exists |
 
 **Extra workspace:** `maven-settings` → Secret with `settings.xml` (Lightwell credentials).
 
 **Trigger template:** `real-pipeline/pull-request-live.yaml` (PaC annotations must list
-*every* Task, including the three shared ones copied under `.upgrade-delta/real-pipeline/`).
+*every* Task, including shared ones and `task-9`…`task-11` for cab/build/canary).
 
 **Supporting / optional objects**
 
@@ -205,7 +210,8 @@ clone → detect-pom-changes → live-coverage
 |---|---|
 | `task-resolve-jars.yaml` / `task-live-diff.yaml` | Older single-bump path; pipeline prefers `generate-evidence` |
 | `pipeline-coverage-map` + `task-build-coverage-map` | Nightly/full-suite JaCoCo → router coverage map |
-| Scripts in `real-pipeline/scripts/` | `detect_pom_changes.py`, `generate_evidence.sh`, `detect_transitive_changes.py`, `pom_to_cyclonedx.py` |
+| Scripts in `real-pipeline/scripts/` | `detect_pom_changes.py`, `generate_evidence.sh`, `detect_transitive_changes.py`, `pom_to_cyclonedx.py`, `close_deploy_gate.py` |
+| `payments-service/deploy/30-payments-canary.yaml` | Stable/canary Deployments + weighted Route (app repo) |
 
 ---
 
@@ -213,10 +219,14 @@ clone → detect-pom-changes → live-coverage
 
 ### 4.1 CAB approval gate
 
+Live pipeline uses **`cab-decision`** (grade-based): A/B auto-signoff, C waits on ConfigMap
+`upgrade-delta-cab-approved`. Standalone helpers remain available:
+
 | File | Kind | Purpose |
 |---|---|---|
-| `pac/approval-gate.yaml` | `ApprovalTask` | Human approval step in the flow |
-| `pac/approval-gate-manual.yaml` | Task | Manual CAB approval variant |
+| `real-pipeline/task-cab-decision.yaml` | Task | Grade-based CAB + audit JSON (wired into live pipeline) |
+| `pac/approval-gate.yaml` | `ApprovalTask` | Native human approval step (optional alternate) |
+| `pac/approval-gate-manual.yaml` | Task | Manual ConfigMap poll (pattern reused by cab-decision) |
 | `pac/approval-rbac.yaml` | Role + RoleBinding | Who may approve |
 
 ### 4.2 RHTAS / Sigstore sealing

@@ -35,7 +35,33 @@ spec:
         set -uo pipefail
         SETTINGS="$(workspaces.maven-settings.path)/settings.xml"
         INCLUDES="$(workspaces.source.path)/out/routing-out/surefire-includes.txt"
+        SEL="$(workspaces.source.path)/out/routing-out/selection-report.json"
         [ -f "$INCLUDES" ] || { echo "FATAL: $INCLUDES not found -- did select-tests run first?"; exit 1; }
+
+        # Empty suite / REACHABILITY_ONLY: skip Surefire; do not claim a green pass.
+        if [ -f "$SEL" ] && python3 - "$SEL" <<'PY'
+        import json, sys
+        r = json.load(open(sys.argv[1]))
+        mode = (r.get("mode") or "")
+        suite = (r.get("totals") or {}).get("suite", 0)
+        sys.exit(0 if mode == "REACHABILITY_ONLY" or suite == 0 else 1)
+        PY
+        then
+          MSG="No test suite — reachability-only validation; Surefire skipped. Canary is the compensating control."
+          echo "$MSG"
+          printf '%s' "0" > "$(results.TEST_METHODS_PASSED_COUNT.path)"
+          printf '%s' "0" > "$(results.TEST_METHODS_FAILED_COUNT.path)"
+          printf '%s' "$MSG" > "$(results.TESTS_ACTUALLY_EXECUTED_SUMMARY.path)"
+          UD=".upgrade-delta/upgrade_delta.py"
+          [ -f "$UD" ] || UD="upgrade_delta.py"
+          RT_ARGS=(record-test-results --out out/test-results.json --passed 0 --failed 0
+                   --summary "$MSG" --status reachability_only
+                   --selection "$SEL" --scorecard out/scorecard.json)
+          [ -f out/routing.json ] && RT_ARGS+=(--routing out/routing.json)
+          python3 "$UD" "${RT_ARGS[@]}"
+          exit 0
+        fi
+
         MVN_ARGS=(-B -s "$SETTINGS" test "-Dsurefire.includesFile=$INCLUDES")
         # Prefer -Pci-community when present so demo runs don't need a working
         # authenticated Lightwell settings.xml (stale PAT → 403 on rhlw pins).

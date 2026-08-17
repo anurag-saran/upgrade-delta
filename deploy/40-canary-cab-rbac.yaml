@@ -1,0 +1,47 @@
+# RBAC for CAB ConfigMap poll + progressive canary (Route/Deployment/Build).
+# Bind to the ServiceAccount used by upgrade-delta-live PipelineRuns
+# (often pipeline or the PaC-generated SA in the demo namespace).
+#
+#   oc apply -f deploy/40-canary-cab-rbac.yaml -n upgrade-delta-demo
+#   # edit subjects if your PipelineRun uses a different SA
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: upgrade-delta-cab-canary
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "delete", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["route.openshift.io"]
+    resources: ["routes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: ["build.openshift.io"]
+    resources: ["buildconfigs", "builds"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["image.openshift.io"]
+    resources: ["imagestreams", "imagestreamtags"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: upgrade-delta-cab-canary
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: upgrade-delta-cab-canary
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+  - kind: ServiceAccount
+    name: default

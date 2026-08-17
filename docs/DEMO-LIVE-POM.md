@@ -1,7 +1,8 @@
 # Live demo — open a PR that bumps `pom.xml`
 
 End-to-end walkthrough for the **live** pipeline: a real dependency version change
-in `pom.xml` → fetch old/new jars → grade → select/run tests → grade-gate → PR comment
+in `pom.xml` → fetch old/new jars → grade → select/run tests → grade-gate → **CAB
+decision** (A/B auto-signoff, C human) → optional **progressive canary** → PR comment
 → **reset** so the next demo can bump again.
 
 The live app is the sibling repo **[payments-service](https://github.com/anurag-saran/payments-service)**
@@ -53,8 +54,26 @@ also runs the fixture demo on the same PR.
    ```bash
    oc apply -f deploy/11-live-reports-pvc.yaml -n upgrade-delta-demo
    ```
-3. Apply live Pipeline + Tasks from this repo (`integration/tekton/real-pipeline/…`).
+3. Apply live Pipeline + Tasks from this repo (`integration/tekton/real-pipeline/…`),
+   including the new CD tasks:
+   ```bash
+   oc apply -f integration/tekton/real-pipeline/task-cab-decision.yaml \
+            -f integration/tekton/real-pipeline/task-build-payments-image.yaml \
+            -f integration/tekton/real-pipeline/task-canary-rollout.yaml \
+            -f integration/tekton/real-pipeline/pipeline-real.yaml \
+            -n upgrade-delta-demo
+   ```
 4. **Maven settings Secret** `lightwell-maven-settings` — server id `lightwell-remediated`.
+5. **Baseline app packaging** (once) so canary has something to shift traffic between:
+   ```bash
+   # from payments-service
+   oc apply -f deploy/30-payments-canary.yaml -n upgrade-delta-demo
+   # First image: create BuildConfig via binary build, or let the pipeline's
+   # build-payments-image Task create it on the first canary run.
+   ```
+   Grant the pipeline ServiceAccount rights to patch Routes/Deployments, start Builds,
+   and create/delete ConfigMap `upgrade-delta-cab-approved` in the demo namespace
+   (`oc apply -f deploy/40-canary-cab-rbac.yaml -n upgrade-delta-demo` from upgrade-delta).
 
 ### B. Wire payments-service
 
@@ -88,7 +107,22 @@ Open a PR into `main`, watch `upgrade-delta-live-pr-…`, then **close without m
 
 - Scorecard grades the jackson adoption (typically B for drop-in Lightwell rebuild).
 - Selected Surefire tests run against the built jar.
-- PR comment posted; optional auto-close when configured.
+  *(payments-service has tests. Repos with **no** `*.java` under `tests-dir` take the
+  **REACHABILITY_ONLY** path: grade from call-site analysis, no Surefire, canary as
+  compensating control — see DESIGN-DECISIONS §10.)*
+- **CAB:** grade **A/B** → `out/cab-signoff.json` with `mode: auto` (no pause). Grade **C**
+  → PipelineRun waits; approve with:
+  ```bash
+  oc create configmap upgrade-delta-cab-approved -n upgrade-delta-demo \
+    --from-literal=approved=true
+  # optional: oc annotate cm/upgrade-delta-cab-approved cab.approver=you@example.com
+  ```
+  Grade **D/F** → red at `grade-gate` (default `fail-on: D`); no CAB, no canary.
+- **Canary** (when `enable-canary=true`): Route weights 1→5→10→25→50→75→100 with Ready +
+  synthetic `/health` and `/api/smoke` probes; on success `deploy-gate.json` canary
+  obligation is **CLOSED**.
+- PR comment posted (includes auto/human CAB line when signoff exists); optional auto-close
+  when configured.
 
 ## Troubleshooting
 
@@ -98,3 +132,6 @@ Open a PR into `main`, watch `upgrade-delta-live-pr-…`, then **close without m
 | Maven resolve failures | `lightwell-maven-settings` secret; public demo repos in `pom.xml` |
 | Wrong app graded | `app-module-dir: '.'` and `pom-path: pom.xml` on the live trigger |
 | `demo-live-cycle.sh` missing app | Clone payments-service as sibling or set `PAYMENTS_SERVICE_DIR` |
+| Stuck at `cab-decision` | Grade is C (or override); create `upgrade-delta-cab-approved` ConfigMap |
+| Canary fails / skipped | Deployments + Route from `deploy/30-payments-canary.yaml`; SA RBAC; or set `enable-canary=false` |
+| PaC “cannot find referenced task” | Annotations `task-9`…`task-11` for cab / build / canary in `.tekton/pull-request-live.yaml` |

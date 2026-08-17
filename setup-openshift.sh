@@ -219,6 +219,10 @@ apply_if integration/tekton/task-upgrade-delta-select-tests.yaml "task: upgrade-
 apply_if integration/tekton/task-upgrade-delta-run-tests.yaml    "task: upgrade-delta run-tests"
 apply_if integration/tekton/task-upgrade-delta-summary.yaml  "task: upgrade-delta summary"
 apply_if integration/tekton/task-upgrade-delta-pr-comment.yaml "task: upgrade-delta PR comment (CAB)"
+apply_if integration/tekton/real-pipeline/task-cab-decision.yaml "task: cab-decision (A/B auto · C human)"
+apply_if integration/tekton/real-pipeline/task-build-payments-image.yaml "task: build-payments-image"
+apply_if integration/tekton/real-pipeline/task-canary-rollout.yaml "task: canary-rollout"
+apply_if integration/tekton/real-pipeline/pipeline-real.yaml "pipeline: upgrade-delta-live"
 apply_if integration/tekton/rhtas/task-sign-evidence.yaml   "task: cosign sign (RHTAS)"
 apply_if integration/tekton/rhtas/task-verify-evidence.yaml "task: cosign verify (RHTAS)"
 
@@ -227,6 +231,7 @@ apply_if integration/tekton/rhtas/task-verify-evidence.yaml "task: cosign verify
 apply_if deploy/10-reports-pvc.yaml                         "reports PVC (upgrade-delta-reports)"
 apply_if deploy/20-scorecard-viewer-deployment.yaml        "scorecard viewer (nginx)"
 apply_if deploy/22-scorecard-route.yaml                    "scorecard route"
+apply_if deploy/40-canary-cab-rbac.yaml                    "CAB + canary RBAC (Role + binding)"
 
 # git-clone from the Tekton catalog (needs network egress from your machine)
 printf "  ${DIM}fetching git-clone task...${RESET}\n"

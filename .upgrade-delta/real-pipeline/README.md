@@ -95,12 +95,16 @@ those get exercised for the first time.
    oc apply -f .upgrade-delta/real-pipeline/task-upgrade-delta-select-tests.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-upgrade-delta-summary.yaml
    oc apply -f .upgrade-delta/real-pipeline/task-upgrade-delta-pr-comment.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-cab-decision.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-build-payments-image.yaml
+   oc apply -f .upgrade-delta/real-pipeline/task-canary-rollout.yaml
    ```
 4. **Confirm the live tasks exist** in the target namespace:
    ```bash
    oc get task detect-pom-changes live-coverage generate-evidence \
      resolve-and-grade-transitive run-tests-maven \
-     upgrade-delta-select-tests upgrade-delta-summary upgrade-delta-pr-comment -n <namespace>
+     upgrade-delta-select-tests upgrade-delta-summary upgrade-delta-pr-comment \
+     cab-decision build-payments-image canary-rollout -n <namespace>
    ```
 5. **Reuse the existing `lightwell-maven-settings` secret** — the same one `payments-service`
    already uses (a `settings.xml` file with your Lightwell console credentials). No new
@@ -111,6 +115,9 @@ those get exercised for the first time.
    `INSTALL-OPENSHIFT.md` steps 4–6): GitHub App, provider-token secret, Repository CR.
 7. **Reuse the same reports PVC** the demo already created (`upgrade-delta-reports`), or
    create your own RWX PVC and update `pull-request-live.yaml`'s workspace binding.
+8. **Canary baseline (payments-service demo):** apply `deploy/30-payments-canary.yaml` and
+   ensure the pipeline SA can patch Routes/Deployments and manage Builds. Set
+   `enable-canary=false` on the PipelineRun if you only want grade + CAB without deploy.
 
 Open a PR that bumps a dependency to its `rhlw-` version in `pom.xml`, and this triggers
 automatically — same as the demo, but grading your real code.

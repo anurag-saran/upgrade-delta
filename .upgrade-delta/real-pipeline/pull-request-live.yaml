@@ -25,6 +25,9 @@ metadata:
     pipelinesascode.tekton.dev/task-6: ".upgrade-delta/real-pipeline/task-upgrade-delta-summary.yaml"
     pipelinesascode.tekton.dev/task-7: ".upgrade-delta/real-pipeline/task-upgrade-delta-pr-comment.yaml"
     pipelinesascode.tekton.dev/task-8: ".upgrade-delta/real-pipeline/task-resolve-and-grade-transitive.yaml"
+    pipelinesascode.tekton.dev/task-9: ".upgrade-delta/real-pipeline/task-cab-decision.yaml"
+    pipelinesascode.tekton.dev/task-10: ".upgrade-delta/real-pipeline/task-build-payments-image.yaml"
+    pipelinesascode.tekton.dev/task-11: ".upgrade-delta/real-pipeline/task-canary-rollout.yaml"
   name: upgrade-delta-live-pr
 spec:
   pipelineRef:
@@ -62,6 +65,16 @@ spec:
     # the base branch stays on community libs). Leave "false" for production apps.
     - name: auto-close-pr
       value: 'false'
+    # After CAB: build + progressive Route canary. Set false if Deployments/Route
+    # are not installed in the demo namespace yet.
+    - name: enable-canary
+      value: 'true'
+    - name: canary-namespace
+      value: 'upgrade-delta-demo'
+    - name: canary-soak-seconds
+      value: '30'
+    - name: cab-timeout-seconds
+      value: '1800'
   workspaces:
     - name: source
       persistentVolumeClaim:

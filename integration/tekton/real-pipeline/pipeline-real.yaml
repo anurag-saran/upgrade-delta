@@ -68,6 +68,22 @@ spec:
         When "true", close the PR without merging after the CAB comment if
         detect-pom-changes found a real version bump. Keeps main on community
         libs for the next live demo cycle. Leave "false" for real app repos.
+    - name: enable-canary
+      type: string
+      default: "true"
+      description: >-
+        After CAB signoff, build an image and run progressive Route canary
+        (1→5→10→25→50→75→100%). Set "false" to skip CD on clusters without
+        payments-service Deployments/Route.
+    - name: canary-namespace
+      type: string
+      default: "upgrade-delta-demo"
+    - name: canary-soak-seconds
+      type: string
+      default: "30"
+    - name: cab-timeout-seconds
+      type: string
+      default: "1800"
   workspaces:
     - name: source
     - name: maven-settings
@@ -207,6 +223,57 @@ spec:
       workspaces: [{name: source, workspace: source}]
       params:
         - {name: fail-on, value: $(params.fail-on)}
+
+    - name: cab-decision
+      displayName: "7c. CAB decision (A/B auto · C+ human)"
+      runAfter: [grade-gate]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+      taskRef: {name: cab-decision}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: timeout-seconds, value: $(params.cab-timeout-seconds)}
+
+    - name: build-image
+      displayName: "7d. Build payments-service canary image"
+      runAfter: [cab-decision]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+        - input: $(params.enable-canary)
+          operator: in
+          values: ["true"]
+        - input: $(tasks.cab-decision.results.CAB_APPROVED)
+          operator: in
+          values: ["true"]
+      taskRef: {name: build-payments-image}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: namespace, value: $(params.canary-namespace)}
+        - {name: revision-tag, value: $(params.git-revision)}
+
+    - name: canary-rollout
+      displayName: "7e. Progressive canary 1%→100%"
+      runAfter: [build-image]
+      when:
+        - input: $(tasks.detect-pom-changes.results.HAS_CHANGE)
+          operator: in
+          values: ["true"]
+        - input: $(params.enable-canary)
+          operator: in
+          values: ["true"]
+        - input: $(tasks.cab-decision.results.CAB_APPROVED)
+          operator: in
+          values: ["true"]
+      taskRef: {name: canary-rollout}
+      workspaces: [{name: source, workspace: source}]
+      params:
+        - {name: image, value: $(tasks.build-image.results.IMAGE_DIGEST)}
+        - {name: namespace, value: $(params.canary-namespace)}
+        - {name: soak-seconds, value: $(params.canary-soak-seconds)}
 
   finally:
     - name: summary

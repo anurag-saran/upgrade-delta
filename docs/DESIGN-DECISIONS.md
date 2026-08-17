@@ -204,6 +204,12 @@ the test file itself, and puts the mandatory set under normal code review and CO
 **Cons.** Requires JUnit 5 for the first-class path; legacy suites fall back to explicit
 lists, which are auditable but manual.
 
+**Empty suite exception.** When `tests-dir` contains **zero** `*.java` test classes, the
+router does **not** exit 3. It emits `mode: REACHABILITY_ONLY`, waives in-scope mandatory
+obligations, skips Surefire, and names **canary** as the compensating control in
+`deploy-gate.json` / the PR comment. Grades are unchanged (still static reachability). If
+the suite is non-empty but `@Tag("upgrade-gate")` is missing, exit 3 still applies.
+
 ---
 
 ## 11. The canary is not a test, and the build must not claim it
@@ -222,6 +228,35 @@ a contract, not a log line: it blocks when the gate file is missing.
 physically bridges CI and CD.
 **Cons.** Requires the CD pipeline to participate; an org whose deploy tooling ignores
 the gate file gets attestation without enforcement at the last hop.
+
+**Live demo CD.** On the OpenShift live pipeline, after CAB signoff the `canary-rollout`
+Task *is* that CD stage: progressive Route weights (1→5→10→25→50→75→100) gated on Ready
+pods plus synthetic HTTP probes (`/health`, `/api/smoke`). Success marks canary/rollback
+**CLOSED** in `deploy-gate.json`; failure marks canary **FAILED** and rolls traffic back
+to stable. That closes the contract with evidence — it still does **not** claim full
+production KPI / user-journey canaries.
+
+---
+
+## 11b. Grade-based CAB: A/B auto-signoff, C human, D/F hard stop
+
+**Decision.** After `grade-gate` (default `fail-on: D`), `cab-decision` branches on
+`project.headline_grade`:
+
+| Grade | CAB | Canary |
+|---|---|---|
+| **A**, **B** | Auto-approve; write `out/cab-signoff.json` (`mode: auto`) with scorecard digest + timestamp | Proceed |
+| **C** | Pause until human creates ConfigMap `upgrade-delta-cab-approved`; then `mode: human` signoff | Proceed only if approved |
+| **D**, **F** | Never reach CAB by default — `grade-gate` fails the run | No |
+
+**Why.** Low-risk Lightwell adoptions should not wait on a human; mid-risk (C) must.
+Keeping `fail-on: D` as a hard stop avoids “rubber-stamp CAB for failing grades” unless an
+org deliberately softens the gate later.
+
+**Pros.** Audit trail for every auto path; human path reuses the existing ConfigMap poll
+pattern (`approval-gate-manual`).
+**Cons.** ConfigMap approval is cluster-local (not GitHub-native); demo-friendly, not the
+only production UX.
 
 ---
 

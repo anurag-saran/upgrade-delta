@@ -33,7 +33,7 @@ def _load(path):
     return None
 
 
-def render(scorecard, *, selection=None, test_results=None):
+def render(scorecard, *, selection=None, test_results=None, cab_signoff=None):
     r = scorecard
     p = r["project"]
     g = p["headline_grade"] or "—"
@@ -82,23 +82,42 @@ def render(scorecard, *, selection=None, test_results=None):
 
     if selection:
         t = selection["totals"]
+        mode = selection.get("mode") or ""
         selected = selection.get("selected") or []
         mandatory = (selection.get("mandatory") or {}).get("appended") or []
         skipped = selection.get("skipped") or []
-        lines += ["", f"### Tests — {t['final']} of {t['suite']} classes"]
-        for s in selected:
-            lines.append(f"- ✅ **{s['test']}**")
-        for m in mandatory:
-            lines.append(f"- 🔒 **{m}** *(upgrade-gate)*")
-        if skipped:
-            names = ", ".join(s["test"] for s in skipped[:8])
-            more = f" (+{len(skipped) - 8} more)" if len(skipped) > 8 else ""
-            lines.append(f"- ⚪ skipped: {names}{more}")
+        if mode == "REACHABILITY_ONLY" or (t.get("suite") or 0) == 0:
+            lines += [
+                "",
+                "### Validation — reachability only",
+                "- **No test suite present** — grade based on **reachability alone** "
+                "(call-site / API intersection). Detail: `scorecard.html`.",
+                "- **Compensating control:** progressive canary (see `deploy-gate.json`).",
+            ]
+            note = selection.get("note")
+            if note:
+                lines.append(f"- _{note}_")
+        else:
+            lines += ["", f"### Tests — {t['final']} of {t['suite']} classes"]
+            for s in selected:
+                lines.append(f"- ✅ **{s['test']}**")
+            for m in mandatory:
+                lines.append(f"- 🔒 **{m}** *(upgrade-gate)*")
+            if skipped:
+                names = ", ".join(s["test"] for s in skipped[:8])
+                more = f" (+{len(skipped) - 8} more)" if len(skipped) > 8 else ""
+                lines.append(f"- ⚪ skipped: {names}{more}")
 
     if test_results:
         lines += ["", "### Results"]
         grade = p.get("headline_grade") or ""
-        if test_results.get("status") != "ran":
+        status = test_results.get("status") or ""
+        if status == "reachability_only":
+            lines.append(
+                "- Reachability-only — **no Surefire run** (not a green pass). "
+                "Canary is the compensating control."
+            )
+        elif status != "ran":
             lines.append("- Tests were **not run** in this pipeline.")
         elif test_results.get("methods_failed"):
             fails = test_results.get("failed_names") or []
@@ -118,9 +137,37 @@ def render(scorecard, *, selection=None, test_results=None):
     lines += [
         "",
         "---",
-        "**CAB:** approve by merging. Grade ≥ D fails the pipeline. "
-        "Full call-site / reachability detail: `scorecard.html`.",
     ]
+    if cab_signoff and cab_signoff.get("approved"):
+        mode = cab_signoff.get("mode") or "?"
+        if mode == "auto":
+            lines.append(
+                f"**CAB:** auto-approved (`{cab_signoff.get('grade', g)}`) — "
+                f"no human in the loop. Signoff `{cab_signoff.get('timestamp', '')}` "
+                f"· scorecard `{cab_signoff.get('scorecard_sha256_16', '')}`."
+            )
+            if (test_results or {}).get("status") == "reachability_only" or (
+                selection and (
+                    selection.get("mode") == "REACHABILITY_ONLY"
+                    or (selection.get("totals") or {}).get("suite") == 0
+                )
+            ):
+                lines.append(
+                    "_Auto-CAB on this path is reachability + canary, not regression-suite proof._"
+                )
+        else:
+            lines.append(
+                f"**CAB:** human-approved by `{cab_signoff.get('approver', '?')}` "
+                f"at `{cab_signoff.get('timestamp', '')}` "
+                f"(grade `{cab_signoff.get('grade', g)}`)."
+            )
+    else:
+        lines.append(
+            "**CAB:** A/B auto-approve with audit log; C needs human CAB; "
+            "grade ≥ D fails the pipeline (`fail-on`). "
+            "Full call-site / reachability detail: `scorecard.html`."
+        )
+    lines.append("Full call-site / reachability detail: `scorecard.html`.")
     return "\n".join(lines) + "\n"
 
 
@@ -130,11 +177,13 @@ def main(argv=None):
     ap.add_argument("out", nargs="?", default="pr-comment.md")
     ap.add_argument("--selection", help="selection-report.json (test plan)")
     ap.add_argument("--test-results", help="test-results.json (pass/fail)")
+    ap.add_argument("--cab-signoff", help="cab-signoff.json (auto or human)")
     args = ap.parse_args(argv)
     body = render(
         json.load(open(args.scorecard)),
         selection=_load(args.selection),
         test_results=_load(args.test_results),
+        cab_signoff=_load(args.cab_signoff),
     )
     open(args.out, "w").write(body)
     print(f"wrote {args.out}")

@@ -128,6 +128,16 @@ passed) — even when the grade-gate keeps the check red.
 That comment posts on **red** runs too — when the gate trips (grade ≥ D, or a missing mandatory
 test), the PR gets a comment saying the tool blocked it and why. The audit trail writes itself.
 
+### Live path add-on (payments-service) — CAB auto vs pause vs canary
+
+On the **live** pipeline ([`DEMO-LIVE-POM.md`](DEMO-LIVE-POM.md)), after grade-gate:
+
+- **A/B:** call out the PR comment line **CAB: auto-approved** and `out/cab-signoff.json` —
+  no ConfigMap wait. Then show `canary-rollout` shifting Route weights in OpenShift.
+- **C:** leave the run paused on `cab-decision`; create ConfigMap `upgrade-delta-cab-approved`
+  live so the audience sees human CAB unlock canary.
+- **D/F:** stop at grade-gate (red check) — no CAB, no canary.
+
 ---
 
 ## Two live "make it go red" levers

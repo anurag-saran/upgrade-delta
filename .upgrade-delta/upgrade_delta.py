@@ -2899,7 +2899,7 @@ def compose_test_results(*, methods_passed=0, methods_failed=0, summary="",
         }
 
     totals = (selection_report or {}).get("totals") or {}
-    return {
+    out = {
         "schema": "upgrade-delta/test-results/v1",
         "status": status,
         "methods_passed": int(methods_passed),
@@ -2911,6 +2911,14 @@ def compose_test_results(*, methods_passed=0, methods_failed=0, summary="",
         "selection_final": totals.get("final"),
         "selection_suite": totals.get("suite"),
     }
+    if selection_report:
+        if selection_report.get("mode"):
+            out["selection_mode"] = selection_report["mode"]
+        if selection_report.get("validation_basis"):
+            out["validation_basis"] = selection_report["validation_basis"]
+        if selection_report.get("note"):
+            out["selection_note"] = selection_report["note"]
+    return out
 
 
 def _do_with_tests_html(lane, library, test_results, *, grade=None):
@@ -2930,6 +2938,11 @@ def _do_with_tests_html(lane, library, test_results, *, grade=None):
     n = per.get("selected_count")
     if n is None and test_results.get("selection_final") is not None:
         n = test_results.get("selection_final")
+
+    if status == "reachability_only":
+        return (f'<div class="skel"><span class="skel-k">Do:</span> {base}. '
+                f'<span class="test-skip">No suite — relying on reachability; '
+                f'canary is the compensating control.</span></div>')
 
     if status != "ran":
         return (f'<div class="skel"><span class="skel-k">Do:</span> {base}. '
@@ -3006,11 +3019,17 @@ def _do_with_tests_html(lane, library, test_results, *, grade=None):
 
 
 def _tests_outcome_banner_html(test_results, *, project_grade=None):
-    # None = pre-test scan render (no banner). Explicit not_run / ran from
-    # record-test-results always produces a banner after the pipeline acts.
+    # None = pre-test scan render (no banner). Explicit not_run / ran /
+    # reachability_only from record-test-results always produces a banner.
     if test_results is None:
         return ""
     status = test_results.get("status") or "not_run"
+    if status == "reachability_only":
+        note = (test_results.get("selection_note")
+                or "No test suite present — grade based on static reachability alone; "
+                   "recommend canary rollout as the compensating control.")
+        return (f'<p class="tests-banner test-skip-banner"><b>Validation: reachability only.</b> '
+                f'{esc(note)}</p>')
     if status != "ran":
         return ('<p class="tests-banner test-skip-banner">Selected tests for the changed '
                 'dependencies: <b>not run</b>.</p>')
@@ -3782,7 +3801,7 @@ def main():
     rt.add_argument("--failed", type=int, default=0)
     rt.add_argument("--summary", default="")
     rt.add_argument("--status", default="ran",
-                    choices=["ran", "not_run"])
+                    choices=["ran", "not_run", "reachability_only"])
     rt.add_argument("--failed-name", action="append", default=[],
                     help="Class or Class.method that failed (repeatable)")
     rt.add_argument("--selection", help="selection-report.json path")

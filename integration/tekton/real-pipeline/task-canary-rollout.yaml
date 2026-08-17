@@ -1,0 +1,192 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: canary-rollout
+spec:
+  description: >-
+    Progressive canary for payments-service: scale canary Deployment, shift
+    OpenShift Route weights 1→5→10→25→50→75→100, and gate each step on Ready
+    pods plus synthetic HTTP probes (/health, /api/smoke). On failure, rollback
+    to stable-only and mark deploy-gate canary FAILED. On success, promote
+    canary image to stable and CLOSE the canary obligation.
+  params:
+    - name: image
+      type: string
+      description: Full image reference for the canary (repo:tag)
+    - name: namespace
+      type: string
+      default: "upgrade-delta-demo"
+    - name: soak-seconds
+      type: string
+      default: "30"
+      description: Wait between weight steps (demo-friendly; raise for real prod)
+    - name: weights
+      type: string
+      default: "1,5,10,25,50,75,100"
+    - name: canary-service
+      type: string
+      default: "payments-canary"
+    - name: stable-service
+      type: string
+      default: "payments-stable"
+    - name: route-name
+      type: string
+      default: "payments-service"
+    - name: canary-deployment
+      type: string
+      default: "payments-canary"
+    - name: stable-deployment
+      type: string
+      default: "payments-stable"
+    - name: probe-count
+      type: string
+      default: "5"
+  results:
+    - name: CANARY_RESULT
+      description: "'promoted' or 'rolled_back'"
+    - name: FINAL_WEIGHT
+      description: Last canary Route weight applied
+  workspaces:
+    - name: source
+  steps:
+    - name: rollout
+      displayName: "Progressive Route weights + synthetic probes"
+      # continue so close-deploy-gate can mark FAILED even after rollback
+      onError: continue
+      image: registry.redhat.io/openshift4/ose-cli:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        NS="$(params.namespace)"
+        IMAGE="$(params.image)"
+        SOAK="$(params.soak-seconds)"
+        ROUTE="$(params.route-name)"
+        CDEP="$(params.canary-deployment)"
+        SDEP="$(params.stable-deployment)"
+        CSVC="$(params.canary-service)"
+        PROBES="$(params.probe-count)"
+        RESULT_FILE="$(workspaces.source.path)/out/canary-result.env"
+        mkdir -p "$(dirname "$RESULT_FILE")"
+        echo "CANARY_OUTCOME=failed" > "$RESULT_FILE"
+        echo "CANARY_NOTE=incomplete" >> "$RESULT_FILE"
+
+        rollback() {
+          local reason="$1"
+          echo "ROLLBACK: $reason"
+          oc -n "$NS" patch route "$ROUTE" --type=json -p '[
+            {"op":"replace","path":"/spec/to/weight","value":100},
+            {"op":"replace","path":"/spec/alternateBackends/0/weight","value":0}
+          ]' || true
+          oc -n "$NS" scale deploy/"$CDEP" --replicas=0 || true
+          {
+            echo "CANARY_OUTCOME=rolled_back"
+            echo "CANARY_NOTE=${reason}"
+          } > "$RESULT_FILE"
+          printf '%s' "rolled_back" > "$(results.CANARY_RESULT.path)"
+          printf '%s' "0" > "$(results.FINAL_WEIGHT.path)"
+          exit 1
+        }
+
+        echo "Deploying canary image $IMAGE"
+        oc -n "$NS" set image deploy/"$CDEP" "app=$IMAGE"
+        oc -n "$NS" scale deploy/"$CDEP" --replicas=1
+        if ! oc -n "$NS" rollout status deploy/"$CDEP" --timeout=180s; then
+          rollback "canary Deployment failed to become Ready"
+        fi
+
+        # Direct Service DNS for probes (not the shared Route) so we hit canary only.
+        CANARY_URL="http://${CSVC}.${NS}.svc:8080"
+
+        probe_canary() {
+          local i code fail=0
+          for i in $(seq 1 "$PROBES"); do
+            code=$(curl -sS -o /tmp/canary-body -w '%{http_code}' --max-time 5 "$CANARY_URL/health" || echo 000)
+            if [ "$code" != "200" ]; then
+              echo "probe /health #$i → HTTP $code"; fail=1; continue
+            fi
+            code=$(curl -sS -o /tmp/canary-body -w '%{http_code}' --max-time 10 "$CANARY_URL/api/smoke" || echo 000)
+            if [ "$code" != "200" ]; then
+              echo "probe /api/smoke #$i → HTTP $code"; fail=1; continue
+            fi
+            if ! grep -q '"status":"ok"' /tmp/canary-body 2>/dev/null; then
+              echo "probe /api/smoke #$i → body missing status ok: $(head -c 200 /tmp/canary-body)"; fail=1
+            fi
+          done
+          return "$fail"
+        }
+
+        set_weights() {
+          local cw="$1"
+          local sw=$((100 - cw))
+          echo "Route weights: stable=$sw canary=$cw"
+          oc -n "$NS" patch route "$ROUTE" --type=json -p "[{
+              \"op\":\"replace\",\"path\":\"/spec/to/weight\",\"value\":${sw}
+            },{
+              \"op\":\"replace\",\"path\":\"/spec/alternateBackends/0/weight\",\"value\":${cw}
+            }]"
+          printf '%s' "$cw" > "$(results.FINAL_WEIGHT.path)"
+        }
+
+        IFS=',' read -r -a WEIGHTS <<< "$(params.weights)"
+        for w in "${WEIGHTS[@]}"; do
+          w="$(echo "$w" | tr -d '[:space:]')"
+          [ -n "$w" ] || continue
+          set_weights "$w"
+          echo "soak ${SOAK}s at ${w}% canary…"
+          sleep "$SOAK"
+          ready=$(oc -n "$NS" get deploy "$CDEP" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+          [ "${ready:-0}" -ge 1 ] || rollback "canary readyReplicas=$ready at weight $w"
+          if ! probe_canary; then
+            rollback "synthetic probes failed at canary weight $w%"
+          fi
+          echo "OK at ${w}% canary"
+        done
+
+        echo "Promoting canary → stable"
+        oc -n "$NS" set image deploy/"$SDEP" "app=$IMAGE"
+        oc -n "$NS" rollout status deploy/"$SDEP" --timeout=180s || rollback "stable promotion rollout failed"
+        set_weights 0
+        oc -n "$NS" scale deploy/"$CDEP" --replicas=0 || true
+
+        {
+          echo "CANARY_OUTCOME=promoted"
+          echo "CANARY_NOTE=Progressive canary completed; image promoted to stable."
+        } > "$RESULT_FILE"
+        printf '%s' "promoted" > "$(results.CANARY_RESULT.path)"
+        echo "CANARY_RESULT=promoted"
+
+    - name: close-deploy-gate
+      displayName: "Record canary outcome in deploy-gate.json"
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        CLOSE=".upgrade-delta/real-pipeline/scripts/close_deploy_gate.py"
+        [ -f "$CLOSE" ] || CLOSE="integration/tekton/real-pipeline/scripts/close_deploy_gate.py"
+        RESULT_FILE="out/canary-result.env"
+        OUTCOME="failed"
+        NOTE="canary step did not write outcome"
+        if [ -f "$RESULT_FILE" ]; then
+          # shellcheck disable=SC1090
+          source "$RESULT_FILE"
+          OUTCOME="${CANARY_OUTCOME:-failed}"
+          NOTE="${CANARY_NOTE:-}"
+        fi
+        if [ -f "$CLOSE" ]; then
+          if [ "$OUTCOME" = "promoted" ]; then
+            python3 "$CLOSE" --status CLOSED --obligation-id canary --note "$NOTE"
+            python3 "$CLOSE" --status CLOSED --obligation-id rollback \
+              --note "No rollback required; canary promoted cleanly." || true
+          else
+            python3 "$CLOSE" --status FAILED --obligation-id canary --note "${NOTE:-canary failed}"
+          fi
+        else
+          echo "WARN: close_deploy_gate.py missing — skip gate update"
+        fi
+        if [ "$OUTCOME" != "promoted" ]; then
+          echo "Canary did not promote (outcome=$OUTCOME) — failing Task"
+          exit 1
+        fi
+        echo "Canary promoted; deploy-gate updated"

@@ -61,6 +61,8 @@ spec:
           SEL_ARGS+=(--selection out/routing-out/selection-report.json)
         [ -f out/test-results.json ] && \
           SEL_ARGS+=(--test-results out/test-results.json)
+        [ -f out/cab-signoff.json ] && \
+          SEL_ARGS+=(--cab-signoff out/cab-signoff.json)
 
         if [ -f .upgrade-delta/pr_comment.py ]; then
           RENDER=".upgrade-delta/pr_comment.py"
