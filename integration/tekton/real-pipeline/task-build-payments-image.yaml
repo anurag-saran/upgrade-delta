@@ -35,32 +35,37 @@ spec:
         NS="$(params.namespace)"
         NAME="$(params.build-name)"
         TAG="$(params.canary-tag)"
+        REG="image-registry.openshift-image-registry.svc:5000/${NS}/${NAME}"
+
+        # Ensure ImageStream has a resolvable dockerImageRepository. Without it,
+        # Binary Docker builds fail with InvalidOutputReference on empty clusters.
+        if ! oc -n "$NS" get imagestream "$NAME" >/dev/null 2>&1; then
+          oc -n "$NS" create imagestream "$NAME"
+        fi
+        oc -n "$NS" patch imagestream "$NAME" --type=merge \
+          -p "{\"spec\":{\"dockerImageRepository\":\"${REG}\"}}" >/dev/null
 
         if ! oc -n "$NS" get buildconfig "$NAME" >/dev/null 2>&1; then
-          echo "Creating BuildConfig $NAME (Docker strategy)"
+          echo "Creating BuildConfig $NAME (Docker strategy → ${NAME}:${TAG})"
           oc -n "$NS" new-build --strategy=docker --binary --name="$NAME" \
-            --to="$NAME:$TAG"
+            --to="${NAME}:${TAG}"
         fi
+        # Keep output on the ImageStreamTag even if BC was created earlier broken.
+        oc -n "$NS" patch buildconfig "$NAME" --type=merge -p "{
+          \"spec\":{\"output\":{\"to\":{\"kind\":\"ImageStreamTag\",\"name\":\"${NAME}:${TAG}\"}}},
+          \"source\":{\"type\":\"Binary\",\"binary\":{}}
+        }" >/dev/null || true
 
         echo "Starting binary build from workspace…"
         oc -n "$NS" start-build "$NAME" --from-dir=. --follow --wait
 
-        # Point ImageStream canary tag at the latest build output
-        LATEST=$(oc -n "$NS" get is "$NAME" -o jsonpath='{.status.tags[?(@.tag=="latest")].items[0].dockerImageReference}' 2>/dev/null || true)
-        if [ -z "$LATEST" ]; then
-          # new-build --to may already be :canary
-          LATEST=$(oc -n "$NS" get istag "$NAME:$TAG" -o jsonpath='{.image.dockerImageReference}' 2>/dev/null || true)
-        fi
-        oc -n "$NS" tag "$NAME:latest" "$NAME:$TAG" 2>/dev/null || \
-          oc -n "$NS" tag "$NAME:$TAG" "$NAME:$TAG" 2>/dev/null || true
-
+        oc -n "$NS" tag "${NAME}:${TAG}" "${NAME}:${TAG}" 2>/dev/null || true
         if [ -n "$(params.revision-tag)" ]; then
-          oc -n "$NS" tag "$NAME:$TAG" "$NAME:$(params.revision-tag)" || true
+          oc -n "$NS" tag "${NAME}:${TAG}" "${NAME}:$(params.revision-tag)" || true
         fi
 
-        REF="image-registry.openshift-image-registry.svc:5000/${NS}/${NAME}:${TAG}"
-        # Prefer resolved dockerImageReference when present
-        RESOLVED=$(oc -n "$NS" get istag "$NAME:$TAG" -o jsonpath='{.image.dockerImageReference}' 2>/dev/null || true)
+        REF="${REG}:${TAG}"
+        RESOLVED=$(oc -n "$NS" get istag "${NAME}:${TAG}" -o jsonpath='{.image.dockerImageReference}' 2>/dev/null || true)
         [ -n "$RESOLVED" ] && REF="$RESOLVED"
         printf '%s' "$REF" > "$(results.IMAGE_DIGEST.path)"
         echo "IMAGE=$REF"
