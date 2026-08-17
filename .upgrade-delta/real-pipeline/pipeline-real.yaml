@@ -88,7 +88,9 @@ spec:
       displayName: "2. Diff pom.xml for dependency version changes"
       runAfter: [clone]
       taskRef: {name: detect-pom-changes}
-      workspaces: [{name: source, workspace: source}]
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: basic-auth, workspace: basic-auth}
       params:
         - {name: target-branch, value: $(params.target-branch)}
         - {name: pom-path, value: $(params.pom-path)}

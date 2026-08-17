@@ -19,6 +19,11 @@ spec:
       description: Path to the pom.xml within the repo, if not at the root
   workspaces:
     - name: source
+    - name: basic-auth
+      description: >-
+        PaC git-auth secret (git-provider-token and/or .git-credentials).
+        Required for `git fetch` of the base branch over HTTPS in the cluster.
+      optional: true
   results:
     - name: VERSION_CHANGES_COUNT
       description: How many dependencies changed version in this PR
@@ -44,9 +49,32 @@ spec:
         set -euo pipefail
         mkdir -p out
         git config --global --add safe.directory "$(workspaces.source.path)"
+        # Never prompt for HTTPS credentials in a non-interactive pod
+        # (otherwise: fatal: could not read Username for 'https://github.com').
+        export GIT_TERMINAL_PROMPT=0
+
         # Fetch the base branch so we can read its pom.xml as it stood before
         # this PR -- git-clone by default only brings the PR's own revision.
-        git fetch --depth 50 origin "$(params.target-branch)"
+        # Wire PaC basic-auth the same way git-clone / pr-comment do.
+        AUTH="$(workspaces.basic-auth.path)"
+        FETCH_ARGS=(fetch --depth 50 origin "$(params.target-branch)")
+        if [ "$(workspaces.basic-auth.bound)" = "true" ]; then
+          if [ -f "$AUTH/.git-credentials" ]; then
+            echo "git fetch: using PaC .git-credentials"
+            git config --global credential.helper "store --file=$AUTH/.git-credentials"
+          elif [ -f "$AUTH/git-provider-token" ]; then
+            echo "git fetch: using PaC git-provider-token"
+            TOKEN="$(tr -d '[:space:]' < "$AUTH/git-provider-token")"
+            # GitHub accepts basic auth with x-access-token:<pat>
+            B64="$(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+            FETCH_ARGS=(-c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${B64}" "${FETCH_ARGS[@]}")
+          else
+            echo "WARN: basic-auth workspace bound but no token/.git-credentials found"
+          fi
+        else
+          echo "WARN: basic-auth not bound — attempting anonymous git fetch"
+        fi
+        git "${FETCH_ARGS[@]}"
         git show "origin/$(params.target-branch):$(params.pom-path)" > /tmp/base-pom.xml
 
         python3 .upgrade-delta/real-pipeline/scripts/detect_pom_changes.py \
