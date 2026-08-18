@@ -1,0 +1,36 @@
+# Service + Route for the grade-C scorecard viewer.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scorecard-viewer-gradec
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-gradec
+spec:
+  selector:
+    app: scorecard-viewer-gradec
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: scorecard-gradec
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-gradec
+spec:
+  host: scorecard-gradec-upgrade-delta-demo.apps.asaran.na-launch.com
+  to:
+    kind: Service
+    name: scorecard-viewer-gradec
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
