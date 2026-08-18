@@ -1,0 +1,40 @@
+# Service + Route for the no-tests scorecard viewer.
+# After applying:
+#   oc get route scorecard-notests -n upgrade-delta-demo -o jsonpath='{.spec.host}'
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scorecard-viewer-notests
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-notests
+spec:
+  selector:
+    app: scorecard-viewer-notests
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: scorecard-notests
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-notests
+spec:
+  # Prefer a stable host so PaC PR comments can deep-link without editing
+  # payments-service-notests/.tekton/pull-request-live.yaml after every reinstall.
+  host: scorecard-notests-upgrade-delta-demo.apps.asaran.na-launch.com
+  to:
+    kind: Service
+    name: scorecard-viewer-notests
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

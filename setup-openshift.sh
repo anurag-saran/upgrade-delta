@@ -229,8 +229,12 @@ apply_if integration/tekton/rhtas/task-verify-evidence.yaml "task: cosign verify
 # reports PVC + scorecard viewer (the PR pipeline's workspace + the HTML viewer).
 # NOTE: the PVC needs an RWX StorageClass for the viewer to share it — see deploy/README.md.
 apply_if deploy/10-reports-pvc.yaml                         "reports PVC (upgrade-delta-reports)"
+apply_if deploy/11-live-reports-pvc.yaml                    "live reports PVC (payments-service)"
+apply_if deploy/12-live-reports-pvc-notests.yaml            "live reports PVC (payments-service-notests)"
 apply_if deploy/20-scorecard-viewer-deployment.yaml        "scorecard viewer (nginx)"
+apply_if deploy/21-scorecard-viewer-notests-deployment.yaml "scorecard viewer notests (nginx)"
 apply_if deploy/22-scorecard-route.yaml                    "scorecard route"
+apply_if deploy/23-scorecard-route-notests.yaml            "scorecard route notests"
 apply_if deploy/40-canary-cab-rbac.yaml                    "CAB + canary RBAC (Role + binding)"
 
 # git-clone from the Tekton catalog (needs network egress from your machine)

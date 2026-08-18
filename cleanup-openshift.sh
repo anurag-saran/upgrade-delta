@@ -89,6 +89,8 @@ done
 
 echo "${BOLD}Pipelines-as-Code Repository CR${RESET}"
 del repository.pipelinesascode.tekton.dev upgrade-delta
+del repository.pipelinesascode.tekton.dev payments-service
+del repository.pipelinesascode.tekton.dev payments-service-notests
 
 echo "${BOLD}CAB approval gate + RBAC${RESET}"
 del approvaltask.openshift-pipelines.org upgrade-delta-cab
@@ -101,6 +103,10 @@ del route scorecard
 del service scorecard-viewer
 del deployment scorecard-viewer
 del configmap scorecard-viewer-nginx
+del route scorecard-notests
+del service scorecard-viewer-notests
+del deployment scorecard-viewer-notests
+del configmap scorecard-viewer-notests-nginx
 
 echo "${BOLD}Label sweep (anything else tagged part-of=upgrade-delta)${RESET}"
 oc delete all,cm,role,rolebinding -l app.kubernetes.io/part-of=upgrade-delta -n "$NS" \
@@ -109,6 +115,8 @@ oc delete all,cm,role,rolebinding -l app.kubernetes.io/part-of=upgrade-delta -n 
 if [ "$KEEP_PVC" != 1 ]; then
   echo "${BOLD}Reports PVC (+ data)${RESET}"
   del pvc upgrade-delta-reports
+  del pvc upgrade-delta-live-reports
+  del pvc upgrade-delta-live-reports-notests
 fi
 
 if [ "$PURGE" = 1 ]; then

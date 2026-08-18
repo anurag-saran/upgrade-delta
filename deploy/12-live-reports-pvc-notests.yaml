@@ -1,0 +1,22 @@
+# Dedicated "reports" volume for the LIVE no-tests pipeline
+# (upgrade-delta-live-pr-notests / payments-service-notests).
+#
+# SEPARATE from deploy/11-live-reports-pvc.yaml (payments-service with tests)
+# ON PURPOSE. Both live demos can run concurrently; sharing one PVC raced and
+# wiped scorecard/report files mid-run. Each app gets its own PVC + viewer.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: upgrade-delta-live-reports-notests
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app.kubernetes.io/component: live-reports-notests
+spec:
+  accessModes:
+    - ReadWriteMany            # matches the with-tests live PVC; RWO also works
+                                # if you never mount this from more than one pod at once
+  resources:
+    requests:
+      storage: 2Gi
+  # storageClassName: nfs-csi  # <-- uncomment and set to your RWX StorageClass

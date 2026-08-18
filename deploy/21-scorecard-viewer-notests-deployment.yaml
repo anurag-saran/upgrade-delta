@@ -1,0 +1,77 @@
+# Scorecard viewer for the REACHABILITY_ONLY (no-tests) live demo.
+# Mounts upgrade-delta-live-reports-notests so reports stay visible even when
+# the with-tests pipeline is also writing to upgrade-delta-live-reports.
+#
+# Browse to:
+#     https://<route-host>/out/reports/scorecard.html
+#     https://<route-host>/out/reports/coverage.html
+#     https://<route-host>/out/reports/           (directory listing; autoindex on)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scorecard-viewer-notests-nginx
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-notests
+data:
+  autoindex.conf: |
+    autoindex on;
+    autoindex_exact_size off;
+    autoindex_localtime on;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scorecard-viewer-notests
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-notests
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scorecard-viewer-notests
+  template:
+    metadata:
+      labels:
+        app: scorecard-viewer-notests
+    spec:
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi9/nginx-124:latest
+          # ubi9/nginx-124 is an S2I BUILDER image — bypass S2I entrypoint:
+          command: ["nginx"]
+          args: ["-g", "daemon off;"]
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: reports
+              mountPath: /opt/app-root/src
+              readOnly: true
+            - name: nginx-config
+              mountPath: /opt/app-root/etc/nginx.default.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: reports
+          persistentVolumeClaim:
+            claimName: upgrade-delta-live-reports-notests
+        - name: nginx-config
+          configMap:
+            name: scorecard-viewer-notests-nginx
