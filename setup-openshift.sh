@@ -231,10 +231,16 @@ apply_if integration/tekton/rhtas/task-verify-evidence.yaml "task: cosign verify
 apply_if deploy/10-reports-pvc.yaml                         "reports PVC (upgrade-delta-reports)"
 apply_if deploy/11-live-reports-pvc.yaml                    "live reports PVC (payments-service)"
 apply_if deploy/12-live-reports-pvc-notests.yaml            "live reports PVC (payments-service-notests)"
+apply_if deploy/13-live-reports-pvc-gradec.yaml             "live reports PVC (payments-service-grade-c)"
+apply_if deploy/14-live-reports-pvc-gradef.yaml             "live reports PVC (payments-service-grade-f)"
 apply_if deploy/20-scorecard-viewer-deployment.yaml        "scorecard viewer (nginx)"
 apply_if deploy/21-scorecard-viewer-notests-deployment.yaml "scorecard viewer notests (nginx)"
+apply_if deploy/26-scorecard-viewer-gradec-deployment.yaml  "scorecard viewer gradec (nginx)"
+apply_if deploy/28-scorecard-viewer-gradef-deployment.yaml  "scorecard viewer gradef (nginx)"
 apply_if deploy/22-scorecard-route.yaml                    "scorecard route"
 apply_if deploy/23-scorecard-route-notests.yaml            "scorecard route notests"
+apply_if deploy/27-scorecard-route-gradec.yaml             "scorecard route gradec"
+apply_if deploy/29-scorecard-route-gradef.yaml             "scorecard route gradef"
 apply_if deploy/40-canary-cab-rbac.yaml                    "CAB + canary RBAC (Role + binding)"
 
 # git-clone from the Tekton catalog (needs network egress from your machine)

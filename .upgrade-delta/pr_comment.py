@@ -33,6 +33,77 @@ def _load(path):
     return None
 
 
+def _load_demo_grades(scorecard=None):
+    """Catalog context from scorecard payload or catalogs/lightwell-demo-grades.json."""
+    if scorecard and scorecard.get("catalog_context"):
+        return scorecard["catalog_context"]
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(here, "catalogs", "lightwell-demo-grades.json"),
+        os.path.join(here, "..", "..", "catalogs", "lightwell-demo-grades.json"),
+        os.path.join(here, "..", "catalogs", "lightwell-demo-grades.json"),
+        os.path.join("catalogs", "lightwell-demo-grades.json"),
+        os.path.join(".upgrade-delta", "catalogs", "lightwell-demo-grades.json"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                with open(path) as f:
+                    return json.load(f)
+            except (OSError, json.JSONDecodeError):
+                return None
+    return None
+
+
+def _catalog_context_md(scorecard):
+    """Compact remidiated + validated tables for the PR (not this change's grade)."""
+    ctx = _load_demo_grades(scorecard)
+    if not ctx:
+        return []
+    rem = ctx.get("remediated_same_base") or []
+    val = ctx.get("validated_ranked") or []
+    if not rem and not val:
+        return []
+    lines = [
+        "",
+        "### Lightwell catalog context *(not this PR's grade)*",
+        "",
+        "_" + (ctx.get("note") or
+               "Same-base remidiated / validated corpus — community vs `.rhlw`.") + "_",
+    ]
+    if rem:
+        lines += [
+            "",
+            "| Library | Pair | Grade |",
+            "|---|---|---|",
+        ]
+        for row in rem:
+            grade = row.get("grade") or "?"
+            flag = row.get("flag") or ""
+            shown = f"{BADGE.get(grade, '⚪')} {grade}" + (f" ({flag})" if flag else "")
+            lines.append(
+                f"| **`{row.get('library') or '?'}`** | "
+                f"`{row.get('old') or '?'}` → `{row.get('new') or '?'}` | "
+                f"{shown} |"
+            )
+    if val:
+        lines += [
+            "",
+            f"*{ctx.get('validated_summary') or 'Validated catalog: all 7 = B (none A / C / F).'}*",
+            "",
+            "| Rank | Library | Churn | Flag for “just a rebuild” |",
+            "|---:|---|---:|---|",
+        ]
+        for row in val:
+            lines.append(
+                f"| {row.get('rank') or ''} | **`{row.get('library') or '?'}`** | "
+                f"{row.get('churn_pct', '?')}% | {row.get('flag') or ''} |"
+            )
+    lines.append("")
+    lines.append("Full tables: `scorecard.html` → *Lightwell catalog grades*.")
+    return lines
+
+
 def render(scorecard, *, selection=None, test_results=None, cab_signoff=None):
     r = scorecard
     p = r["project"]
@@ -79,6 +150,8 @@ def render(scorecard, *, selection=None, test_results=None, cab_signoff=None):
             )
     else:
         lines += ["", "_No Lightwell adoption detected in this change — nothing to grade._"]
+
+    lines += _catalog_context_md(r)
 
     if selection:
         t = selection["totals"]

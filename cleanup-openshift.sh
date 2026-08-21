@@ -117,6 +117,8 @@ if [ "$KEEP_PVC" != 1 ]; then
   del pvc upgrade-delta-reports
   del pvc upgrade-delta-live-reports
   del pvc upgrade-delta-live-reports-notests
+  del pvc upgrade-delta-live-reports-gradec
+  del pvc upgrade-delta-live-reports-gradef
 fi
 
 if [ "$PURGE" = 1 ]; then

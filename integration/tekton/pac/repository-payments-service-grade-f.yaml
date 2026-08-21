@@ -1,0 +1,15 @@
+# Pipelines-as-Code Repository CR for the grade-F (reachable break) demo app.
+apiVersion: pipelinesascode.tekton.dev/v1alpha1
+kind: Repository
+metadata:
+  name: payments-service-grade-f
+  namespace: upgrade-delta-demo
+spec:
+  url: "https://github.com/anurag-saran/payments-service-grade-f"
+  git_provider:
+    secret:
+      name: upgrade-delta-provider-token
+      key: provider.token
+    webhook_secret:
+      name: upgrade-delta-provider-token
+      key: webhook.secret

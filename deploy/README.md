@@ -10,18 +10,24 @@ demo is reproducible if the cluster is ever rebuilt.
 | `10-reports-pvc.yaml` | PVC | Shared `upgrade-delta-reports` volume — fixture pipeline workspace **and** the viewer docroot. Must be **ReadWriteMany**. |
 | `11-live-reports-pvc.yaml` | PVC | Separate `upgrade-delta-live-reports` volume for the live pom pipeline (**payments-service**, with tests). Keeps fixture + live from colliding. |
 | `12-live-reports-pvc-notests.yaml` | PVC | Separate `upgrade-delta-live-reports-notests` for **payments-service-notests** (REACHABILITY_ONLY). Prevents with-tests / no-tests live runs from racing on one PVC. |
+| `13-live-reports-pvc-gradec.yaml` | PVC | Separate `upgrade-delta-live-reports-gradec` for **payments-service-grade-c**. |
+| `14-live-reports-pvc-gradef.yaml` | PVC | Separate `upgrade-delta-live-reports-gradef` for **payments-service-grade-f**. |
 | `20-scorecard-viewer-deployment.yaml` | ConfigMap + Deployment | Read-only nginx for the with-tests live reports PVC. |
 | `21-scorecard-viewer-notests-deployment.yaml` | ConfigMap + Deployment | Second nginx viewer mounting the notests PVC. |
+| `26-scorecard-viewer-gradec-deployment.yaml` | ConfigMap + Deployment | Viewer for grade-C PVC. |
+| `28-scorecard-viewer-gradef-deployment.yaml` | ConfigMap + Deployment | Viewer for grade-F PVC. |
 | `22-scorecard-route.yaml` | Service + Route | Exposes the with-tests viewer (`scorecard`). |
 | `23-scorecard-route-notests.yaml` | Service + Route | Exposes the notests viewer (`scorecard-notests`). |
+| `27-scorecard-route-gradec.yaml` | Service + Route | Exposes the grade-C viewer (`scorecard-gradec`). |
+| `29-scorecard-route-gradef.yaml` | Service + Route | Exposes the grade-F viewer (`scorecard-gradef`). |
 
 ## Apply from the console (no terminal)
 
 Console → **＋ (Import YAML)**, top-right. Paste the contents of each file (or all of them
 at once, separated by `---`) and **Create**. Do them in filename order.
 
-For live demos, apply `11-…` + `12-…` PVCs and both viewers/routes
-(see `docs/DEMO-LIVE-POM.md`). `setup-openshift.sh` applies fixture + both live
+For live demos, apply `11-…` through `14-…` PVCs and all four viewers/routes
+(see `docs/DEMO-LIVE-POM.md`). `setup-openshift.sh` applies fixture + live
 PVC/viewer stacks when those files are present.
 
 ## The one gotcha: the PVC must be ReadWriteMany
@@ -43,5 +49,7 @@ Get scorecard URLs from **Networking → Routes**:
 |---|---|---|
 | With tests | `scorecard` | `https://scorecard-upgrade-delta-demo.apps…/out/reports/scorecard.html` |
 | No tests | `scorecard-notests` | `https://scorecard-notests-upgrade-delta-demo.apps…/out/reports/scorecard.html` |
+| Grade C | `scorecard-gradec` | `https://scorecard-gradec-upgrade-delta-demo.apps…/out/reports/scorecard.html` |
+| Grade F | `scorecard-gradef` | `https://scorecard-gradef-upgrade-delta-demo.apps…/out/reports/scorecard.html` |
 
 Also useful: `/out/reports/coverage.html` and `/out/reports/` (directory listing).

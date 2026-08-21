@@ -1,0 +1,19 @@
+# Dedicated reports volume for the LIVE grade-F pipeline
+# (upgrade-delta-live-pr-gradef / payments-service-grade-f).
+#
+# SEPARATE from with-tests, notests, and gradec PVCs ON PURPOSE so concurrent
+# demos never overwrite each other's scorecards.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: upgrade-delta-live-reports-gradef
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app.kubernetes.io/component: live-reports-gradef
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi

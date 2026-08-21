@@ -5,18 +5,22 @@ in `pom.xml` → fetch old/new jars → grade → select/run tests → grade-gat
 decision** (A/B auto-signoff, C human) → optional **progressive canary** → PR comment
 → **reset** so the next demo can bump again.
 
-There are **three** sibling live apps (not vendored inside this tool repo):
+There are **four** sibling live apps (not vendored inside this tool repo):
 
-| | **With tests (B)** | **REACHABILITY_ONLY** | **Grade C / human CAB** |
-|---|---|---|---|
-| Repo | [payments-service](https://github.com/anurag-saran/payments-service) | [payments-service-notests](https://github.com/anurag-saran/payments-service-notests) | [payments-service-grade-c](https://github.com/anurag-saran/payments-service-grade-c) |
-| Hero bump | jackson `2.13.4` → `.rhlw` (drop-in) | Same jackson bump; empty tests | json-path `2.7.0` → `2.8.0.rhlw-00001` (base-version) |
-| Expected headline | **B** (auto CAB) | **REACHABILITY_ONLY** honesty | **C** (human CAB wait) |
-| PipelineRun name | `upgrade-delta-live-pr` | `upgrade-delta-live-pr-notests` | `upgrade-delta-live-pr-gradec` |
-| PVC | `upgrade-delta-live-reports` | `upgrade-delta-live-reports-notests` | `upgrade-delta-live-reports-gradec` |
-| Scorecard Route | `scorecard` | `scorecard-notests` | `scorecard-gradec` |
-| Typical host | `scorecard-upgrade-delta-demo.apps…` | `scorecard-notests-upgrade-delta-demo.apps…` | `scorecard-gradec-upgrade-delta-demo.apps…` |
-| Demo cycle | `./scripts/demo-live-cycle.sh` | `./scripts/demo-live-cycle.sh` | `./scripts/demo-live-cycle.sh` |
+| | **With tests (B)** | **REACHABILITY_ONLY** | **Grade C / human CAB** | **Grade F / gate fail** |
+|---|---|---|---|---|
+| Repo | [payments-service](https://github.com/anurag-saran/payments-service) | [payments-service-notests](https://github.com/anurag-saran/payments-service-notests) | [payments-service-grade-c](https://github.com/anurag-saran/payments-service-grade-c) | [payments-service-grade-f](https://github.com/anurag-saran/payments-service-grade-f) |
+| Hero bump | jackson `2.13.4` → `.rhlw` (validated drop-in) | Same jackson bump; empty tests | json-path `2.7.0` → `2.8.0.rhlw-00001` (base-version) | snakeyaml `1.30` → `1.33` (community) |
+| Expected headline | **B** (auto CAB) | **REACHABILITY_ONLY** honesty | **C** (human CAB wait) | **F** (grade-gate fails) |
+| PipelineRun name | `upgrade-delta-live-pr` | `upgrade-delta-live-pr-notests` | `upgrade-delta-live-pr-gradec` | `upgrade-delta-live-pr-gradef` |
+| PVC | `upgrade-delta-live-reports` | `upgrade-delta-live-reports-notests` | `upgrade-delta-live-reports-gradec` | `upgrade-delta-live-reports-gradef` |
+| Scorecard Route | `scorecard` | `scorecard-notests` | `scorecard-gradec` | `scorecard-gradef` |
+| Typical host | `scorecard-upgrade-delta-demo.apps…` | `scorecard-notests-upgrade-delta-demo.apps…` | `scorecard-gradec-upgrade-delta-demo.apps…` | `scorecard-gradef-upgrade-delta-demo.apps…` |
+| Demo cycle | `./scripts/demo-live-cycle.sh` | `./scripts/demo-live-cycle.sh` | `./scripts/demo-live-cycle.sh` | `./scripts/demo-live-cycle.sh` |
+
+**Slide-only A:** json-path same-base remidiation (`2.8.0` → `2.8.0.rhlw-00001`) grades **A** in
+jar evidence (`.e2e-grade-scan/SPEAKER-CHEATSHEET-REMEDIATED.md`). It is **not** a fifth
+live app — the soft live lane with tests remains jackson → **B** (validated).
 
 Offline fixture demos still use `examples/demo-jars/`.
 
@@ -24,18 +28,18 @@ This is **not** the fixture demo (SBOM / README PR). That path is
 [`DEMO-HANDS-ON.md`](DEMO-HANDS-ON.md). Concepts: [`DEMO-101.md`](DEMO-101.md).  
 Full engineering detail: [`../integration/tekton/real-pipeline/README.md`](../integration/tekton/real-pipeline/README.md).
 
-| | Fixture demo (this repo) | Live pom (with tests) | Live pom (no tests) | Live pom (grade C) |
-|---|---|---|---|---|
-| Trigger file | `.tekton/pull-request.yaml` | `payments-service/.tekton/pull-request-live.yaml` | `payments-service-notests/.tekton/pull-request-live.yaml` | `payments-service-grade-c/.tekton/pull-request-live.yaml` |
-| Pipeline | `upgrade-delta-demo` | `upgrade-delta-live` | `upgrade-delta-live` | `upgrade-delta-live` |
-| What you change | SBOM / README (any small PR) | A **dependency version** in `pom.xml` | Same | json-path **only** (never snakeyaml) |
-| What gets graded | Committed `examples/` fixtures | App jar + Central/Lightwell jars + Surefire | App jar + Central/Lightwell jars; **no Surefire** | App jar + jars + Surefire; headline **C** |
-| PVC | `upgrade-delta-reports` | `upgrade-delta-live-reports` | `upgrade-delta-live-reports-notests` | `upgrade-delta-live-reports-gradec` |
-| Reset for next time | n/a | **Close PR without merge** | **Close PR without merge** | **Close PR without merge** |
+| | Fixture demo (this repo) | Live pom (with tests) | Live pom (no tests) | Live pom (grade C) | Live pom (grade F) |
+|---|---|---|---|---|---|
+| Trigger file | `.tekton/pull-request.yaml` | `payments-service/.tekton/pull-request-live.yaml` | `payments-service-notests/.tekton/pull-request-live.yaml` | `payments-service-grade-c/.tekton/pull-request-live.yaml` | `payments-service-grade-f/.tekton/pull-request-live.yaml` |
+| Pipeline | `upgrade-delta-demo` | `upgrade-delta-live` | `upgrade-delta-live` | `upgrade-delta-live` | `upgrade-delta-live` |
+| What you change | SBOM / README (any small PR) | A **dependency version** in `pom.xml` | Same | json-path **only** (never snakeyaml) | snakeyaml **only** (never json-path) |
+| What gets graded | Committed `examples/` fixtures | App jar + Central/Lightwell jars + Surefire | App jar + Central/Lightwell jars; **no Surefire** | App jar + jars + Surefire; headline **C** | App jar + jars; headline **F** |
+| PVC | `upgrade-delta-reports` | `upgrade-delta-live-reports` | `upgrade-delta-live-reports-notests` | `upgrade-delta-live-reports-gradec` | `upgrade-delta-live-reports-gradef` |
+| Reset for next time | n/a | **Close PR without merge** | **Close PR without merge** | **Close PR without merge** | **Close PR without merge** |
 
 ---
 
-## Three live demos — how the presenter switches
+## Four live demos — how the presenter switches
 
 Use **separate PRs in separate repos** so scorecards never race on one PVC.
 
@@ -81,23 +85,38 @@ Talking points for C: json-path `2.7.0` → `2.8.0.rhlw-00001` is a **base-versi
 (`fail-on: D`); auto CAB does **not** apply — the run pauses until the ConfigMap exists.
 Do **not** bump snakeyaml in this lane (that headlines **F** and fails the gate).
 
-All three scorecard viewers stay up at the same time — open three browser tabs.
+**D. Grade F / gate fail (community snakeyaml reachable break)**
+
+```bash
+cd ../payments-service-grade-f
+./scripts/demo-live-cycle.sh start
+# Watch: PipelineRun upgrade-delta-live-pr-gradef-…
+# Scorecard: https://scorecard-gradef-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html
+# Expect: headline F → grade-gate fails (fail-on D)
+./scripts/demo-live-cycle.sh finish
+```
+
+Talking points for D: snakeyaml `1.30` → `1.33` (community, no `.rhlw`) removes
+`Constructor(TypeDescription, Collection)`; `ConfigLoader` reaches it → **F**. Same
+library on the grade-C lane stays at `1.30` so C and F never collide.
+
+All four scorecard viewers stay up at the same time — open four browser tabs.
 
 ---
 
 ## Recommended demo cycle (repeatable)
 
-Each live app keeps community pins on **main**. Each demo opens a PR that adopts
-Lightwell, then closes that PR so main never stays on `.rhlw-…`.
+Each live app keeps community pins on **main**. Each demo opens a PR that bumps the
+hero dependency, then closes that PR so main never stays on the demo target.
 
 ```bash
 # From the chosen app repo:
 ./scripts/demo-live-cycle.sh start
-# …watch upgrade-delta-live-pr-… / -notests-… / -gradec-… on the cluster…
+# …watch upgrade-delta-live-pr-… / -notests-… / -gradec-… / -gradef-… on the cluster…
 ./scripts/demo-live-cycle.sh finish
 ```
 
-**Never merge** the demo PR. Merging would leave main on Lightwell and the next
+**Never merge** the demo PR. Merging would leave main on the demo target and the next
 `start` would have nothing to bump.
 
 Reference after-state (do not commit as baseline): `payments-service/pom-demo-trigger.xml`.
@@ -117,12 +136,15 @@ Reference after-state (do not commit as baseline): `payments-service/pom-demo-tr
    oc apply -f deploy/11-live-reports-pvc.yaml \
             -f deploy/12-live-reports-pvc-notests.yaml \
             -f deploy/13-live-reports-pvc-gradec.yaml \
+            -f deploy/14-live-reports-pvc-gradef.yaml \
             -f deploy/20-scorecard-viewer-deployment.yaml \
             -f deploy/21-scorecard-viewer-notests-deployment.yaml \
             -f deploy/26-scorecard-viewer-gradec-deployment.yaml \
+            -f deploy/28-scorecard-viewer-gradef-deployment.yaml \
             -f deploy/22-scorecard-route.yaml \
             -f deploy/23-scorecard-route-notests.yaml \
             -f deploy/27-scorecard-route-gradec.yaml \
+            -f deploy/29-scorecard-route-gradef.yaml \
             -n upgrade-delta-demo
    ```
 3. Apply live Pipeline + Tasks from this repo (`integration/tekton/real-pipeline/…`),
@@ -147,30 +169,31 @@ Reference after-state (do not commit as baseline): `payments-service/pom-demo-tr
    and create/delete ConfigMap `upgrade-delta-cab-approved` in the demo namespace
    (`oc apply -f deploy/40-canary-cab-rbac.yaml -n upgrade-delta-demo` from upgrade-delta).
 
-### B. Wire payments-service (+ notests + grade-c)
+### B. Wire payments-service (+ notests + grade-c + grade-f)
 
-All three apps vendor `.upgrade-delta/` and `.tekton/pull-request-live.yaml`
+All four apps vendor `.upgrade-delta/` and `.tekton/pull-request-live.yaml`
 (app-module-dir `.`, pom-path `pom.xml`). Refresh the bundle anytime:
 
 ```bash
-# from payments-service, payments-service-notests, or payments-service-grade-c
+# from any live app repo
 ./scripts/pull-upgrade-delta-bundle.sh
 ```
 
-Register **all three** repos with Pipelines-as-Code in the same namespace
+Register **all four** repos with Pipelines-as-Code in the same namespace
 ([`INSTALL-OPENSHIFT.md`](INSTALL-OPENSHIFT.md)):
 
 ```bash
 oc apply -f integration/tekton/pac/repository-payments-service.yaml \
          -f integration/tekton/pac/repository-payments-service-notests.yaml \
          -f integration/tekton/pac/repository-payments-service-grade-c.yaml \
+         -f integration/tekton/pac/repository-payments-service-grade-f.yaml \
          -n upgrade-delta-demo
 ```
 
-Also install the GitHub App / webhook on **payments-service-notests** and
-**payments-service-grade-c** the same way as payments-service (or
-`opc pac create repository` / console PaC wizard). The Repository CR alone is not
-enough until the webhook delivers events for that repo URL. Reuse secret
+Also install the GitHub App / webhook on **payments-service-notests**,
+**payments-service-grade-c**, and **payments-service-grade-f** the same way as
+payments-service (or `opc pac create repository` / console PaC wizard). The Repository
+CR alone is not enough until the webhook delivers events for that repo URL. Reuse secret
 `upgrade-delta-provider-token` (`provider.token` + `webhook.secret`).
 
 ---
@@ -181,6 +204,7 @@ In the chosen app repo, on a branch from main, edit `pom.xml`:
 
 - **With tests / notests:** bump jackson to `2.13.4.rhlw-00001`
 - **Grade C:** bump **only** json-path to `2.8.0.rhlw-00001` (leave snakeyaml alone)
+- **Grade F:** bump **only** snakeyaml to `1.33` (leave json-path alone)
 
 Open a PR into `main`, watch the matching `upgrade-delta-live-pr-…` PipelineRun,
 then **close without merging** (or run `./scripts/demo-live-cycle.sh finish`).
@@ -190,7 +214,7 @@ then **close without merging** (or run `./scripts/demo-live-cycle.sh finish`).
 ## What “good” looks like
 
 - Scorecard grades the adoption (typically **B** for jackson drop-in; **C** for
-  json-path base-version on the grade-c lane).
+  json-path base-version on the grade-c lane; **F** for snakeyaml on the grade-f lane).
 - **With tests:** selected Surefire tests run against the built jar.
 - **No tests (`payments-service-notests`):** empty `tests-dir` → **REACHABILITY_ONLY** —
   grade from call-site analysis, no Surefire (see DESIGN-DECISIONS §10). Canary would be
@@ -215,11 +239,12 @@ then **close without merging** (or run `./scripts/demo-live-cycle.sh finish`).
 | Symptom | Check |
 |---|---|
 | Live PipelineRun never starts | PaC Repository CR for the **correct** app repo; `.tekton/pull-request-live.yaml` on the PR branch; GitHub App / webhook installed on that repo |
-| Scorecard wiped / wrong demo's HTML | Confirm PVC + Route: with-tests → `upgrade-delta-live-reports` / `scorecard`; notests → `…-notests` / `scorecard-notests`; grade-c → `…-gradec` / `scorecard-gradec` |
+| Scorecard wiped / wrong demo's HTML | Confirm PVC + Route: with-tests → `upgrade-delta-live-reports` / `scorecard`; notests → `…-notests` / `scorecard-notests`; grade-c → `…-gradec` / `scorecard-gradec`; grade-f → `…-gradef` / `scorecard-gradef` |
 | Maven resolve failures | `lightwell-maven-settings` secret; public demo repos in `pom.xml` |
 | Wrong app graded | `app-name`, `app-module-dir: '.'`, `pom-path: pom.xml` on the live trigger |
 | `demo-live-cycle.sh` missing app | Clone the sibling app or run the script inside that repo |
 | Stuck at `cab-decision` | Grade is C (or override); create `upgrade-delta-cab-approved` ConfigMap |
 | Grade-c headlines F | Ensure snakeyaml was **not** bumped; only json-path |
+| Grade-f does not fail | Ensure snakeyaml was bumped to `1.33` and `ConfigLoader` is in the app jar |
 | Canary fails / skipped | Deployments + Route from `deploy/30-payments-canary.yaml`; SA RBAC; or set `enable-canary=false` |
 | PaC “cannot find referenced task” | Annotations `task-9`…`task-11` for cab / build / canary in `.tekton/pull-request-live.yaml` |

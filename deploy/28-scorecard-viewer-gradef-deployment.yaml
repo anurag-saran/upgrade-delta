@@ -1,0 +1,73 @@
+# Scorecard viewer for the grade-F (reachable break) live demo.
+# Mounts upgrade-delta-live-reports-gradef.
+#
+# Browse to:
+#     https://scorecard-gradef-upgrade-delta-demo.apps.asaran.na-launch.com/out/reports/scorecard.html
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scorecard-viewer-gradef-nginx
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-gradef
+data:
+  autoindex.conf: |
+    autoindex on;
+    autoindex_exact_size off;
+    autoindex_localtime on;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scorecard-viewer-gradef
+  namespace: upgrade-delta-demo
+  labels:
+    app.kubernetes.io/part-of: upgrade-delta
+    app: scorecard-viewer-gradef
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scorecard-viewer-gradef
+  template:
+    metadata:
+      labels:
+        app: scorecard-viewer-gradef
+    spec:
+      containers:
+        - name: nginx
+          image: registry.access.redhat.com/ubi9/nginx-124:latest
+          command: ["nginx"]
+          args: ["-g", "daemon off;"]
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: reports
+              mountPath: /opt/app-root/src
+              readOnly: true
+            - name: nginx-config
+              mountPath: /opt/app-root/etc/nginx.default.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: reports
+          persistentVolumeClaim:
+            claimName: upgrade-delta-live-reports-gradef
+        - name: nginx-config
+          configMap:
+            name: scorecard-viewer-gradef-nginx

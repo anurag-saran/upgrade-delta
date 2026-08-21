@@ -952,6 +952,11 @@ def analyze(args):
             "rated_libraries": len(compat["libraries"]), "unrated_package_roots": 0,
             "lane_histogram": histogram,
         }
+        # Catalog context is not this PR's grade — attach once for scorecard/PR.
+        if not compat.get("catalog_context"):
+            ctx = load_demo_grades()
+            if ctx:
+                compat["catalog_context"] = ctx
         with open(args.scorecard_compat, "w") as f:
             json.dump(compat, f, indent=2)
         print(f"  scorecard (compat): {args.scorecard_compat} "
@@ -2606,6 +2611,9 @@ def scan(args):
             "catalog_coverage": catalog_coverage,
         },
     }
+    demo_grades = load_demo_grades()
+    if demo_grades:
+        result["catalog_context"] = demo_grades
 
     # terminal
     print(f"\n== upgrade-delta scan :: {result['app']} ==")
@@ -3057,6 +3065,86 @@ def _tests_outcome_banner_html(test_results, *, project_grade=None):
             f'<b>0</b> failed ✓{caveat}</p>')
 
 
+def load_demo_grades():
+    """Load static Lightwell demo corpus grades (validated + remidiated tables).
+
+    Not this PR's headline — catalog context for scorecard.html / PR comments.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(here, "catalogs", "lightwell-demo-grades.json"),
+        os.path.join(here, ".upgrade-delta", "catalogs", "lightwell-demo-grades.json"),
+        os.path.join("catalogs", "lightwell-demo-grades.json"),
+        os.path.join(".upgrade-delta", "catalogs", "lightwell-demo-grades.json"),
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            try:
+                with open(path) as f:
+                    return json.load(f)
+            except (OSError, json.JSONDecodeError):
+                return None
+    return None
+
+
+def _catalog_context_html(r):
+    """Remidiated same-base + validated ranked tables (corpus context)."""
+    ctx = r.get("catalog_context") or load_demo_grades()
+    if not ctx:
+        return ""
+    rem = ctx.get("remediated_same_base") or []
+    val = ctx.get("validated_ranked") or []
+    if not rem and not val:
+        return ""
+
+    rem_rows = "".join(
+        f"<tr><td><b>{esc(row.get('library') or '')}</b></td>"
+        f"<td class=\"m\">{esc(row.get('old') or '?')} → {esc(row.get('new') or '?')}</td>"
+        f"<td><span class=\"chip\" style=\"--c:{GRADE_COLOR.get(row.get('grade'), 'var(--steel)')}\">"
+        f"{esc(row.get('grade') or '?')}</span></td>"
+        f"<td>{esc(row.get('flag') or '')}</td></tr>"
+        for row in rem
+    )
+    val_rows = "".join(
+        f"<tr><td>{int(row.get('rank') or 0)}</td>"
+        f"<td><b>{esc(row.get('library') or '')}</b></td>"
+        f"<td>{esc(str(row.get('churn_pct') if row.get('churn_pct') is not None else '?'))}%</td>"
+        f"<td><span class=\"chip\" style=\"--c:{GRADE_COLOR.get(row.get('grade'), 'var(--steel)')}\">"
+        f"{esc(row.get('grade') or '?')}</span></td>"
+        f"<td>{esc(row.get('flag') or '')}</td></tr>"
+        for row in val
+    )
+    summary = esc(ctx.get("validated_summary")
+                  or "Every validated demo rebuild graded B — none A / C / F.")
+    note = esc(ctx.get("note") or (
+        "Catalog context — not this PR's project grade. Same-base remidiated and "
+        "validated corpus measurements from community vs .rhlw jars."
+    ))
+
+    rem_table = (
+        f'<h3>Remidiated same-base (community → .rhlw)</h3>'
+        f'<table class="deps catalog-ctx"><thead><tr>'
+        f'<th>Library</th><th>Pair</th><th>Grade</th><th>Flag</th>'
+        f'</tr></thead><tbody>{rem_rows}</tbody></table>'
+        if rem_rows else ""
+    )
+    val_table = (
+        f'<h3>Validated catalog — all graded B</h3>'
+        f'<p class="catalog-note">{summary}</p>'
+        f'<table class="deps catalog-ctx"><thead><tr>'
+        f'<th>Rank</th><th>Library</th><th>Churn</th><th>Grade</th>'
+        f'<th>Flag for “just a rebuild”</th>'
+        f'</tr></thead><tbody>{val_rows}</tbody></table>'
+        if val_rows else ""
+    )
+    return f'''<details class="catalog-details" open id="lightwell-catalog-grades">
+  <summary>Lightwell catalog grades (demo corpus)</summary>
+  <p class="catalog-note">{note}</p>
+  {rem_table}
+  {val_table}
+</details>'''
+
+
 def render_scorecard(r, test_results=None):
     p = r["project"]
     libs = r["libraries"]
@@ -3065,6 +3153,7 @@ def render_scorecard(r, test_results=None):
     verdict = _verdict_html(p, libs)
     testing = _testing_summary_html(libs)
     bridge = _coverage_bridge_html(p, libs)
+    catalog_ctx = _catalog_context_html(r)
 
     compare = ""
     if p.get("worst_without_best_path") and p["worst_without_best_path"] != p["headline_grade"]:
@@ -3153,6 +3242,11 @@ not the same as catalog “uncovered”: a package can be Lightwell drop-in read
 .bridge{{margin:8px 0 0;padding:12px 14px;border-left:4px solid var(--steel);
   background:color-mix(in srgb,var(--steel) 8%,var(--card));border-radius:0 6px 6px 0;
   font-size:13.5px;line-height:1.5;color:var(--ink)}}
+.catalog-details{{margin:22px 0 0;max-width:78ch}}
+.catalog-details summary{{cursor:pointer;font-weight:700;font-size:15px;color:var(--ink)}}
+.catalog-details h3{{font-size:14.5px;margin:16px 0 8px}}
+.catalog-note{{font-size:13px;line-height:1.45;color:var(--ink-soft);max-width:72ch;margin:8px 0 12px}}
+table.catalog-ctx{{margin:0 0 8px}}
 .triage{{margin:0 0 16px;font-size:15.5px;line-height:1.45;max-width:72ch;font-weight:500}}
 .tests-banner{{margin:0 0 18px;padding:10px 12px;border-radius:6px;font-size:14px;
   line-height:1.45;max-width:72ch}}
@@ -3242,6 +3336,7 @@ details.limits summary{{cursor:pointer;font-weight:700;font-size:15px}}
   {transitive_key}
   {deps_html}
   {bridge}
+  {catalog_ctx}
   {hazards_html}
   {heur_html}
   {unrated_html}
@@ -3508,7 +3603,8 @@ def render_coverage(r):
     <div class="change-h">This PR / pipeline bumps {len(this_change)} librar{"y" if len(this_change) == 1 else "ies"}</div>
     <p class="change-s">Coverage stays the whole-app catalog meter. Rows tagged
     <span class="bump">In this PR</span> are the same bumps graded on
-    <a href="scorecard.html">scorecard.html</a> and summarized in the CAB PR comment.</p>
+    <a href="scorecard.html">scorecard.html</a> (and its catalog-grades section) and
+    summarized in the CAB PR comment.</p>
     <ul class="change-list">{items}</ul>
   </div>'''
 
@@ -3562,7 +3658,9 @@ td.act{{color:var(--ink);font-size:12.5px}}
   <b>published delta evidence</b> your app reaches (often a small subset). The
   <span class="m">{exact_n}/{total}</span> drop-in rows below are usually a version-suffix
   swap — they belong here, not as extra graded rows on scorecard.html.
-  See also <a href="scorecard.html">scorecard.html</a> for this PR's graded bumps.</p>
+  See also <a href="scorecard.html">scorecard.html</a> for this PR's graded bumps
+  and the <a href="scorecard.html#lightwell-catalog-grades">Lightwell catalog grades</a>
+  (validated all-B / remidiated same-base context).</p>
   {change_banner}
   <div class="legend">
     <div class="li"><span class="dot" style="background:var(--pass)"></span>

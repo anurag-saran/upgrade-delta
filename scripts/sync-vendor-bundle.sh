@@ -19,6 +19,8 @@ cp -f test_router.py "$STAGING/$DEST/test_router.py"
 cp -f integration/github-action/pr_comment.py "$STAGING/$DEST/pr_comment.py"
 cp -f catalogs/lightwell-remediated-java-sbom.json \
   "$STAGING/$DEST/catalogs/lightwell-remediated-java-sbom.json"
+cp -f catalogs/lightwell-demo-grades.json \
+  "$STAGING/$DEST/catalogs/lightwell-demo-grades.json"
 cp -f integration/jacoco/jacoco2coverage.py "$STAGING/$DEST/jacoco/jacoco2coverage.py"
 
 # Real pipeline (source of truth)

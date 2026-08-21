@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "note": "Demo corpus grades from community vs Lightwell .rhlw jars (upgrade_delta analyze). Not this PR's headline — catalog context only.",
+  "sources": {
+    "validated": "https://console.redhat.com/lightwell/demo/java-validated-demo",
+    "remediated": "https://packages.redhat.com/lightwell/public-lightwell-demo/java/remediated/"
+  },
+  "remediated_same_base": [
+    {
+      "library": "org.json",
+      "old": "20220320",
+      "new": "20220320.0.0.rhlw-00003",
+      "grade": "B",
+      "flag": "+14 API"
+    },
+    {
+      "library": "woodstox-core",
+      "old": "6.0.3",
+      "new": "6.0.3.rhlw-00001",
+      "grade": "B",
+      "flag": "+2 API (pom resources ≠ behavior)"
+    },
+    {
+      "library": "spring-core",
+      "old": "5.3.18",
+      "new": "5.3.18.rhlw-00003",
+      "grade": "B",
+      "flag": "license/notice resources"
+    },
+    {
+      "library": "json-path",
+      "old": "2.8.0",
+      "new": "2.8.0.rhlw-00001",
+      "grade": "A",
+      "flag": "quiet same-base remidiation"
+    },
+    {
+      "library": "json-path",
+      "old": "2.7.0",
+      "new": "2.7.0.rhlw-00001",
+      "grade": "A",
+      "flag": "quiet same-base remidiation"
+    }
+  ],
+  "validated_ranked": [
+    {
+      "rank": 1,
+      "library": "httpclient",
+      "old": "4.5.12",
+      "new": "4.5.12.rhlw-00001",
+      "grade": "B",
+      "churn_pct": 42.1,
+      "flag": "198 classes; public-suffix-list.txt moved — best demo"
+    },
+    {
+      "rank": 2,
+      "library": "snakeyaml",
+      "old": "1.33",
+      "new": "1.33.0.rhlw-00001",
+      "grade": "B",
+      "churn_pct": 11.6,
+      "flag": "+15 public members"
+    },
+    {
+      "rank": 3,
+      "library": "org.json",
+      "old": "20220320",
+      "new": "20220320.0.0.rhlw-00003",
+      "grade": "B",
+      "churn_pct": 7.4,
+      "flag": "+14 public members"
+    },
+    {
+      "rank": 4,
+      "library": "commons-fileupload",
+      "old": "1.4",
+      "new": "1.4.0.rhlw-00001",
+      "grade": "B",
+      "churn_pct": 6.1,
+      "flag": "+5 public members"
+    },
+    {
+      "rank": 5,
+      "library": "logback-classic",
+      "old": "1.2.11",
+      "new": "1.2.11.rhlw-00001",
+      "grade": "B",
+      "churn_pct": 0.6,
+      "flag": "11 resource/default changes"
+    },
+    {
+      "rank": 6,
+      "library": "commons-io",
+      "old": "2.11.0",
+      "new": "2.11.0.rhlw-00001",
+      "grade": "B",
+      "churn_pct": 0.5,
+      "flag": "resource/pom churn"
+    },
+    {
+      "rank": 7,
+      "library": "jackson-databind",
+      "old": "2.13.4",
+      "new": "2.13.4.rhlw-00001",
+      "grade": "B",
+      "churn_pct": 0.3,
+      "flag": "+1 member (live B lane)"
+    }
+  ],
+  "validated_summary": "Every validated demo rebuild graded B — none A / C / F."
+}

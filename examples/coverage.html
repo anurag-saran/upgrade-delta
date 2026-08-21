@@ -97,6 +97,17 @@ table.grid th{text-align:left;font-size:10.5px;letter-spacing:.05em;text-transfo
   color:var(--ink-soft);font-weight:600;padding:11px 12px 7px;border-bottom:1px solid var(--line,#e5e5e5)}
 table.grid td{padding:9px 12px;border-bottom:1px solid var(--line,#eee);font-size:13px;vertical-align:top}
 table.grid tr:last-child td{border-bottom:none}
+tr.this-change td{background:rgba(0,102,204,.06)}
+tr.this-change td.dep{box-shadow:inset 3px 0 0 var(--watch,#f0ab00)}
+.bump{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:4px;
+  font:600 10px/1.4 var(--head,inherit);letter-spacing:.04em;text-transform:uppercase;
+  background:var(--watch,#f0ab00);color:#1f1f1f;vertical-align:middle}
+.change-banner{margin:0 0 22px;padding:14px 16px;border:1px solid var(--watch,#f0ab00);
+  border-left:4px solid var(--watch,#f0ab00);background:rgba(240,171,0,.08);border-radius:6px}
+.change-h{font:700 14px/1.3 var(--head,inherit);margin:0 0 6px}
+.change-s{font-size:12.5px;color:var(--ink-soft);margin:0 0 10px;line-height:1.5;max-width:72ch}
+.change-list{margin:0;padding-left:18px;font-size:12.5px}
+.change-list code{font-size:12px}
 td.dep{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink);white-space:nowrap}
 td.ver{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;color:var(--ink-soft);white-space:nowrap}
 td.ver.arrow{color:var(--pass);font-weight:600}
@@ -114,7 +125,11 @@ td.act{color:var(--ink);font-size:12.5px}
   <b>This is not the project scorecard.</b> The scorecard grades only libraries with
   <b>published delta evidence</b> your app reaches (often a small subset). The
   <span class="m">16/27</span> drop-in rows below are usually a version-suffix
-  swap — they belong here, not as extra graded rows on scorecard.html.</p>
+  swap — they belong here, not as extra graded rows on scorecard.html.
+  See also <a href="scorecard.html">scorecard.html</a> for this PR's graded bumps
+  and the <a href="scorecard.html#lightwell-catalog-grades">Lightwell catalog grades</a>
+  (validated all-B / remidiated same-base context).</p>
+  
   <div class="legend">
     <div class="li"><span class="dot" style="background:var(--pass)"></span>
       <span class="n" style="color:var(--pass)">16</span>
