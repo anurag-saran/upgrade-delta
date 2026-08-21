@@ -112,6 +112,47 @@ if grep -q '<id>ci-community</id>' "$APP_MODULE/pom.xml" 2>/dev/null; then
   BUILD_ARGS+=(-Pci-community)
   echo "  using -Pci-community (Maven Central) for the analysis jar"
 fi
+
+# Pin changed deps back to OLD versions for the analysis jar build.
+# Needed when the PR bumps a library that removes APIs the app still calls
+# (grade-F demos: snakeyaml 1.30→1.33). Jar fetch below still uses OV/NV from CHANGES.
+python3 - <<PY
+import json, pathlib, re
+changes = json.load(open("$CHANGES"))["changed"]
+pom = pathlib.Path("$APP_MODULE") / "pom.xml"
+text = pom.read_text()
+orig = text
+for c in changes:
+    art, ov, nv = c["artifact"], c["old_version"], c["new_version"]
+    if not ov or not nv or ov == nv:
+        continue
+    props = [f"{art}.version"]
+    if "-" in art:
+        props.append(art.replace("-", ".") + ".version")
+    pinned = False
+    for prop in props:
+        tag = f"<{prop}>{nv}</{prop}>"
+        if tag in text:
+            text = text.replace(tag, f"<{prop}>{ov}</{prop}>")
+            print(f"  pin {prop}: {nv} -> {ov} (analysis jar)")
+            pinned = True
+    if not pinned:
+        # Fallback: version element immediately after this artifactId
+        pat = re.compile(
+            rf"(<artifactId>{re.escape(art)}</artifactId>\s*<version>)"
+            + re.escape(nv) + r"(</version>)"
+        )
+        text2, n = pat.subn(rf"\g<1>{ov}\g<2>", text, count=1)
+        if n:
+            text = text2
+            print(f"  pin {art} <version>: {nv} -> {ov} (analysis jar)")
+            pinned = True
+    if not pinned:
+        print(f"  WARN: could not pin {art} {nv}->{ov} in pom — build may fail if API removed")
+if text != orig:
+    pom.write_text(text)
+PY
+
 ( cd "$APP_MODULE" && mvn "${BUILD_ARGS[@]}" )
 APP_JAR=$(find "$APP_MODULE/target" -maxdepth 1 -name '*.jar' \
              -not -name '*-sources.jar' -not -name '*-javadoc.jar' -not -name 'original-*' \
