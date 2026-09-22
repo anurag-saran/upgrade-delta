@@ -182,10 +182,7 @@ by the pipeline / `demo.sh`. After changing the tool or Tekton sources, run
 | `docs/USER-GUIDE.md` | Concepts, command reference, workflows, exit codes, limitations |
 | `docs/DESIGN-DECISIONS.md` | The decisions, with rationale and honest costs |
 | `docs/COMPARISON.md` | Endor Labs, Develocity PTS, Launchable, SCA incumbents — and the seam |
-| [`docs/integrations/`](docs/integrations/README.md) | Lightwell via Artifactory / Nexus; compose with SonarQube |
-| [`docs/integrations/ARTIFACTORY.md`](docs/integrations/ARTIFACTORY.md) | Proxy Lightwell through JFrog Artifactory |
-| [`docs/integrations/NEXUS.md`](docs/integrations/NEXUS.md) | Proxy Lightwell through Sonatype Nexus |
-| [`docs/integrations/SONARQUBE.md`](docs/integrations/SONARQUBE.md) | Sonar quality gate + upgrade-delta (no native plugin) |
+| [`docs/integrations/README.md`](docs/integrations/README.md) | Pointer: customer Artifactory / Nexus / Sonar kit is the sibling repo `lightwell-integrations` |
 | `integration/tekton/pac/README.md` | PR trigger + CAB approval detail |
 | `integration/tekton/rhtas/README.md` | Sigstore / RHTAS evidence signing |
 

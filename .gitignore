@@ -1,6 +1,7 @@
 # --- secrets: never commit ---
 .env.local
 .env
+.local/
 *.pem
 !examples/**/*.pem.pub
 settings.xml
