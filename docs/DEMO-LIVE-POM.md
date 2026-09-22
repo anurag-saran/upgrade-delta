@@ -240,7 +240,7 @@ then **close without merging** (or run `./scripts/demo-live-cycle.sh finish`).
 |---|---|
 | Live PipelineRun never starts | PaC Repository CR for the **correct** app repo; `.tekton/pull-request-live.yaml` on the PR branch; GitHub App / webhook installed on that repo |
 | Scorecard wiped / wrong demo's HTML | Confirm PVC + Route: with-tests → `upgrade-delta-live-reports` / `scorecard`; notests → `…-notests` / `scorecard-notests`; grade-c → `…-gradec` / `scorecard-gradec`; grade-f → `…-gradef` / `scorecard-gradef` |
-| Maven resolve failures | `lightwell-maven-settings` secret; public demo repos in `pom.xml` |
+| Maven resolve failures | `lightwell-maven-settings` secret; public demo repos in `pom.xml`. Customers who centralize remotes: proxy Lightwell via [Artifactory](integrations/ARTIFACTORY.md) or [Nexus](integrations/NEXUS.md) instead of hanging auth on every CI job |
 | Wrong app graded | `app-name`, `app-module-dir: '.'`, `pom-path: pom.xml` on the live trigger |
 | `demo-live-cycle.sh` missing app | Clone the sibling app or run the script inside that repo |
 | Stuck at `cab-decision` | Grade is C (or override); create `upgrade-delta-cab-approved` ConfigMap |

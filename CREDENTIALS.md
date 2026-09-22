@@ -20,7 +20,12 @@ Gather these before running. **Use tokens/service accounts, never account passwo
 Nothing here goes into a file you commit — create secrets on the cluster with `oc`.
 
 ## 1. Red Hat Lightwell — pull the remediated dependencies
-For the Maven build to resolve `…redhat-NNNNN` jars from packages.redhat.com.
+For the Maven build to resolve `…redhat-NNNNN` / `.rhlw-*` jars from packages.redhat.com.
+
+Prefer proxying Lightwell through the customer’s **Artifactory** or **Nexus** so credentials
+live on the repo manager once — see [`docs/integrations/`](docs/integrations/README.md)
+([Artifactory](docs/integrations/ARTIFACTORY.md), [Nexus](docs/integrations/NEXUS.md)).
+The Secret below is the direct-to-packages.redhat.com path used by this OpenShift demo.
 
 | Item | Where to get it | Used as |
 |---|---|---|
